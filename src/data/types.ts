@@ -98,6 +98,7 @@ export interface WavesConfig {
   firstWaveDelay: number;
   waveDelay: number;
   ratFromWave: number;
+  shieldFromWave: number;
 }
 
 export interface LevelsConfig {

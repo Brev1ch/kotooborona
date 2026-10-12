@@ -13,7 +13,7 @@ export const ROAD = { outerWidth: 38, innerWidth: 30, dash: 6, gap: 10 };
 export const SLOT_RADIUS = 14;
 
 /** Порядок отрисовки на игровом поле. */
-export const DEPTH = { highlight: 1, cat: 2, fx: 3, dragged: 4, toast: 5 };
+export const DEPTH = { highlight: 1, enemy: 2, cat: 3, fx: 4, dragged: 5, toast: 6 };
 
 export const COLORS = {
   bg: 0x1b2233,
@@ -31,6 +31,10 @@ export const COLORS = {
   danger: 0xe2604f,
   crystal: 0xb48cf2,
   flash: 0xffffff,
+  enemyNose: 0xf0a3a3,
+  hpBack: 0x000000,
+  hp: 0x7cc48a,
+  shield: 0x8fa3c4,
 };
 
 export const TEXT_COLORS = {

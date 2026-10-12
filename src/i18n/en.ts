@@ -10,6 +10,9 @@ export const en: Record<StringKey, string> = {
   'hud.lives': 'Lives',
   'hud.waveValue': '{current}/{total}',
 
+  'wave.soon': 'Wave {wave} incoming',
+  'wave.bossSoon': 'Rat Commander! Wave {wave} incoming',
+
   'summon.button': 'Summon',
 
   'merge.maxLevel': 'Max level {level}',

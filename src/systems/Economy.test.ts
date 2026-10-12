@@ -75,4 +75,19 @@ describe('Economy', () => {
     expect(economy.crystals).toBe(2);
     expect(economy.lives).toBe(10);
   });
+
+  it('прошедший враг отнимает жизни', () => {
+    const economy = new Economy(level, summon);
+    economy.loseLives(2);
+
+    expect(economy.lives).toBe(8);
+  });
+
+  it('жизни не уходят ниже нуля', () => {
+    const economy = new Economy(level, summon);
+    economy.loseLives(7);
+    economy.loseLives(5);
+
+    expect(economy.lives).toBe(0);
+  });
 });

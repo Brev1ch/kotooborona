@@ -2,7 +2,7 @@ import catsJson from './cats.json';
 import enemiesJson from './enemies.json';
 import gearJson from './gear.json';
 import levelsJson from './levels.json';
-import type { CatsConfig, ElementId, EnemiesConfig, GearConfig, LevelConfig, LevelsConfig } from './types';
+import type { CatsConfig, ElementId, EnemiesConfig, EnemyTypeId, GearConfig, LevelConfig, LevelsConfig } from './types';
 
 // Через unknown: пары стихий в JSON выводятся как string[], а не как кортеж.
 export const cats = catsJson as unknown as CatsConfig;
@@ -19,6 +19,11 @@ export function getLevel(id: string): LevelConfig {
 /** Цвет стихии числом, как его ждёт Phaser. */
 export function elementColor(element: ElementId): number {
   return parseInt(cats.elements[element].color.slice(1), 16);
+}
+
+/** Цвет врага числом, как его ждёт Phaser. */
+export function enemyColor(type: EnemyTypeId): number {
+  return parseInt(enemies.types[type].color.slice(1), 16);
 }
 
 export * from './types';

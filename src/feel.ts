@@ -81,6 +81,23 @@ export const TOAST_FEEL = {
   fadeMs: 250,
 };
 
+/** Враги на дороге. */
+export const ENEMY_FEEL = {
+  hpBarHeight: 4,
+  hpBarGap: 5,
+  hpBackAlpha: 0.5,
+  /** Враг прошёл в ворота: поле вздрагивает. */
+  leakShakeMs: 140,
+  leakShakeIntensity: 0.006,
+};
+
+/** Объявление следующей волны. */
+export const ANNOUNCE_FEEL = {
+  showMs: 200,
+  hideMs: 200,
+  bgAlpha: 0.8,
+};
+
 export const BUTTON_FEEL = {
   pressScale: 0.94,
   pressMs: 70,

@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { cats, getLevel, type ElementId, type LevelConfig } from '../data';
-import { BANNER_FEEL, BUTTON_FEEL, STAT_FEEL } from '../feel';
+import { ANNOUNCE_FEEL, BANNER_FEEL, BUTTON_FEEL, STAT_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_Y, COLORS, CONTROLS_H, CONTROLS_Y, FONTS, GAME_W, HUD_H, TEXT_COLORS } from '../layout';
+import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
 import { GameEvent, SceneKey, type LevelSceneData } from './keys';
 
@@ -19,12 +20,22 @@ const BANNER_W = 280;
 const BANNER_H = 46;
 const BANNER_Y = BOARD_Y + 8;
 
+const ANNOUNCE_BG = `rgba(27, 34, 51, ${ANNOUNCE_FEEL.bgAlpha})`;
+
+/** Объявление волны — между клетками и нижним отрезком дороги, чтобы не закрывать котов. */
+const ANNOUNCE_Y = CONTROLS_Y - 86;
+
 /** HUD поверх GameScene: показатели уровня и кнопка призыва. */
 export class UIScene extends Phaser.Scene {
   private level!: LevelConfig;
   private gameScene!: GameScene;
   private goldText!: Phaser.GameObjects.Text;
   private crystalsText!: Phaser.GameObjects.Text;
+  private waveText!: Phaser.GameObjects.Text;
+  private livesText!: Phaser.GameObjects.Text;
+  private announce!: Phaser.GameObjects.Text;
+  /** Волна, объявление о которой сейчас на экране; 0 — объявления нет. */
+  private announcedWave = 0;
   private banner: Phaser.GameObjects.Container | null = null;
   private summonButton!: Phaser.GameObjects.Container;
   private summonBg!: Phaser.GameObjects.Rectangle;
@@ -50,8 +61,18 @@ export class UIScene extends Phaser.Scene {
     const { startGold, startCrystals, startLives, waves } = this.level;
     this.goldText = this.addStat(g, 0, 'hud.gold', String(startGold), TEXT_COLORS.brass);
     this.crystalsText = this.addStat(g, 1, 'hud.crystals', String(startCrystals), TEXT_COLORS.crystal);
-    this.addStat(g, 2, 'hud.wave', t('hud.waveValue', { current: 0, total: waves }), TEXT_COLORS.fg);
-    this.addStat(g, 3, 'hud.lives', String(startLives), TEXT_COLORS.danger);
+    this.waveText = this.addStat(g, 2, 'hud.wave', t('hud.waveValue', { current: 0, total: waves }), TEXT_COLORS.fg);
+    this.livesText = this.addStat(g, 3, 'hud.lives', String(startLives), TEXT_COLORS.danger);
+
+    this.announcedWave = 0;
+    this.announce = this.add
+      .text(GAME_W / 2, ANNOUNCE_Y, '', {
+        fontFamily: FONTS.display,
+        fontSize: '14px',
+        padding: { x: 10, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setAlpha(0);
 
     this.addSummonButton();
 
@@ -117,11 +138,14 @@ export class UIScene extends Phaser.Scene {
   }
 
   private refresh(): void {
-    const { gold, crystals, summonCost, canSummon } = this.gameScene.hudState();
+    const { gold, crystals, summonCost, canSummon, lives, wave, totalWaves, upcoming } = this.gameScene.hudState();
     this.canSummon = canSummon;
 
     this.goldText.setText(String(gold));
     this.setStat(this.crystalsText, String(crystals));
+    this.setStat(this.waveText, t('hud.waveValue', { current: wave, total: totalWaves }));
+    this.setStat(this.livesText, String(lives));
+    this.showUpcoming(upcoming);
     this.summonCost.setText(String(summonCost));
     this.summonCoin.setX(this.summonCost.x - this.summonCost.width - COIN_RADIUS - 4);
 
@@ -145,6 +169,24 @@ export class UIScene extends Phaser.Scene {
       duration: STAT_FEEL.pulseMs,
       yoyo: true,
     });
+  }
+
+  /** Показывает объявление, пока идёт пауза перед волной, и прячет его с началом волны. */
+  private showUpcoming(upcoming: UpcomingWave | null): void {
+    const wave = upcoming?.wave ?? 0;
+    if (wave === this.announcedWave) return;
+    this.announcedWave = wave;
+    this.tweens.killTweensOf(this.announce);
+
+    if (!upcoming) {
+      this.tweens.add({ targets: this.announce, alpha: 0, duration: ANNOUNCE_FEEL.hideMs });
+      return;
+    }
+    this.announce
+      .setText(t(upcoming.boss ? 'wave.bossSoon' : 'wave.soon', { wave }))
+      .setColor(upcoming.boss ? TEXT_COLORS.danger : TEXT_COLORS.fg)
+      .setBackgroundColor(ANNOUNCE_BG);
+    this.tweens.add({ targets: this.announce, alpha: 1, duration: ANNOUNCE_FEEL.showMs });
   }
 
   /** Уведомление вверху поля: игрок впервые получил гибрида. */

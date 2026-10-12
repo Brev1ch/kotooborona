@@ -1,3 +1,5 @@
+import type { UpcomingWave } from '../systems/Waves';
+
 export const SceneKey = {
   Boot: 'Boot',
   Menu: 'Menu',
@@ -23,4 +25,9 @@ export interface HudState {
   crystals: number;
   summonCost: number;
   canSummon: boolean;
+  lives: number;
+  wave: number;
+  totalWaves: number;
+  /** Волна, до которой идёт пауза; null — волна уже идёт или волны кончились. */
+  upcoming: UpcomingWave | null;
 }

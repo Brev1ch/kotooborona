@@ -32,4 +32,9 @@ export class Economy {
     this.summons++;
     return true;
   }
+
+  /** Враг прошёл в ворота; жизни не уходят ниже нуля. */
+  loseLives(amount: number): void {
+    this.lives = Math.max(0, this.lives - amount);
+  }
 }

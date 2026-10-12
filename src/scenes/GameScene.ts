@@ -1,15 +1,19 @@
 import Phaser from 'phaser';
-import { cats, elementColor, gear, getLevel, levels, type ElementId, type LevelConfig, type Point } from '../data';
+import { cats, elementColor, enemies, gear, getLevel, levels, type ElementId, type LevelConfig, type Point } from '../data';
 import type { Cat } from '../entities/Cat';
 import { CatView } from '../entities/CatView';
-import { CAT_FEEL, DRAG_FEEL, HINT_FEEL, MERGE_FEEL, TOAST_FEEL } from '../feel';
+import type { Enemy } from '../entities/Enemy';
+import { EnemyView } from '../entities/EnemyView';
+import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, HINT_FEEL, MERGE_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
 import { platform } from '../platform';
-import { catRange } from '../systems/Combat';
+import { catRange, Combat } from '../systems/Combat';
 import { Economy } from '../systems/Economy';
 import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
+import { buildPath, positionAt, type Path } from '../systems/Path';
 import { Summon } from '../systems/Summon';
+import { Waves } from '../systems/Waves';
 import { GameEvent, SceneKey, type HudState, type LevelSceneData } from './keys';
 
 // Пока снаряжение не выбирается игроком, посох берётся из умолчаний.
@@ -22,6 +26,11 @@ const BLOCK_TEXT: Record<MergeBlock, StringKey> = {
 
 /** Ключ сохранения: стихии гибридов, которых игрок уже получал. */
 const BOOK_KEY = 'book';
+
+/** Самый длинный шаг боя, секунды: после подвисания вкладки враги не перескакивают дорогу. */
+const MAX_STEP = 0.05;
+/** На сколько вперёд по дороге смотрит враг, чтобы повернуться по ходу. */
+const LOOK_AHEAD = 2;
 
 interface Drag {
   pointerId: number;
@@ -47,6 +56,12 @@ export class GameScene extends Phaser.Scene {
   /** Подпись над клеткой под пальцем: кто получится при слиянии. */
   private hint!: Phaser.GameObjects.Text;
   private discovered = new Set<ElementId>();
+  private path!: Path;
+  private waves!: Waves;
+  private combat!: Combat;
+  private enemyViews = new Map<Enemy, EnemyView>();
+  /** Номер волны и объявление, уже показанные в HUD. */
+  private shownWave = '';
 
   constructor() {
     super(SceneKey.Game);
@@ -74,6 +89,11 @@ export class GameScene extends Phaser.Scene {
       ritualTime: gear.ritual.time,
       crystalCost: gear.ritual.crystalCost,
     });
+    this.path = buildPath(this.level.path);
+    this.waves = new Waves(levels.waves, this.level, enemies);
+    this.combat = new Combat({ enemies, path: this.path });
+    this.enemyViews = new Map();
+    this.shownWave = '';
     this.board = this.level.slots.map(() => null);
     this.views = this.level.slots.map(() => null);
     this.drag = null;
@@ -108,7 +128,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    const dt = delta / 1000;
+    const dt = Math.min(MAX_STEP, delta / 1000);
+    this.updateRituals(dt);
+    this.updateBattle(dt);
+  }
+
+  private updateRituals(dt: number): void {
     this.board.forEach((cat, slot) => {
       if (!cat || cat.ritual <= 0) return;
       const view = this.views[slot];
@@ -124,12 +149,54 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private updateBattle(dt: number): void {
+    let changed = false;
+
+    for (const enemy of this.waves.update(dt, this.combat.enemies.length === 0)) {
+      this.combat.add(enemy);
+      this.enemyViews.set(enemy, new EnemyView(this, ...positionAt(this.path, enemy.distance), enemy));
+    }
+
+    for (const event of this.combat.update(dt)) {
+      switch (event.kind) {
+        case 'leaked':
+          this.economy.loseLives(event.lifeDamage);
+          this.removeEnemyView(event.enemy);
+          this.cameras.main.shake(ENEMY_FEEL.leakShakeMs, ENEMY_FEEL.leakShakeIntensity);
+          changed = true;
+          break;
+      }
+    }
+
+    for (const enemy of this.combat.enemies) {
+      const [x, y] = positionAt(this.path, enemy.distance);
+      const [aheadX, aheadY] = positionAt(this.path, enemy.distance + LOOK_AHEAD);
+      this.enemyViews.get(enemy)?.sync(enemy, x, y, Math.atan2(aheadY - y, aheadX - x));
+    }
+
+    const wave = `${this.waves.wave}:${this.waves.upcoming?.wave ?? ''}`;
+    if (wave !== this.shownWave) {
+      this.shownWave = wave;
+      changed = true;
+    }
+    if (changed) this.events.emit(GameEvent.Changed);
+  }
+
+  private removeEnemyView(enemy: Enemy): void {
+    this.enemyViews.get(enemy)?.destroy();
+    this.enemyViews.delete(enemy);
+  }
+
   hudState(): HudState {
     return {
       gold: this.economy.gold,
       crystals: this.economy.crystals,
       summonCost: this.economy.summonCost,
       canSummon: this.economy.canAffordSummon() && this.board.includes(null),
+      lives: this.economy.lives,
+      wave: this.waves.wave,
+      totalWaves: this.level.waves,
+      upcoming: this.waves.upcoming,
     };
   }
 

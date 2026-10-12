@@ -8,6 +8,9 @@ export const ru = {
   'hud.lives': 'Жизни',
   'hud.waveValue': '{current}/{total}',
 
+  'wave.soon': 'Волна {wave} скоро',
+  'wave.bossSoon': 'Крыса-командир! Волна {wave} скоро',
+
   'summon.button': 'Призвать',
 
   'merge.maxLevel': 'Максимум {level} ур.',

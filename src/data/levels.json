@@ -9,7 +9,8 @@
     "bossSpawnInterval": 1.6,
     "firstWaveDelay": 2,
     "waveDelay": 3,
-    "ratFromWave": 2
+    "ratFromWave": 2,
+    "shieldFromWave": 3
   },
   "stars": {
     "threeStarsMaxLost": 0,
@@ -34,7 +35,7 @@
       "startLives": 20,
       "hpMult": 1,
       "ratChance": 0.15,
-      "shieldChance": 0
+      "shieldChance": 0.15
     }
   ]
 }
