@@ -1,0 +1,23 @@
+{
+  "summon": { "baseCost": 10, "costGrowth": 1.13 },
+  "ritual": { "time": 4, "crystalCost": 1 },
+  "meteor": { "cooldown": 25, "damage": 40, "damageGrowthPerWave": 1.22, "radius": 60, "burnDps": 0.1, "burnTime": 2 },
+  "rewardedAd": { "gold": 60, "cooldown": 30 },
+  "defaults": { "staff": "none", "mantle": "thrift", "amulet": "cry" },
+  "staff": [
+    { "id": "none" },
+    { "id": "fire", "element": "fire", "summonWeight": 1.45 },
+    { "id": "water", "element": "water", "summonWeight": 1.45 },
+    { "id": "earth", "element": "earth", "summonWeight": 1.45 },
+    { "id": "air", "element": "air", "summonWeight": 1.45 }
+  ],
+  "mantle": [
+    { "id": "thrift", "summonCostMult": 0.9 },
+    { "id": "sorc", "meteorCooldownMult": 0.8 }
+  ],
+  "amulet": [
+    { "id": "alch", "ritualTimeMult": 0.7 },
+    { "id": "cry", "bonusCrystals": 1 },
+    { "id": "purse", "bonusGold": 20 }
+  ]
+}

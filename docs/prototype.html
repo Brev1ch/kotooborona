@@ -1,0 +1,476 @@
+<title>Кото-оборона</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=Rubik:wght@400;500;700&display=swap">
+<style>
+/* Layout: one-screen portrait game. HUD strip, board with menu/result overlays, three action buttons, cat book. Single dusk-fantasy look. */
+:root{
+  --bg:#1b2233; --panel:#252f46; --line:#3a4766; --fg:#e9e4d6; --muted:#9aa3b8;
+  --brass:#e0a948; --brass-d:#b3802a; --danger:#e2604f; --crystal:#b48cf2; --meteor:#ff7a3c;
+  --display:"Russo One","Arial Black",system-ui,sans-serif;
+  --body:"Rubik",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);display:flex;justify-content:center;padding-inline:16px;padding-block:12px;box-sizing:border-box;}
+.wrap{width:100%;max-width:420px;display:flex;flex-direction:column;gap:10px}
+h1{font-family:var(--display);font-weight:400;font-size:22px;margin:0;display:flex;justify-content:space-between;align-items:baseline}
+h1 small{font-family:var(--body);font-size:12px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.hud{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 8px;display:flex;flex-direction:column;min-width:0}
+.stat span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.stat b{font-family:var(--display);font-weight:400;font-size:18px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat.gold b{color:var(--brass)} .stat.lives b{color:var(--danger)} .stat.cry b{color:var(--crystal)}
+.board{position:relative;width:100%;aspect-ratio:360/540}
+canvas{width:100%;height:100%;display:block;border-radius:14px;touch-action:none;background:#202a40}
+.controls{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px}
+button{font-family:var(--display);font-size:15px;border:0;border-radius:12px;padding:11px 8px;cursor:pointer;color:#1b2233;background:var(--brass);box-shadow:0 3px 0 var(--brass-d);transition:transform .08s}
+button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--brass-d)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+button.ghost{background:var(--panel);color:var(--fg);border:1px solid var(--line);box-shadow:none;font-size:13px}
+button.meteor{background:var(--meteor);box-shadow:0 3px 0 #b8501f}
+button.meteor.aim{outline:2px solid var(--fg);outline-offset:2px}
+button small{display:block;font-family:var(--body);font-size:11px;opacity:.8}
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(17,22,34,.9);border-radius:14px;text-align:center;padding:18px;box-sizing:border-box;overflow-y:auto}
+.overlay h2{font-family:var(--display);font-weight:400;font-size:26px;margin:0;text-wrap:balance}
+.overlay p{margin:0;color:var(--muted);max-width:32ch;line-height:1.45}
+.menu{justify-content:flex-start}
+.levels{display:flex;flex-direction:column;gap:6px;width:100%}
+.lvl{display:flex;justify-content:space-between;align-items:center;text-align:left;font-size:15px;padding:10px 12px}
+.lvl small{display:block;font-size:11px}
+.lvl .st{font-size:16px;letter-spacing:2px}
+.gear{width:100%;display:flex;flex-direction:column;gap:6px;text-align:left}
+.gear h3{margin:4px 0 0;font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{font-family:var(--body);font-size:12px;padding:6px 9px;border-radius:999px;background:var(--panel);color:var(--fg);border:1px solid var(--line);box-shadow:none}
+.chip[aria-pressed="true"]{border-color:var(--brass);background:#3a3322;color:var(--brass)}
+.stars{font-size:34px;letter-spacing:6px;color:var(--brass)}
+.stars .off{color:var(--line)}
+.row{display:flex;gap:8px}
+.toast{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--brass);color:var(--fg);padding:7px 12px;border-radius:10px;font-size:12.5px;max-width:92%;text-align:center;pointer-events:none;transition:opacity .3s;z-index:5}
+.toast b{color:var(--brass);font-family:var(--display);font-weight:400}
+.toast.bad{border-color:var(--danger)}
+.book{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.book h3{margin:0 0 8px;font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between}
+.book ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+.book li{display:flex;gap:8px;align-items:center;font-size:12.5px;min-width:0}
+.book li i{width:12px;height:12px;border-radius:4px;flex:none}
+.book li.lock{color:var(--muted)}
+.book li.lock i{background:var(--line)!important}
+.book li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+
+<div class="wrap">
+  <h1>Кото-оборона <small id="lvlName">прототип 3</small></h1>
+  <div class="hud">
+    <div class="stat gold"><span>Монеты</span><b id="gold">0</b></div>
+    <div class="stat cry"><span>Кристаллы</span><b id="cry">0</b></div>
+    <div class="stat"><span>Волна</span><b id="wave">0/0</b></div>
+    <div class="stat lives"><span>Жизни</span><b id="lives">20</b></div>
+  </div>
+  <div class="board">
+    <canvas id="c" aria-label="Игровое поле"></canvas>
+    <div class="toast" id="toast" style="opacity:0"></div>
+
+    <div class="overlay menu" id="menu">
+      <h2>Лесная долина</h2>
+      <p>Крысиный король украл Кристалл Стихий. Кот-Архимаг ведёт отряд через долину.</p>
+      <div class="levels" id="levels"></div>
+      <div class="gear">
+        <h3>Посох — чаще призывает стихию</h3>
+        <div class="chips" data-slot="staff"></div>
+        <h3>Мантия</h3>
+        <div class="chips" data-slot="mantle"></div>
+        <h3>Амулет</h3>
+        <div class="chips" data-slot="amulet"></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="adOv" hidden>
+      <h2>Реклама</h2>
+      <p>Здесь будет наградная реклама Яндекс Игр. Награда через <b id="adT">2</b> с.</p>
+    </div>
+    <div class="overlay" id="win" hidden>
+      <h2>Уровень пройден</h2>
+      <div class="stars" id="winStars"></div>
+      <p id="winTxt"></p>
+      <div class="row"><button id="toMenu1" class="ghost">К уровням</button><button id="next">Дальше</button></div>
+    </div>
+    <div class="overlay" id="lose" hidden>
+      <h2>Замок пал</h2>
+      <p id="loseTxt"></p>
+      <div class="row"><button id="toMenu2" class="ghost">К уровням</button><button id="retry">Ещё раз</button></div>
+    </div>
+  </div>
+  <div class="controls">
+    <button id="buy">Призвать <small id="cost">10 монет</small></button>
+    <button id="meteorBtn" class="meteor">Метеор <small id="metSub">готов</small></button>
+    <button id="ad" class="ghost">▶ +60 <small id="adSub">монет</small></button>
+  </div>
+  <div class="book">
+    <h3><span>Книга котов</span><span id="bookN">4/10</span></h3>
+    <ul id="bookList"></ul>
+  </div>
+</div>
+
+<script>
+(()=>{
+const W=360,H=540,cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const dpr=Math.min(window.devicePixelRatio||1,2);cv.width=W*dpr;cv.height=H*dpr;ctx.scale(dpr,dpr);
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+
+/* ---------- Elements ---------- */
+const EL={
+  fire :{n:'Огненный',c:'#e8673c',dmg:1.0,rate:1.0,fx:'burn',d:'поджигает'},
+  water:{n:'Водный',  c:'#4aa3df',dmg:0.7,rate:1.0,fx:'slow',d:'замедляет'},
+  earth:{n:'Каменный',c:'#a07c4c',dmg:1.9,rate:0.55,fx:'heavy',d:'мощный удар'},
+  air  :{n:'Ветряной',c:'#9fd8cf',dmg:0.5,rate:2.3,fx:'none',d:'быстрые атаки'},
+  steam:{n:'Паровой', c:'#c9c3e0',dmg:0.9,rate:1.0,fx:'splash_slow',d:'урон по площади и замедление',from:['fire','water']},
+  lava :{n:'Лавовый', c:'#ff4d1f',dmg:1.3,rate:0.8,fx:'splash_burn',d:'взрыв лавы с поджогом',from:['fire','earth']},
+  storm:{n:'Грозовой',c:'#f5d742',dmg:0.9,rate:1.2,fx:'chain',d:'молния по цепочке',from:['fire','air']},
+  ice  :{n:'Ледяной', c:'#a8ecff',dmg:0.8,rate:1.0,fx:'freeze',d:'замораживает',from:['water','air']},
+  swamp:{n:'Болотный',c:'#7bbf4a',dmg:0.6,rate:1.1,fx:'poison',d:'яд накапливается',from:['water','earth']},
+  sand :{n:'Песчаный',c:'#e6c27a',dmg:0.45,rate:0.9,fx:'aura',d:'буря бьёт всех в радиусе',from:['earth','air']},
+};
+const BASE=['fire','water','earth','air'];
+const ORDER=['fire','water','earth','air','steam','lava','storm','ice','swamp','sand'];
+const comboKey=(a,b)=>[a,b].sort().join('+');
+const COMBO={};for(const k of ORDER){const e=EL[k];if(e.from)COMBO[comboKey(...e.from)]=k;}
+const isHybrid=k=>!!EL[k].from;
+
+/* ---------- Equipment ---------- */
+const GEAR={
+  staff:[{id:'none',n:'Без посоха'},{id:'fire',n:'Огненный'},{id:'water',n:'Водный'},{id:'earth',n:'Каменный'},{id:'air',n:'Ветряной'}],
+  mantle:[{id:'thrift',n:'Бережливости: призыв −10%'},{id:'sorc',n:'Чародея: метеор −20% к перезарядке'}],
+  amulet:[{id:'alch',n:'Алхимика: ритуал быстрее'},{id:'cry',n:'Кристаллов: +1 кристалл'},{id:'purse',n:'Кошель: +20 монет'}],
+};
+let gear=Object.assign({staff:'none',mantle:'thrift',amulet:'cry'},store.get('koto_gear',{}));
+function renderGear(){
+  document.querySelectorAll('.chips').forEach(box=>{const slot=box.dataset.slot;
+    box.innerHTML=GEAR[slot].map(g=>`<button class="chip" data-id="${g.id}" aria-pressed="${gear[slot]===g.id}">${g.n}</button>`).join('');
+    box.querySelectorAll('button').forEach(b=>b.onclick=()=>{gear[slot]=b.dataset.id;store.set('koto_gear',gear);renderGear();});});
+}
+
+/* ---------- Levels ---------- */
+const LEVELS=[
+  {n:'1. Опушка',d:'6 волн · коты до 5 ур.',path:[[30,-20],[30,500],[330,500],[330,-20]],
+   slots:[[72,120],[148,120],[224,120],[72,196],[148,196],[224,196],[72,272],[148,272],[224,272],[72,348],[148,348],[224,348]],
+   hero:[262,62],waves:6,boss:[6],maxLv:5,gold:40,hp:1,rat:.15,shield:0},
+  {n:'2. Брод у ручья',d:'8 волн · короткая дорога · до 6 ур.',path:[[40,-20],[40,260],[320,260],[320,560]],
+   slots:[[90,50],[166,50],[242,50],[90,126],[166,126],[242,126],[20,310],[96,310],[172,310],[20,386],[96,386],[172,386]],
+   hero:[262,470],waves:8,boss:[4,8],maxLv:6,gold:50,hp:1.45,rat:.25,shield:0},
+  {n:'3. Старая мельница',d:'10 волн · щитоносцы · до 7 ур.',path:[[-20,50],[310,50],[310,210],[50,210],[50,370],[310,370],[310,560]],
+   slots:[[70,98],[146,98],[222,98],[100,258],[176,258],[252,258],[60,418],[136,418],[212,418]],
+   hero:[258,500],waves:10,boss:[5,10],maxLv:7,gold:60,hp:2.0,rat:.25,shield:.25},
+];
+let stars=store.get('koto_stars',[0,0,0]);
+function renderLevels(){
+  $('levels').innerHTML=LEVELS.map((L,i)=>{const open=i===0||stars[i-1]>0;
+    const st='★'.repeat(stars[i])+'<span style="opacity:.3">'+'★'.repeat(3-stars[i])+'</span>';
+    return `<button class="ghost lvl" data-i="${i}" ${open?'':'disabled'}><span>${L.n}<small>${open?L.d:'пройди предыдущий уровень'}</small></span><span class="st">${st}</span></button>`;}).join('');
+  $('levels').querySelectorAll('button').forEach(b=>b.onclick=()=>startLevel(+b.dataset.i));
+}
+
+/* ---------- Book ---------- */
+let found=new Set([...BASE,...store.get('koto_book',[]).filter(k=>EL[k])]);
+function renderBook(){
+  $('bookN').textContent=found.size+'/'+ORDER.length;
+  $('bookList').innerHTML=ORDER.map(k=>{const e=EL[k],ok=found.has(k);
+    const hint=e.from?EL[e.from[0]].n.slice(0,4)+'. + '+EL[e.from[1]].n.slice(0,4)+'.':'';
+    return `<li class="${ok?'':'lock'}" title="${ok?e.d:'Не открыт'}"><i style="background:${e.c}"></i><span>${ok?e.n+' кот':'??? ('+hint+')'}</span></li>`;}).join('');
+}
+let toastT=null;
+function toast(html,bad){const t=$('toast');t.innerHTML=html;t.className='toast'+(bad?' bad':'');t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,2200);}
+function discover(k){if(found.has(k))return;found.add(k);store.set('koto_book',[...found]);renderBook();toast('Открыт новый кот: <b>'+EL[k].n+'</b> — '+EL[k].d);}
+
+/* ---------- Path ---------- */
+let PATH,seg,PL,slots,LV;
+function buildPath(p){PATH=p;seg=[];PL=0;for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1],l=Math.hypot(b[0]-a[0],b[1]-a[1]);seg.push({a,b,l,s:PL});PL+=l;}}
+function posAt(d){for(const s of seg){if(d<=s.s+s.l){const t=(d-s.s)/s.l;return[s.a[0]+(s.b[0]-s.a[0])*t,s.a[1]+(s.b[1]-s.a[1])*t];}}return PATH[PATH.length-1];}
+const SZ=64;
+
+const dmgOf=t=>6*Math.pow(2.1,t.lv-1)*EL[t.el].dmg*(isHybrid(t.el)?1.25:1);
+const rateOf=t=>(1.1+t.lv*0.06)*EL[t.el].rate;
+const rangeOf=t=>140+t.lv*10;
+
+/* ---------- State ---------- */
+let S=null;
+function startLevel(i){
+  LV=LEVELS[i];LV.i=i;buildPath(LV.path);
+  slots=LV.slots.map(([x,y])=>({x,y,t:null}));
+  S={gold:LV.gold+(gear.amulet==='purse'?20:0),cry:1+(gear.amulet==='cry'?1:0),lives:20,wave:0,buys:0,enemies:[],bullets:[],fx:[],
+     spawnLeft:0,spawnT:0,pause:2,done:false,running:true,adCd:0,met:0,aim:false};
+  $('lvlName').textContent=LV.n;
+  ['menu','win','lose'].forEach(id=>$(id).hidden=true);
+  toast('Кристаллы стихий нужны для гибридов. Максимум котов здесь: <b>'+LV.maxLv+' ур.</b>');
+  updHud();
+}
+const cost=()=>Math.round(10*Math.pow(1.13,S.buys)*(gear.mantle==='thrift'?.9:1));
+const metCd=()=>25*(gear.mantle==='sorc'?.8:1);
+const ritualTime=()=>4*(gear.amulet==='alch'?.7:1);
+function updHud(){
+  if(!S)return;
+  $('gold').textContent=Math.floor(S.gold);$('cry').textContent=S.cry;
+  $('wave').textContent=Math.max(0,S.wave)+'/'+LV.waves;$('lives').textContent=S.lives;
+  $('cost').textContent=cost()+' монет';
+  $('buy').disabled=!S.running||S.gold<cost()||!slots.some(s=>!s.t);
+  $('ad').disabled=!S.running||S.adCd>0;
+  $('adSub').textContent=S.adCd>0?('через '+Math.ceil(S.adCd)+' с'):'монет';
+  $('meteorBtn').disabled=!S.running||S.met>0;
+  $('meteorBtn').classList.toggle('aim',S.aim);
+  $('metSub').textContent=S.aim?'коснись дороги':S.met>0?Math.ceil(S.met)+' с':'готов';
+}
+function startWave(){S.wave++;S.boss=LV.boss.includes(S.wave);S.spawnLeft=S.boss?1+Math.floor(S.wave/4):6+S.wave*2;S.spawnT=0;}
+function spawn(){
+  const w=S.wave,r=Math.random();
+  const type=S.boss?'boss':(w>=2&&r<LV.rat)?'rat':(r<LV.rat+LV.shield)?'shield':'mouse';
+  const base=18*Math.pow(1.2,w-1)*LV.hp;
+  const T={mouse:{hp:1,sp:44,g:2,r:8},rat:{hp:3,sp:32,g:5,r:11},shield:{hp:1.4,sp:38,g:4,r:9},boss:{hp:14,sp:26,g:30,r:15}}[type];
+  S.enemies.push({type,d:0,hp:base*T.hp,max:base*T.hp,sp:T.sp+w*1.1,gold:T.g+Math.floor(w/3),r:T.r,boss:type==='boss',
+    shield:type==='shield'?3:0,slowF:1,slowT:0,burn:0,burnT:0,pois:0,poisT:0});
+}
+
+/* ---------- Buttons ---------- */
+function rollElement(){
+  const w=BASE.map(k=>k===gear.staff?1.45:1),sum=w.reduce((a,b)=>a+b,0);let r=Math.random()*sum;
+  for(let i=0;i<4;i++){r-=w[i];if(r<=0)return BASE[i];}return BASE[3];
+}
+$('buy').onclick=()=>{const free=slots.filter(s=>!s.t);if(!free.length||S.gold<cost())return;
+  S.gold-=cost();S.buys++;free[Math.random()*free.length|0].t={el:rollElement(),lv:1,cd:0,pop:1};updHud();};
+$('meteorBtn').onclick=()=>{if(S&&S.met<=0){S.aim=!S.aim;updHud();}};
+$('ad').onclick=()=>{S.running=false;$('adOv').hidden=false;let t=2;$('adT').textContent=t;
+  const iv=setInterval(()=>{t--;$('adT').textContent=t;if(t<=0){clearInterval(iv);$('adOv').hidden=true;S.gold+=60;S.adCd=30;S.running=true;updHud();}},1000);};
+function toMenu(){['win','lose'].forEach(id=>$(id).hidden=true);S=null;$('lvlName').textContent='прототип 3';renderLevels();$('menu').hidden=false;}
+$('toMenu1').onclick=toMenu;$('toMenu2').onclick=toMenu;
+$('retry').onclick=()=>startLevel(LV.i);
+$('next').onclick=()=>LV.i+1<LEVELS.length?startLevel(LV.i+1):toMenu();
+
+/* ---------- Merge ---------- */
+// returns {el} or {err}
+function mergeCheck(a,b){
+  if(a.ritual>0||b.ritual>0)return{err:'Этот кот проводит ритуал'};
+  if(a.lv!==b.lv)return{err:null};
+  let el=null;
+  if(a.el===b.el)el=a.el;else if(!isHybrid(a.el)&&!isHybrid(b.el))el=COMBO[comboKey(a.el,b.el)];
+  if(!el)return{err:null};
+  if(a.lv>=LV.maxLv)return{err:'На этом уровне максимум котов — '+LV.maxLv+' ур.',el};
+  const hybrid=a.el!==b.el;
+  if(hybrid&&S.cry<1)return{err:'Для гибрида нужен кристалл стихий',el};
+  return{el,hybrid};
+}
+let drag=null;
+function pt(e){const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height];}
+const slotAt=(x,y)=>slots&&slots.find(s=>x>=s.x&&x<=s.x+SZ&&y>=s.y&&y<=s.y+SZ);
+cv.addEventListener('pointerdown',e=>{
+  if(!S||!S.running)return;const[x,y]=pt(e);
+  if(S.aim){castMeteor(x,y);return;}
+  const s=slotAt(x,y);
+  if(s&&s.t){if(s.t.ritual>0){toast('Кот проводит ритуал смешения',true);return;}drag={from:s,x,y};cv.setPointerCapture(e.pointerId);}
+});
+cv.addEventListener('pointermove',e=>{if(drag)[drag.x,drag.y]=pt(e);});
+cv.addEventListener('pointerup',e=>{
+  if(!drag)return;const[x,y]=pt(e);const to=slotAt(x,y),from=drag.from;drag=null;
+  if(!to||to===from)return;
+  if(!to.t){to.t=from.t;from.t=null;return;}
+  const m=mergeCheck(from.t,to.t);
+  if(m.el&&!m.err){
+    const lv=to.t.lv+1;from.t=null;
+    if(m.hybrid){S.cry--;const rt=ritualTime();to.t={el:m.el,lv,cd:0,pop:1,ritual:rt,ritualMax:rt};}
+    else{to.t={el:m.el,lv,cd:0,pop:1};S.fx.push({x:to.x+SZ/2,y:to.y+SZ/2,t:0,c:EL[m.el].c,ring:true});discover(m.el);}
+    updHud();return;
+  }
+  if(m.err){toast(m.err,true);return;}
+  const tmp=to.t;to.t=from.t;from.t=tmp;
+});
+cv.addEventListener('pointercancel',()=>drag=null);
+
+function castMeteor(x,y){
+  S.aim=false;S.met=metCd();
+  const dmg=40*Math.pow(1.22,Math.max(0,S.wave-1))*LV.hp;
+  S.fx.push({x,y,t:0,c:'#ff7a3c',blast:60});
+  for(const en of S.enemies){const[ex,ey]=posAt(en.d);if(Math.hypot(ex-x,ey-y)<=60){hurt(en,dmg,false);en.burn=Math.max(en.burn,dmg*.1);en.burnT=2;}}
+  updHud();
+}
+
+/* ---------- Combat ---------- */
+function hurt(en,dmg,direct){
+  if(en.hp<=0)return;
+  if(direct&&en.shield>0){en.shield--;return;}
+  en.hp-=dmg;
+  if(en.hp<=0){S.gold+=en.gold;const[x,y]=posAt(en.d);
+    let txt='+'+en.gold;
+    const drop=en.boss?2:en.type==='rat'&&Math.random()<.3?1:0;
+    if(drop){S.cry+=drop;txt+='  ◆'+drop;}
+    S.fx.push({x,y,t:0,c:drop?'#b48cf2':'#e0a948',txt});}
+}
+function near(x,y,R,ex){return S.enemies.filter(e=>{if(e.hp<=0||e===ex)return false;const[a,b]=posAt(e.d);return Math.hypot(a-x,b-y)<=R;});}
+function applyHit(en,b){
+  const fx=EL[b.el].fx,dmg=b.dmg,[x,y]=posAt(en.d),boss=en.boss;
+  const slow=(o,f,t)=>{f=o.boss?1-(1-f)*.5:f;o.slowF=Math.min(o.slowT>0?o.slowF:1,f);o.slowT=Math.max(o.slowT,t);};
+  const burn=(o,dps)=>{o.burn=Math.max(o.burn,dps);o.burnT=2;};
+  switch(fx){
+    case 'burn':hurt(en,dmg,true);burn(en,dmg*.45);break;
+    case 'slow':hurt(en,dmg,true);slow(en,.55,1.5);break;
+    case 'heavy':case 'none':hurt(en,dmg,true);break;
+    case 'splash_slow':hurt(en,dmg,true);slow(en,.6,1.2);for(const o of near(x,y,45,en)){hurt(o,dmg*.6,false);slow(o,.6,1.2);}S.fx.push({x,y,t:0,c:EL[b.el].c,blast:45});break;
+    case 'splash_burn':hurt(en,dmg,true);burn(en,dmg*.4);for(const o of near(x,y,45,en)){hurt(o,dmg*.6,false);burn(o,dmg*.3);}S.fx.push({x,y,t:0,c:EL[b.el].c,blast:45});break;
+    case 'chain':{hurt(en,dmg,true);let px=x,py=y;const hit=new Set([en]);
+      for(let i=0;i<3;i++){const c=near(px,py,80,null).filter(o=>!hit.has(o))[0];if(!c)break;hit.add(c);hurt(c,dmg*.7,true);const[cx,cy]=posAt(c.d);S.fx.push({t:0,bolt:[px,py,cx,cy],c:'#f5d742'});px=cx;py=cy;}break;}
+    case 'freeze':hurt(en,dmg,true);slow(en,.25,1.1);break;
+    case 'poison':hurt(en,dmg,true);en.pois=Math.min(en.pois+dmg*.35,dmg*1.05);en.poisT=3;break;
+  }
+}
+
+/* ---------- Loop ---------- */
+let last=performance.now();
+function step(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(S&&S.running)update(dt);draw(now/1000);requestAnimationFrame(step);}
+function update(dt){
+  if(S.adCd>0)S.adCd=Math.max(0,S.adCd-dt);
+  if(S.met>0)S.met=Math.max(0,S.met-dt);
+  if(S.spawnLeft>0){S.spawnT-=dt;if(S.spawnT<=0){spawn();S.spawnLeft--;S.spawnT=S.boss?1.6:.55;}}
+  else if(!S.enemies.length){
+    if(S.wave>=LV.waves){winLevel();return;}
+    S.pause-=dt;if(S.pause<=0){startWave();S.pause=3;}
+  }
+  for(const en of S.enemies){
+    if(en.slowT>0){en.slowT-=dt;if(en.slowT<=0)en.slowF=1;}
+    if(en.burnT>0){en.burnT-=dt;hurt(en,en.burn*dt,false);}
+    if(en.poisT>0){en.poisT-=dt;hurt(en,en.pois*dt,false);if(en.poisT<=0)en.pois=0;}
+    en.d+=en.sp*en.slowF*dt;
+  }
+  S.enemies=S.enemies.filter(en=>{if(en.hp<=0)return false;if(en.d>=PL){S.lives-=en.boss?5:en.type==='rat'?2:1;return false;}return true;});
+  if(S.lives<=0){S.lives=0;loseLevel();return;}
+  for(const s of slots){const t=s.t;if(!t)continue;t.pop=Math.max(0,t.pop-dt*3);
+    if(t.ritual>0){t.ritual-=dt;if(t.ritual<=0){t.ritual=0;t.pop=1;S.fx.push({x:s.x+SZ/2,y:s.y+SZ/2,t:0,c:EL[t.el].c,ring:true});discover(t.el);}continue;}
+    if(t.aura)t.aura=Math.max(0,t.aura-dt*2);
+    t.cd-=dt;if(t.cd>0)continue;
+    const cx=s.x+SZ/2,cy=s.y+SZ/2,R=rangeOf(t);
+    if(EL[t.el].fx==='aura'){const tg=near(cx,cy,R,null).filter(e=>posAt(e.d)[1]>-5&&posAt(e.d)[0]>-5);if(tg.length){t.cd=1/rateOf(t);t.aura=1;for(const e of tg)hurt(e,dmgOf(t),true);}continue;}
+    let best=null;for(const en of S.enemies){const[ex,ey]=posAt(en.d);if(ey<-5||ex<-5||ex>W+5||ey>H+5)continue;if(Math.hypot(ex-cx,ey-cy)<=R&&(!best||en.d>best.d))best=en;}
+    if(best){t.cd=1/rateOf(t);const[bx,by]=posAt(best.d);t.ang=Math.atan2(by-cy,bx-cx);
+      S.bullets.push({x:cx,y:cy,tg:best,dmg:dmgOf(t),el:t.el,c:EL[t.el].c,r:t.el==='earth'?6:3.5});}
+  }
+  S.bullets=S.bullets.filter(b=>{
+    if(b.tg.hp<=0||!S.enemies.includes(b.tg))return false;
+    const[tx,ty]=posAt(b.tg.d);const dx=tx-b.x,dy=ty-b.y,dist=Math.hypot(dx,dy),v=460*dt;
+    if(dist<=v+b.tg.r*.5){applyHit(b.tg,b);return false;}
+    b.x+=dx/dist*v;b.y+=dy/dist*v;return true;});
+  S.fx=S.fx.filter(f=>(f.t+=dt)<.6);
+  updHud();
+}
+function winLevel(){
+  S.running=false;const lost=20-S.lives,st=lost===0?3:lost<=5?2:1;
+  stars[LV.i]=Math.max(stars[LV.i],st);store.set('koto_stars',stars);
+  $('winStars').innerHTML='★'.repeat(st)+'<span class="off">'+'★'.repeat(3-st)+'</span>';
+  $('winTxt').textContent=(lost===0?'Ни одна мышь не прошла!':'Потеряно жизней: '+lost+'.')+(st<3?' Для 3 звёзд пройди без потерь.':'');
+  $('next').textContent=LV.i+1<LEVELS.length?'Дальше':'К уровням';
+  $('win').hidden=false;updHud();
+}
+function loseLevel(){S.running=false;$('loseTxt').textContent='Коты продержались до волны '+S.wave+' из '+LV.waves+'. Попробуй другое снаряжение или раньше создавай гибридов.';$('lose').hidden=false;updHud();}
+
+/* ---------- Drawing ---------- */
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function drawCat(cx,cy,t,scale=1,time=0){
+  const e=EL[t.el],s=(SZ-12)*scale*(1+t.pop*.18),hr=s*.36;
+  const earL=e.from?EL[e.from[0]].c:e.c, earR=e.from?EL[e.from[1]].c:e.c;
+  ctx.save();ctx.translate(cx,cy+s*.05);
+  if(t.ritual>0)ctx.globalAlpha=.55;
+  if(t.aura){ctx.globalAlpha=t.aura*.5;ctx.strokeStyle=e.c;ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,rangeOf(t)*(1-t.aura*.3),0,7);ctx.stroke();ctx.globalAlpha=1;}
+  ctx.fillStyle='rgba(0,0,0,.28)';ctx.beginPath();ctx.ellipse(0,s*.42,s*.36,s*.08,0,0,7);ctx.fill();
+  ctx.fillStyle=e.c;ctx.beginPath();ctx.moveTo(-s*.34,s*.42);ctx.quadraticCurveTo(0,s*.05,s*.34,s*.42);ctx.closePath();ctx.fill();
+  const ear=(sx,c)=>{ctx.fillStyle=c;ctx.beginPath();ctx.moveTo(sx*hr*.95,-hr*.25);ctx.lineTo(sx*hr*.75,-hr*1.25);ctx.lineTo(sx*hr*.15,-hr*.85);ctx.closePath();ctx.fill();};
+  ear(-1,earL);ear(1,earR);
+  ctx.fillStyle=e.c;ctx.beginPath();ctx.arc(0,0,hr,0,7);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.18)';ctx.beginPath();ctx.arc(-hr*.3,-hr*.35,hr*.35,0,7);ctx.fill();
+  const bl=(t.ritual>0)?.15:(Math.sin(time*1.3+cx)>0.97)?.15:1;
+  ctx.fillStyle='#1b2233';
+  for(const sx of[-1,1]){ctx.beginPath();ctx.ellipse(sx*hr*.38,-hr*.05,hr*.13,hr*.18*bl,0,0,7);ctx.fill();}
+  ctx.beginPath();ctx.moveTo(-hr*.08,hr*.2);ctx.lineTo(hr*.08,hr*.2);ctx.lineTo(0,hr*.3);ctx.fill();
+  if(t.lv>=7){ctx.fillStyle='#e0a948';ctx.beginPath();const y0=-hr*.85;ctx.moveTo(-hr*.5,y0);ctx.lineTo(-hr*.5,y0-hr*.45);ctx.lineTo(-hr*.25,y0-hr*.2);ctx.lineTo(0,y0-hr*.55);ctx.lineTo(hr*.25,y0-hr*.2);ctx.lineTo(hr*.5,y0-hr*.45);ctx.lineTo(hr*.5,y0);ctx.fill();}
+  else if(t.lv>=4){ctx.fillStyle='#3b3a6b';ctx.beginPath();ctx.moveTo(-hr*.6,-hr*.75);ctx.lineTo(hr*.6,-hr*.75);ctx.lineTo(hr*.1,-hr*1.75);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#f5d742';ctx.beginPath();ctx.arc(hr*.05,-hr*1.15,hr*.09,0,7);ctx.fill();}
+  ctx.globalAlpha=1;
+  if(t.ritual>0){ctx.strokeStyle='#b48cf2';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,-s*.02,s*.47,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-t.ritual/t.ritualMax));ctx.stroke();}
+  ctx.fillStyle='#1b2233';ctx.beginPath();ctx.arc(s*.36,s*.32,9,0,7);ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='11px "Russo One",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t.lv,s*.36,s*.33);
+  ctx.restore();
+}
+function drawHero(x,y,time){
+  const ready=S&&S.met<=0;
+  ctx.save();ctx.translate(x,y);
+  const bob=Math.sin(time*2)*1.5;
+  ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(0,22,20,5,0,0,7);ctx.fill();
+  ctx.fillStyle='#4b3f7a';ctx.beginPath();ctx.moveTo(-18,22);ctx.quadraticCurveTo(0,-4,18,22);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#f2efe6';ctx.beginPath();ctx.arc(0,-2+bob,12,0,7);ctx.fill();
+  ctx.beginPath();ctx.moveTo(-11,-6+bob);ctx.lineTo(-9,-19+bob);ctx.lineTo(-3,-12+bob);ctx.fill();
+  ctx.beginPath();ctx.moveTo(11,-6+bob);ctx.lineTo(9,-19+bob);ctx.lineTo(3,-12+bob);ctx.fill();
+  ctx.fillStyle='#3b3a6b';ctx.beginPath();ctx.moveTo(-13,-10+bob);ctx.lineTo(13,-10+bob);ctx.lineTo(4,-34+bob);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#1b2233';ctx.beginPath();ctx.arc(-4,-2+bob,1.8,0,7);ctx.arc(4,-2+bob,1.8,0,7);ctx.fill();
+  ctx.strokeStyle='#a07c4c';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(17,22);ctx.lineTo(20,-16);ctx.stroke();
+  const orb=gear.staff!=='none'?EL[gear.staff].c:'#ff7a3c';
+  ctx.fillStyle=orb;ctx.globalAlpha=ready?.6+Math.sin(time*5)*.3:.35;ctx.beginPath();ctx.arc(20,-19,ready?6:4,0,7);ctx.fill();ctx.globalAlpha=1;
+  ctx.restore();
+}
+function drawMouse(en,x,y){
+  const r=en.r,c=en.boss?'#8a4b5a':en.type==='rat'?'#6e6a7a':en.type==='shield'?'#9a9486':'#b8b2a4';
+  const n=posAt(en.d+2),ang=Math.atan2(n[1]-y,n[0]-x);
+  ctx.save();ctx.translate(x,y);ctx.rotate(ang);
+  ctx.strokeStyle=c;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-r,0);ctx.quadraticCurveTo(-r*1.8,r*.6,-r*2.2,0);ctx.stroke();
+  ctx.fillStyle=c;ctx.beginPath();ctx.ellipse(0,0,r*1.15,r*.85,0,0,7);ctx.fill();
+  ctx.beginPath();ctx.arc(r*.3,-r*.7,r*.4,0,7);ctx.arc(r*.3,r*.7,r*.4,0,7);ctx.fill();
+  ctx.fillStyle='#f0a3a3';ctx.beginPath();ctx.arc(r*1.15,0,r*.18,0,7);ctx.fill();
+  if(en.boss){ctx.fillStyle='#e0a948';ctx.fillRect(-r*.3,-r*.35,r*.6,r*.7);}
+  if(en.shield>0){ctx.fillStyle='#8fa3c4';ctx.beginPath();ctx.ellipse(r*1.3,0,r*.35,r*.9,0,0,7);ctx.fill();
+    ctx.fillStyle='#1b2233';ctx.font='9px Rubik,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(en.shield,r*1.3,1);}
+  ctx.restore();
+  if(en.slowT>0){ctx.strokeStyle=en.slowF<.4?'#a8ecff':'#4aa3df';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r+3,0,7);ctx.stroke();}
+  if(en.burnT>0){ctx.fillStyle='#e8673c';ctx.beginPath();ctx.arc(x-r*.6,y-r,2.5,0,7);ctx.fill();}
+  if(en.poisT>0){ctx.fillStyle='#7bbf4a';ctx.beginPath();ctx.arc(x+r*.6,y-r,2.5,0,7);ctx.fill();}
+  const w=r*2.4;ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(x-w/2,y-r-9,w,4);ctx.fillStyle='#7cc48a';ctx.fillRect(x-w/2,y-r-9,w*Math.max(0,en.hp/en.max),4);
+}
+function draw(time){
+  ctx.fillStyle='#202a40';ctx.fillRect(0,0,W,H);
+  if(!LV){return;}
+  ctx.strokeStyle='#3b3426';ctx.lineWidth=38;ctx.lineJoin='round';ctx.beginPath();PATH.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.stroke();
+  ctx.strokeStyle='#4b4230';ctx.lineWidth=30;ctx.stroke();
+  ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(224,169,72,.3)';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);
+  // gate at path end
+  const e=PATH[PATH.length-1],gx=Math.min(340,Math.max(20,e[0])),gy=Math.min(526,Math.max(14,e[1]));
+  ctx.fillStyle='#5b4a6e';rr(gx-22,gy-12,44,24,4);ctx.fill();ctx.fillStyle='#e2604f';for(let i=0;i<4;i++)ctx.fillRect(gx-18+i*10,gy-16,6,5);
+  ctx.fillStyle='#2b2238';rr(gx-7,gy-4,14,16,6);ctx.fill();
+  drawHero(LV.hero[0],LV.hero[1],time);
+  if(S&&S.aim){ctx.strokeStyle='rgba(255,122,60,.7)';ctx.setLineDash([4,6]);ctx.lineWidth=2;ctx.strokeRect(4,4,W-8,H-8);ctx.setLineDash([]);}
+  if(drag&&drag.from.t){ctx.strokeStyle='rgba(233,228,214,.25)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(drag.x,drag.y,rangeOf(drag.from.t),0,7);ctx.stroke();}
+  for(const s of slots){
+    const over=drag&&drag.from!==s&&drag.x>=s.x&&drag.x<=s.x+SZ&&drag.y>=s.y&&drag.y<=s.y+SZ;
+    const m=drag&&s.t&&drag.from!==s?mergeCheck(drag.from.t,s.t):null;
+    const ok=m&&m.el&&!m.err,blocked=m&&m.el&&m.err;
+    ctx.fillStyle=over?'#34405d':'#28324b';rr(s.x,s.y,SZ,SZ,14);ctx.fill();
+    ctx.strokeStyle=ok?EL[m.el].c:blocked?'#e2604f':'#3a4766';ctx.lineWidth=ok||blocked?2.5:1;ctx.stroke();
+    if(s.t&&!(drag&&drag.from===s))drawCat(s.x+SZ/2,s.y+SZ/2,s.t,1,time);
+    if(m&&m.el&&over){
+      const label=blocked?(m.err.includes('кристалл')?'нужен кристалл ◆':'максимум уровня'):(found.has(m.el)?EL[m.el].n+' '+(s.t.lv+1):'??? новый кот')+(m.hybrid?' · ◆1':'');
+      ctx.font='10px Rubik,sans-serif';const tw=ctx.measureText(label).width+14;
+      ctx.fillStyle='#1b2233';rr(s.x+SZ/2-tw/2,s.y-18,tw,16,6);ctx.fill();ctx.fillStyle=blocked?'#e2604f':EL[m.el].c;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(label,s.x+SZ/2,s.y-10);}
+  }
+  if(drag&&drag.from.t)drawCat(drag.x,drag.y,drag.from.t,1.1,time);
+  if(S)for(const en of S.enemies){const[x,y]=posAt(en.d);drawMouse(en,x,y);}
+  if(S)for(const b of S.bullets){ctx.fillStyle=b.c;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();}
+  if(S)for(const f of S.fx){const a=1-f.t/.6;ctx.globalAlpha=Math.max(0,a);
+    if(f.ring){ctx.strokeStyle=f.c;ctx.lineWidth=3;ctx.beginPath();ctx.arc(f.x,f.y,20+f.t*80,0,7);ctx.stroke();}
+    else if(f.blast){ctx.fillStyle=f.c;ctx.globalAlpha=a*.4;ctx.beginPath();ctx.arc(f.x,f.y,f.blast*(.5+f.t),0,7);ctx.fill();}
+    else if(f.bolt){ctx.strokeStyle=f.c;ctx.lineWidth=2;const[a1,b1,a2,b2]=f.bolt;ctx.beginPath();ctx.moveTo(a1,b1);ctx.lineTo((a1+a2)/2+6,(b1+b2)/2-6);ctx.lineTo(a2,b2);ctx.stroke();}
+    else{ctx.fillStyle=f.c;ctx.font='13px "Russo One",sans-serif';ctx.textAlign='center';ctx.fillText(f.txt,f.x,f.y-14-f.t*24);}
+    ctx.globalAlpha=1;}
+  if(S&&S.running&&!S.enemies.length&&S.spawnLeft===0&&S.wave<LV.waves){
+    const nb=LV.boss.includes(S.wave+1);
+    ctx.font='14px "Russo One",sans-serif';const txt=(nb?'Крыса-командир! ':'')+'Волна '+(S.wave+1)+' скоро';const tw=ctx.measureText(txt).width+20;
+    ctx.fillStyle='rgba(27,34,51,.8)';rr(W/2-tw/2,H/2-14,tw,28,8);ctx.fill();
+    ctx.fillStyle=nb?'#e2604f':'rgba(233,228,214,.9)';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,W/2,H/2);}
+}
+
+renderGear();renderLevels();renderBook();requestAnimationFrame(step);
+})();
+</script>

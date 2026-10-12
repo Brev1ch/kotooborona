@@ -1,0 +1,34 @@
+{
+  "baseDamage": 6,
+  "levelDamageMult": 2.1,
+  "hybridDamageMult": 1.25,
+  "baseRate": 1.1,
+  "ratePerLevel": 0.06,
+  "baseRange": 140,
+  "rangePerLevel": 10,
+  "projectileSpeed": 460,
+  "elements": {
+    "fire": { "color": "#e8673c", "dmg": 1.0, "rate": 1.0, "fx": "burn" },
+    "water": { "color": "#4aa3df", "dmg": 0.7, "rate": 1.0, "fx": "slow" },
+    "earth": { "color": "#a07c4c", "dmg": 1.9, "rate": 0.55, "fx": "heavy" },
+    "air": { "color": "#9fd8cf", "dmg": 0.5, "rate": 2.3, "fx": "none" },
+    "steam": { "color": "#c9c3e0", "dmg": 0.9, "rate": 1.0, "fx": "splash_slow", "from": ["fire", "water"] },
+    "lava": { "color": "#ff4d1f", "dmg": 1.3, "rate": 0.8, "fx": "splash_burn", "from": ["fire", "earth"] },
+    "storm": { "color": "#f5d742", "dmg": 0.9, "rate": 1.2, "fx": "chain", "from": ["fire", "air"] },
+    "ice": { "color": "#a8ecff", "dmg": 0.8, "rate": 1.0, "fx": "freeze", "from": ["water", "air"] },
+    "swamp": { "color": "#7bbf4a", "dmg": 0.6, "rate": 1.1, "fx": "poison", "from": ["water", "earth"] },
+    "sand": { "color": "#e6c27a", "dmg": 0.45, "rate": 0.9, "fx": "aura", "from": ["earth", "air"] }
+  },
+  "effects": {
+    "burn": { "burnDps": 0.45, "burnTime": 2 },
+    "slow": { "slowFactor": 0.55, "slowTime": 1.5 },
+    "heavy": {},
+    "none": {},
+    "splash_slow": { "slowFactor": 0.6, "slowTime": 1.2, "splashRadius": 45, "splashDamage": 0.6 },
+    "splash_burn": { "burnDps": 0.4, "burnTime": 2, "splashRadius": 45, "splashDamage": 0.6, "splashBurnDps": 0.3 },
+    "chain": { "jumps": 3, "jumpRadius": 80, "jumpDamage": 0.7 },
+    "freeze": { "slowFactor": 0.25, "slowTime": 1.1 },
+    "poison": { "poisonDps": 0.35, "poisonCap": 1.05, "poisonTime": 3 },
+    "aura": {}
+  }
+}

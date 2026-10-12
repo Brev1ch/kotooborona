@@ -1,0 +1,40 @@
+{
+  "slotSize": 64,
+  "waves": {
+    "enemiesBase": 6,
+    "enemiesPerWave": 2,
+    "bossesBase": 1,
+    "extraBossEveryWaves": 4,
+    "spawnInterval": 0.55,
+    "bossSpawnInterval": 1.6,
+    "firstWaveDelay": 2,
+    "waveDelay": 3,
+    "ratFromWave": 2
+  },
+  "stars": {
+    "threeStarsMaxLost": 0,
+    "twoStarsMaxLost": 5
+  },
+  "levels": [
+    {
+      "id": "opushka",
+      "path": [[30, -20], [30, 500], [330, 500], [330, -20]],
+      "slots": [
+        [72, 120], [148, 120], [224, 120],
+        [72, 196], [148, 196], [224, 196],
+        [72, 272], [148, 272], [224, 272],
+        [72, 348], [148, 348], [224, 348]
+      ],
+      "hero": [262, 62],
+      "waves": 6,
+      "bossWaves": [6],
+      "maxCatLevel": 5,
+      "startGold": 40,
+      "startCrystals": 1,
+      "startLives": 20,
+      "hpMult": 1,
+      "ratChance": 0.15,
+      "shieldChance": 0
+    }
+  ]
+}
