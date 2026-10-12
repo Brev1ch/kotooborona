@@ -16,6 +16,15 @@ export const en: Record<StringKey, string> = {
   'reward.gold': '+{gold}',
   'reward.goldCrystals': '+{gold}  ◆{crystals}',
 
+  'result.win': 'Level complete',
+  'result.lose': 'The castle has fallen',
+  'result.noLosses': 'Not a single mouse got through!',
+  'result.livesLost': 'Lives lost: {lost}',
+  'result.starsHint': 'Lose no lives to earn 3 stars',
+  'result.reached': 'The cats held out until wave {wave} of {total}',
+  'result.retry': 'Try again',
+  'result.menu': 'Menu',
+
   'summon.button': 'Summon',
 
   'merge.maxLevel': 'Max level {level}',

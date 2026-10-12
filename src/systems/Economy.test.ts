@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { levels } from '../data';
 import type { LevelConfig } from '../data';
-import { Economy } from './Economy';
+import { Economy, starsFor } from './Economy';
 
 // Числа зафиксированы здесь, чтобы тесты не зависели от правок баланса в JSON.
 const level: LevelConfig = { ...levels.levels[0], startGold: 25, startCrystals: 2, startLives: 10 };
@@ -97,5 +97,23 @@ describe('Economy', () => {
     economy.loseLives(5);
 
     expect(economy.lives).toBe(0);
+  });
+});
+
+describe('starsFor', () => {
+  const rules = { threeStarsMaxLost: 0, twoStarsMaxLost: 5 };
+
+  it('без потерь — три звезды', () => {
+    expect(starsFor(0, rules)).toBe(3);
+  });
+
+  it('небольшие потери — две звезды', () => {
+    expect(starsFor(1, rules)).toBe(2);
+    expect(starsFor(5, rules)).toBe(2);
+  });
+
+  it('большие потери — одна звезда', () => {
+    expect(starsFor(6, rules)).toBe(1);
+    expect(starsFor(19, rules)).toBe(1);
   });
 });

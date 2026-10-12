@@ -144,6 +144,17 @@ export const ANNOUNCE_FEEL = {
   bgAlpha: 0.8,
 };
 
+/** Экран победы и поражения. */
+export const RESULT_FEEL = {
+  dimAlpha: 0.9,
+  /** Пауза после последнего события боя, чтобы игрок успел его увидеть. */
+  delayMs: 400,
+  showMs: 250,
+  starDelayMs: 180,
+  starMs: 260,
+  starEase: 'Back.easeOut',
+};
+
 export const BUTTON_FEEL = {
   pressScale: 0.94,
   pressMs: 70,

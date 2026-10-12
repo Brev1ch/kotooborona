@@ -10,12 +10,12 @@ import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
 import { platform } from '../platform';
 import { catRange, Combat } from '../systems/Combat';
-import { Economy } from '../systems/Economy';
+import { Economy, starsFor } from '../systems/Economy';
 import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
 import { buildPath, positionAt, type Path } from '../systems/Path';
 import { Summon } from '../systems/Summon';
 import { Waves } from '../systems/Waves';
-import { GameEvent, SceneKey, type HudState, type LevelSceneData } from './keys';
+import { GameEvent, SceneKey, type HudState, type LevelResult, type LevelSceneData } from './keys';
 
 // Пока снаряжение не выбирается игроком, посох берётся из умолчаний.
 const STAFF_ID = gear.defaults.staff;
@@ -64,6 +64,8 @@ export class GameScene extends Phaser.Scene {
   private projectileViews = new Map<Projectile, Phaser.GameObjects.Arc>();
   /** Номер волны и объявление, уже показанные в HUD. */
   private shownWave = '';
+  /** Бой окончен: поле замирает, призыв и перетаскивание отключены. */
+  private finished = false;
 
   constructor() {
     super(SceneKey.Game);
@@ -103,6 +105,7 @@ export class GameScene extends Phaser.Scene {
     this.enemyViews = new Map();
     this.projectileViews = new Map();
     this.shownWave = '';
+    this.finished = false;
     this.board = this.level.slots.map(() => null);
     this.views = this.level.slots.map(() => null);
     this.drag = null;
@@ -137,9 +140,35 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    if (this.finished) return;
     const dt = Math.min(MAX_STEP, delta / 1000);
     this.updateRituals(dt);
     this.updateBattle(dt);
+
+    if (this.economy.lives <= 0) this.finish(false);
+    else if (this.waves.finished && this.combat.enemies.length === 0) this.finish(true);
+  }
+
+  private finish(won: boolean): void {
+    this.finished = true;
+    if (this.drag) {
+      this.drag.view.settle(...this.slotCenter(this.drag.slot), CAT_FEEL.returnMs);
+      this.drag = null;
+      this.highlights.clear();
+      this.hint.setVisible(false);
+      this.rangeRing.setVisible(false);
+    }
+
+    const livesLost = this.level.startLives - this.economy.lives;
+    const result: LevelResult = {
+      won,
+      stars: won ? starsFor(livesLost, levels.stars) : 0,
+      livesLost,
+      wave: this.waves.wave,
+      totalWaves: this.level.waves,
+    };
+    this.events.emit(GameEvent.Changed);
+    this.events.emit(GameEvent.Finished, result);
   }
 
   private updateRituals(dt: number): void {
@@ -309,7 +338,7 @@ export class GameScene extends Phaser.Scene {
       gold: this.economy.gold,
       crystals: this.economy.crystals,
       summonCost: this.economy.summonCost,
-      canSummon: this.economy.canAffordSummon() && this.board.includes(null),
+      canSummon: !this.finished && this.economy.canAffordSummon() && this.board.includes(null),
       lives: this.economy.lives,
       wave: this.waves.wave,
       totalWaves: this.level.waves,
@@ -318,7 +347,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   summon(): void {
-    if (!this.economy.canAffordSummon()) return;
+    if (this.finished || !this.economy.canAffordSummon()) return;
     const result = this.summoner.summon(this.board);
     if (!result) return;
 
@@ -335,7 +364,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
-    if (this.drag) return;
+    if (this.drag || this.finished) return;
     const slot = this.slotAt(pointer);
     if (slot === null) return;
     const cat = this.board[slot];

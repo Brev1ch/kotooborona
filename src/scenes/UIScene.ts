@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 import { cats, getLevel, type ElementId, type LevelConfig } from '../data';
-import { ANNOUNCE_FEEL, BANNER_FEEL, BUTTON_FEEL, STAT_FEEL } from '../feel';
+import { ANNOUNCE_FEEL, BANNER_FEEL, BUTTON_FEEL, RESULT_FEEL, STAT_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
-import { BOARD_Y, COLORS, CONTROLS_H, CONTROLS_Y, FONTS, GAME_W, HUD_H, TEXT_COLORS } from '../layout';
+import { BOARD_H, BOARD_Y, COLORS, CONTROLS_H, CONTROLS_Y, FONTS, GAME_W, HUD_H, TEXT_COLORS } from '../layout';
 import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
-import { GameEvent, SceneKey, type LevelSceneData } from './keys';
+import { GameEvent, SceneKey, type LevelResult, type LevelSceneData } from './keys';
 
 const STAT_PAD = 6;
 const STAT_GAP = 6;
@@ -19,6 +19,14 @@ const COIN_RADIUS = 5;
 const BANNER_W = 280;
 const BANNER_H = 46;
 const BANNER_Y = BOARD_Y + 8;
+
+const RESULT_Y = BOARD_Y + BOARD_H / 2;
+const RESULT_TEXT_W = 280;
+const RESULT_BUTTON_W = 130;
+const RESULT_BUTTON_H = 46;
+const RESULT_BUTTON_GAP = 12;
+const STAR_STEP = 44;
+const MAX_STARS = 3;
 
 const ANNOUNCE_BG = `rgba(27, 34, 51, ${ANNOUNCE_FEEL.bgAlpha})`;
 
@@ -79,9 +87,11 @@ export class UIScene extends Phaser.Scene {
     this.gameScene = this.scene.get(SceneKey.Game) as GameScene;
     this.gameScene.events.on(GameEvent.Changed, this.refresh, this);
     this.gameScene.events.on(GameEvent.Discovered, this.showDiscovered, this);
+    this.gameScene.events.on(GameEvent.Finished, this.showResult, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.gameScene.events.off(GameEvent.Changed, this.refresh, this);
       this.gameScene.events.off(GameEvent.Discovered, this.showDiscovered, this);
+      this.gameScene.events.off(GameEvent.Finished, this.showResult, this);
     });
     this.banner = null;
     this.refresh();
@@ -187,6 +197,102 @@ export class UIScene extends Phaser.Scene {
       .setColor(upcoming.boss ? TEXT_COLORS.danger : TEXT_COLORS.fg)
       .setBackgroundColor(ANNOUNCE_BG);
     this.tweens.add({ targets: this.announce, alpha: 1, duration: ANNOUNCE_FEEL.showMs });
+  }
+
+  /** Экран поверх поля: победа со звёздами или поражение, кнопки «Ещё раз» и «В меню». */
+  private showResult(result: LevelResult): void {
+    this.tweens.killTweensOf(this.announce);
+    this.announce.setAlpha(0);
+    // Кнопки появляются вместе с экраном: случайное касание во время паузы ничего не нажмёт.
+    this.time.delayedCall(RESULT_FEEL.delayMs, () => this.buildResult(result));
+  }
+
+  private buildResult(result: LevelResult): void {
+    // Затемнение перехватывает касания, чтобы под экраном ничего не нажималось.
+    const dim = this.add
+      .rectangle(GAME_W / 2, RESULT_Y, GAME_W, BOARD_H, COLORS.bg, RESULT_FEEL.dimAlpha)
+      .setInteractive();
+
+    const title = this.add
+      .text(GAME_W / 2, RESULT_Y - 96, t(result.won ? 'result.win' : 'result.lose'), {
+        fontFamily: FONTS.display,
+        fontSize: '26px',
+        color: TEXT_COLORS.fg,
+      })
+      .setOrigin(0.5);
+
+    const stars: Phaser.GameObjects.Star[] = [];
+    if (result.won) {
+      for (let i = 0; i < MAX_STARS; i++) {
+        const earned = i < result.stars;
+        const x = GAME_W / 2 + (i - (MAX_STARS - 1) / 2) * STAR_STEP;
+        stars.push(this.add.star(x, RESULT_Y - 44, 5, 8, 17, earned ? COLORS.brass : COLORS.line));
+      }
+    }
+
+    const detail = this.add
+      .text(GAME_W / 2, RESULT_Y + 6, this.resultText(result), {
+        fontFamily: FONTS.body,
+        fontSize: '14px',
+        color: TEXT_COLORS.muted,
+        align: 'center',
+        wordWrap: { width: RESULT_TEXT_W },
+      })
+      .setOrigin(0.5);
+
+    const data: LevelSceneData = { levelId: this.level.id };
+    const offset = (RESULT_BUTTON_W + RESULT_BUTTON_GAP) / 2;
+    const menu = this.addResultButton(GAME_W / 2 - offset, 'result.menu', false, () => {
+      this.scene.stop(SceneKey.Game);
+      this.scene.start(SceneKey.Menu);
+    });
+    // GameScene при запуске сама перезапускает HUD.
+    const retry = this.addResultButton(GAME_W / 2 + offset, 'result.retry', true, () => {
+      this.gameScene.scene.restart(data);
+    });
+
+    const overlay = this.add.container(0, 0, [dim, title, ...stars, detail, menu, retry]).setAlpha(0);
+    this.tweens.add({ targets: overlay, alpha: 1, duration: RESULT_FEEL.showMs });
+
+    // Заработанные звёзды выскакивают по одной.
+    stars.slice(0, result.stars).forEach((star, i) => {
+      star.setScale(0);
+      this.tweens.add({
+        targets: star,
+        scale: 1,
+        delay: RESULT_FEEL.showMs + i * RESULT_FEEL.starDelayMs,
+        duration: RESULT_FEEL.starMs,
+        ease: RESULT_FEEL.starEase,
+      });
+    });
+  }
+
+  private resultText(result: LevelResult): string {
+    if (!result.won) return t('result.reached', { wave: result.wave, total: result.totalWaves });
+    const lines = [result.livesLost === 0 ? t('result.noLosses') : t('result.livesLost', { lost: result.livesLost })];
+    if (result.stars < MAX_STARS) lines.push(t('result.starsHint'));
+    return lines.join('\n');
+  }
+
+  private addResultButton(x: number, label: StringKey, primary: boolean, onClick: () => void): Phaser.GameObjects.Container {
+    const bg = this.add
+      .rectangle(0, 0, RESULT_BUTTON_W, RESULT_BUTTON_H, primary ? COLORS.brass : COLORS.panel)
+      .setStrokeStyle(1, COLORS.line, primary ? 0 : 1)
+      .setInteractive({ useHandCursor: true });
+    const text = this.add
+      .text(0, 0, t(label), {
+        fontFamily: FONTS.display,
+        fontSize: '15px',
+        color: primary ? TEXT_COLORS.dark : TEXT_COLORS.fg,
+      })
+      .setOrigin(0.5);
+    const button = this.add.container(x, RESULT_Y + 78, [bg, text]);
+
+    bg.on('pointerdown', () => {
+      this.tweens.add({ targets: button, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
+    });
+    bg.once('pointerup', onClick);
+    return button;
   }
 
   /** Уведомление вверху поля: игрок впервые получил гибрида. */

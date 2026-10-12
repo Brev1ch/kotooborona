@@ -1,4 +1,11 @@
-import type { GearConfig, LevelConfig } from '../data/types';
+import type { GearConfig, LevelConfig, LevelsConfig } from '../data/types';
+
+/** Звёзды за пройденный уровень по числу потерянных жизней. */
+export function starsFor(livesLost: number, rules: LevelsConfig['stars']): 1 | 2 | 3 {
+  if (livesLost <= rules.threeStarsMaxLost) return 3;
+  if (livesLost <= rules.twoStarsMaxLost) return 2;
+  return 1;
+}
 
 /** Монеты, кристаллы, жизни и цена призыва. */
 export class Economy {

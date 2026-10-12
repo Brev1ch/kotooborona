@@ -14,6 +14,15 @@ export const ru = {
   'reward.gold': '+{gold}',
   'reward.goldCrystals': '+{gold}  ◆{crystals}',
 
+  'result.win': 'Уровень пройден',
+  'result.lose': 'Замок пал',
+  'result.noLosses': 'Ни одна мышь не прошла!',
+  'result.livesLost': 'Потеряно жизней: {lost}',
+  'result.starsHint': 'Для 3 звёзд пройди без потерь',
+  'result.reached': 'Коты продержались до волны {wave} из {total}',
+  'result.retry': 'Ещё раз',
+  'result.menu': 'В меню',
+
   'summon.button': 'Призвать',
 
   'merge.maxLevel': 'Максимум {level} ур.',
