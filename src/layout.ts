@@ -13,7 +13,7 @@ export const ROAD = { outerWidth: 38, innerWidth: 30, dash: 6, gap: 10 };
 export const SLOT_RADIUS = 14;
 
 /** Порядок отрисовки на игровом поле. */
-export const DEPTH = { highlight: 1, enemy: 2, cat: 3, fx: 4, dragged: 5, toast: 6 };
+export const DEPTH = { highlight: 1, enemy: 2, cat: 3, projectile: 4, fx: 5, dragged: 6, toast: 7 };
 
 export const COLORS = {
   bg: 0x1b2233,

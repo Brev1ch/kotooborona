@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { enemies, enemyColor } from '../data';
 import { ENEMY_FEEL } from '../feel';
-import { COLORS, DEPTH } from '../layout';
+import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
 import type { Enemy } from './Enemy';
 
 /** Временный вид врага: мышь сверху, носом по ходу движения, с полоской здоровья. */
@@ -9,7 +9,8 @@ export class EnemyView extends Phaser.GameObjects.Container {
   private readonly radius: number;
   /** Поворачивается по ходу движения; полоска здоровья остаётся горизонтальной. */
   private readonly turning: Phaser.GameObjects.Container;
-  private readonly shield: Phaser.GameObjects.Graphics;
+  private readonly shield: Phaser.GameObjects.Container;
+  private readonly shieldCount: Phaser.GameObjects.Text;
   private readonly bar: Phaser.GameObjects.Graphics;
   private shownHp = -1;
 
@@ -35,9 +36,14 @@ export class EnemyView extends Phaser.GameObjects.Container {
       g.fillRect(-r * 0.3, -r * 0.35, r * 0.6, r * 0.7);
     }
 
-    this.shield = scene.add.graphics();
-    this.shield.fillStyle(COLORS.shield);
-    this.shield.fillEllipse(r * 1.3, 0, r * 0.7, r * 1.8);
+    const plate = scene.add.graphics();
+    plate.fillStyle(COLORS.shield);
+    plate.fillEllipse(0, 0, r * 0.7, r * 1.8);
+    // Сколько попаданий щит ещё выдержит.
+    this.shieldCount = scene.add
+      .text(0, 0, '', { fontFamily: FONTS.body, fontSize: '9px', color: TEXT_COLORS.dark })
+      .setOrigin(0.5);
+    this.shield = scene.add.container(r * 1.3, 0, [plate, this.shieldCount]);
 
     this.turning = scene.add.container(0, 0, [g, this.shield]);
     this.bar = scene.add.graphics();
@@ -53,6 +59,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.setPosition(x, y);
     this.turning.setRotation(angle);
     this.shield.setVisible(enemy.shield > 0);
+    this.shieldCount.setText(String(enemy.shield));
 
     if (enemy.hp === this.shownHp) return;
     this.shownHp = enemy.hp;
@@ -63,5 +70,34 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.bar.fillRect(-width / 2, top, width, ENEMY_FEEL.hpBarHeight);
     this.bar.fillStyle(COLORS.hp);
     this.bar.fillRect(-width / 2, top, width * Phaser.Math.Clamp(enemy.hp / enemy.maxHp, 0, 1), ENEMY_FEEL.hpBarHeight);
+  }
+
+  /** Попадание прошло: враг вздрагивает. */
+  playHit(): void {
+    this.pulse(this.turning, ENEMY_FEEL.hitScale, ENEMY_FEEL.hitMs);
+  }
+
+  /** Щит принял попадание. */
+  playBlock(): void {
+    this.pulse(this.shield, ENEMY_FEEL.blockScale, ENEMY_FEEL.blockMs);
+  }
+
+  /** Враг убит: сжимается, гаснет и удаляется. */
+  playDeath(): void {
+    this.bar.setVisible(false);
+    this.scene.tweens.killTweensOf(this.turning);
+    this.scene.tweens.add({
+      targets: this,
+      scale: ENEMY_FEEL.deathScale,
+      alpha: 0,
+      duration: ENEMY_FEEL.deathMs,
+      onComplete: () => this.destroy(),
+    });
+  }
+
+  private pulse(target: Phaser.GameObjects.Container, scale: number, duration: number): void {
+    this.scene.tweens.killTweensOf(target);
+    target.setScale(scale);
+    this.scene.tweens.add({ targets: target, scale: 1, duration });
   }
 }

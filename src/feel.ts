@@ -89,6 +89,26 @@ export const ENEMY_FEEL = {
   /** Враг прошёл в ворота: поле вздрагивает. */
   leakShakeMs: 140,
   leakShakeIntensity: 0.006,
+  /** Попадание: враг вздрагивает. */
+  hitScale: 1.25,
+  hitMs: 70,
+  /** Щит принял удар. */
+  blockScale: 1.6,
+  blockMs: 110,
+  deathMs: 180,
+  deathScale: 0.3,
+};
+
+/** Выстрелы котов и награда за врага. */
+export const SHOT_FEEL = {
+  radius: 3.5,
+  heavyRadius: 6,
+  /** Отдача кота при выстреле. */
+  recoilScale: 1.12,
+  recoilMs: 80,
+  rewardOffsetY: 14,
+  rewardRise: 24,
+  rewardMs: 600,
 };
 
 /** Объявление следующей волны. */

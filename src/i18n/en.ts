@@ -13,6 +13,9 @@ export const en: Record<StringKey, string> = {
   'wave.soon': 'Wave {wave} incoming',
   'wave.bossSoon': 'Rat Commander! Wave {wave} incoming',
 
+  'reward.gold': '+{gold}',
+  'reward.goldCrystals': '+{gold}  ◆{crystals}',
+
   'summon.button': 'Summon',
 
   'merge.maxLevel': 'Max level {level}',

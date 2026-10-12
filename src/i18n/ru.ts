@@ -11,6 +11,9 @@ export const ru = {
   'wave.soon': 'Волна {wave} скоро',
   'wave.bossSoon': 'Крыса-командир! Волна {wave} скоро',
 
+  'reward.gold': '+{gold}',
+  'reward.goldCrystals': '+{gold}  ◆{crystals}',
+
   'summon.button': 'Призвать',
 
   'merge.maxLevel': 'Максимум {level} ур.',

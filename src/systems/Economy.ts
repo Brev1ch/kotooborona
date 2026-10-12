@@ -33,6 +33,12 @@ export class Economy {
     return true;
   }
 
+  /** Награда за убитого врага. */
+  reward(gold: number, crystals: number): void {
+    this.gold += gold;
+    this.crystals += crystals;
+  }
+
   /** Враг прошёл в ворота; жизни не уходят ниже нуля. */
   loseLives(amount: number): void {
     this.lives = Math.max(0, this.lives - amount);

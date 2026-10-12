@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { cats, elementColor } from '../data';
-import { CAT_FEEL, MERGE_FEEL, RITUAL_FEEL } from '../feel';
+import { CAT_FEEL, MERGE_FEEL, RITUAL_FEEL, SHOT_FEEL } from '../feel';
 import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
 import type { Cat } from './Cat';
 
@@ -50,6 +50,13 @@ export class CatView extends Phaser.GameObjects.Container {
       duration: CAT_FEEL.spawnMs,
       ease: CAT_FEEL.spawnEase,
     });
+  }
+
+  /** Отдача при выстреле: вздрагивает только фигура, чтобы не спорить с анимациями самого кота. */
+  playShot(): void {
+    this.scene.tweens.killTweensOf(this.shape);
+    this.shape.setScale(SHOT_FEEL.recoilScale);
+    this.scene.tweens.add({ targets: this.shape, scale: 1, duration: SHOT_FEEL.recoilMs });
   }
 
   /** Кот проводит ритуал: полупрозрачный, вокруг — кольцо прогресса. */

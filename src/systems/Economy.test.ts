@@ -76,6 +76,14 @@ describe('Economy', () => {
     expect(economy.lives).toBe(10);
   });
 
+  it('награда за врага прибавляет монеты и кристаллы', () => {
+    const economy = new Economy(level, summon);
+    economy.reward(7, 2);
+
+    expect(economy.gold).toBe(32);
+    expect(economy.crystals).toBe(4);
+  });
+
   it('прошедший враг отнимает жизни', () => {
     const economy = new Economy(level, summon);
     economy.loseLives(2);

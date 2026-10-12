@@ -3,8 +3,9 @@ import { cats, elementColor, enemies, gear, getLevel, levels, type ElementId, ty
 import type { Cat } from '../entities/Cat';
 import { CatView } from '../entities/CatView';
 import type { Enemy } from '../entities/Enemy';
+import type { Projectile } from '../entities/Projectile';
 import { EnemyView } from '../entities/EnemyView';
-import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, HINT_FEEL, MERGE_FEEL, TOAST_FEEL } from '../feel';
+import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, HINT_FEEL, MERGE_FEEL, SHOT_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
 import { platform } from '../platform';
@@ -60,6 +61,7 @@ export class GameScene extends Phaser.Scene {
   private waves!: Waves;
   private combat!: Combat;
   private enemyViews = new Map<Enemy, EnemyView>();
+  private projectileViews = new Map<Projectile, Phaser.GameObjects.Arc>();
   /** Номер волны и объявление, уже показанные в HUD. */
   private shownWave = '';
 
@@ -91,8 +93,15 @@ export class GameScene extends Phaser.Scene {
     });
     this.path = buildPath(this.level.path);
     this.waves = new Waves(levels.waves, this.level, enemies);
-    this.combat = new Combat({ enemies, path: this.path });
+    this.combat = new Combat({
+      cats,
+      enemies,
+      path: this.path,
+      slots: this.level.slots.map((_, slot) => this.slotCenter(slot)),
+      bounds: { width: BOARD_W, height: BOARD_H },
+    });
     this.enemyViews = new Map();
+    this.projectileViews = new Map();
     this.shownWave = '';
     this.board = this.level.slots.map(() => null);
     this.views = this.level.slots.map(() => null);
@@ -157,14 +166,48 @@ export class GameScene extends Phaser.Scene {
       this.enemyViews.set(enemy, new EnemyView(this, ...positionAt(this.path, enemy.distance), enemy));
     }
 
-    for (const event of this.combat.update(dt)) {
+    for (const event of this.combat.update(dt, this.board)) {
       switch (event.kind) {
         case 'leaked':
           this.economy.loseLives(event.lifeDamage);
-          this.removeEnemyView(event.enemy);
+          this.enemyViews.get(event.enemy)?.destroy();
+          this.enemyViews.delete(event.enemy);
           this.cameras.main.shake(ENEMY_FEEL.leakShakeMs, ENEMY_FEEL.leakShakeIntensity);
           changed = true;
           break;
+
+        case 'shot':
+          this.views[event.slot]?.playShot();
+          this.addProjectileView(event.projectile);
+          break;
+
+        case 'hit':
+          this.enemyViews.get(event.enemy)?.playHit();
+          break;
+
+        case 'blocked':
+          this.enemyViews.get(event.enemy)?.playBlock();
+          break;
+
+        case 'killed':
+          this.economy.reward(event.gold, event.crystals);
+          this.enemyViews.get(event.enemy)?.playDeath();
+          this.enemyViews.delete(event.enemy);
+          this.showReward(event.x, event.y, event.gold, event.crystals);
+          // С новым кристаллом заблокированное смешение могло стать доступным.
+          if (this.drag && event.crystals > 0) this.drawHighlights();
+          changed = true;
+          break;
+      }
+    }
+
+    const flying = new Set(this.combat.projectiles);
+    for (const [projectile, view] of this.projectileViews) {
+      if (flying.has(projectile)) {
+        view.setPosition(projectile.x, projectile.y);
+      } else {
+        view.destroy();
+        this.projectileViews.delete(projectile);
       }
     }
 
@@ -182,9 +225,31 @@ export class GameScene extends Phaser.Scene {
     if (changed) this.events.emit(GameEvent.Changed);
   }
 
-  private removeEnemyView(enemy: Enemy): void {
-    this.enemyViews.get(enemy)?.destroy();
-    this.enemyViews.delete(enemy);
+  private addProjectileView(projectile: Projectile): void {
+    const heavy = cats.elements[projectile.element].fx === 'heavy';
+    const view = this.add
+      .circle(projectile.x, projectile.y, heavy ? SHOT_FEEL.heavyRadius : SHOT_FEEL.radius, elementColor(projectile.element))
+      .setDepth(DEPTH.projectile);
+    this.projectileViews.set(projectile, view);
+  }
+
+  /** Всплывающая награда над убитым врагом. */
+  private showReward(x: number, y: number, gold: number, crystals: number): void {
+    const text = this.add
+      .text(x, y - SHOT_FEEL.rewardOffsetY, t(crystals > 0 ? 'reward.goldCrystals' : 'reward.gold', { gold, crystals }), {
+        fontFamily: FONTS.display,
+        fontSize: '13px',
+        color: crystals > 0 ? TEXT_COLORS.crystal : TEXT_COLORS.brass,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(DEPTH.fx);
+    this.tweens.add({
+      targets: text,
+      y: text.y - SHOT_FEEL.rewardRise,
+      alpha: 0,
+      duration: SHOT_FEEL.rewardMs,
+      onComplete: () => text.destroy(),
+    });
   }
 
   hudState(): HudState {

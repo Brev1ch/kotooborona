@@ -42,6 +42,10 @@ export interface CatsConfig {
   baseRange: number;
   rangePerLevel: number;
   projectileSpeed: number;
+  /** Снаряд попадает, подлетев на эту долю радиуса врага. */
+  hitRadiusMult: number;
+  /** На сколько враг может выйти за край поля, оставаясь целью. */
+  targetMargin: number;
   elements: Record<ElementId, ElementConfig>;
   effects: Record<CatEffect, Record<string, number>>;
 }
