@@ -10,6 +10,8 @@ export const ru = {
 
   'summon.button': 'Призвать',
 
+  'merge.maxLevel': 'Максимум {level} ур.',
+
   'level.opushka': 'Опушка',
 
   'cat.fire': 'Огненный',

@@ -12,6 +12,8 @@ export const en: Record<StringKey, string> = {
 
   'summon.button': 'Summon',
 
+  'merge.maxLevel': 'Max level {level}',
+
   'level.opushka': 'Forest Edge',
 
   'cat.fire': 'Fire',

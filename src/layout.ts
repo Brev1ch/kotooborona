@@ -12,6 +12,9 @@ export const CONTROLS_H = GAME_H - CONTROLS_Y;
 export const ROAD = { outerWidth: 38, innerWidth: 30, dash: 6, gap: 10 };
 export const SLOT_RADIUS = 14;
 
+/** Порядок отрисовки на игровом поле. */
+export const DEPTH = { highlight: 1, cat: 2, fx: 3, dragged: 4, toast: 5 };
+
 export const COLORS = {
   bg: 0x1b2233,
   board: 0x202a40,
@@ -20,6 +23,8 @@ export const COLORS = {
   roadEdge: 0x3b3426,
   road: 0x4b4230,
   slot: 0x28324b,
+  slotHover: 0x34405d,
+  range: 0xe9e4d6,
   brass: 0xe0a948,
   gateWall: 0x5b4a6e,
   gateDoor: 0x2b2238,

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { getLevel, type LevelConfig } from '../data';
+import { BUTTON_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { COLORS, CONTROLS_H, CONTROLS_Y, FONTS, GAME_W, HUD_H, TEXT_COLORS } from '../layout';
 import type { GameScene } from './GameScene';
@@ -91,7 +92,12 @@ export class UIScene extends Phaser.Scene {
       if (!this.canSummon) return;
       this.tweens.killTweensOf(this.summonButton);
       this.summonButton.setScale(1);
-      this.tweens.add({ targets: this.summonButton, scale: 0.94, duration: 70, yoyo: true });
+      this.tweens.add({
+        targets: this.summonButton,
+        scale: BUTTON_FEEL.pressScale,
+        duration: BUTTON_FEEL.pressMs,
+        yoyo: true,
+      });
       this.gameScene.summon();
     });
   }
