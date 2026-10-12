@@ -64,6 +64,11 @@ export class UIScene extends Phaser.Scene {
     });
     this.banner = null;
     this.refresh();
+
+    // Ветка и сам модуль вырезаются из сборки для игроков.
+    if (import.meta.env.DEV) {
+      void import('../debug').then(({ addDebugButtons }) => addDebugButtons(this, this.gameScene));
+    }
   }
 
   private addSummonButton(): void {

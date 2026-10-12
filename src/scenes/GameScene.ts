@@ -33,7 +33,8 @@ interface Drag {
 
 export class GameScene extends Phaser.Scene {
   private level!: LevelConfig;
-  private economy!: Economy;
+  /** Открыт наружу для отладочных кнопок (src/debug.ts). */
+  economy!: Economy;
   private summoner!: Summon;
   /** Кот в каждой клетке, индексы совпадают с level.slots. */
   private board!: (Cat | null)[];
