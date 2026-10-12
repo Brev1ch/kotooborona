@@ -9,3 +9,15 @@ export const SceneKey = {
 export interface LevelSceneData {
   levelId: string;
 }
+
+/** События GameScene, на которые подписывается HUD. */
+export const GameEvent = {
+  Changed: 'changed',
+} as const;
+
+/** Срез состояния игры для HUD. */
+export interface HudState {
+  gold: number;
+  summonCost: number;
+  canSummon: boolean;
+}

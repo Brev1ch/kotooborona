@@ -1,10 +1,21 @@
 import Phaser from 'phaser';
-import { getLevel, levels, type LevelConfig, type Point } from '../data';
+import { cats, gear, getLevel, levels, type LevelConfig, type Point } from '../data';
+import type { Cat } from '../entities/Cat';
+import { CatView } from '../entities/CatView';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, ROAD, SLOT_RADIUS } from '../layout';
-import { SceneKey, type LevelSceneData } from './keys';
+import { Economy } from '../systems/Economy';
+import { Summon } from '../systems/Summon';
+import { GameEvent, SceneKey, type HudState, type LevelSceneData } from './keys';
+
+// Пока снаряжение не выбирается игроком, посох берётся из умолчаний.
+const STAFF_ID = gear.defaults.staff;
 
 export class GameScene extends Phaser.Scene {
   private level!: LevelConfig;
+  private economy!: Economy;
+  private summoner!: Summon;
+  /** Кот в каждой клетке, индексы совпадают с level.slots. */
+  private board!: (Cat | null)[];
 
   constructor() {
     super(SceneKey.Game);
@@ -25,8 +36,35 @@ export class GameScene extends Phaser.Scene {
     this.drawGate(g, this.level.path[this.level.path.length - 1]);
     this.drawSlots(g, this.level.slots);
 
+    this.economy = new Economy(this.level, gear.summon);
+    this.summoner = new Summon(cats, gear.staff.find((item) => item.id === STAFF_ID));
+    this.board = this.level.slots.map(() => null);
+
     const data: LevelSceneData = { levelId: this.level.id };
     this.scene.launch(SceneKey.UI, data);
+  }
+
+  hudState(): HudState {
+    return {
+      gold: this.economy.gold,
+      summonCost: this.economy.summonCost,
+      canSummon: this.economy.canAffordSummon() && this.board.includes(null),
+    };
+  }
+
+  summon(): void {
+    if (!this.economy.canAffordSummon()) return;
+    const result = this.summoner.summon(this.board);
+    if (!result) return;
+
+    this.economy.paySummon();
+    this.board[result.slot] = result.cat;
+
+    const [x, y] = this.level.slots[result.slot];
+    const half = levels.slotSize / 2;
+    new CatView(this, x + half, y + half, result.cat).playSpawn();
+
+    this.events.emit(GameEvent.Changed);
   }
 
   private drawRoad(g: Phaser.GameObjects.Graphics, path: Point[]): void {

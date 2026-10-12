@@ -8,6 +8,8 @@ export const ru = {
   'hud.lives': 'Жизни',
   'hud.waveValue': '{current}/{total}',
 
+  'summon.button': 'Призвать',
+
   'level.opushka': 'Опушка',
 
   'cat.fire': 'Огненный',

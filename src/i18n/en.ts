@@ -10,6 +10,8 @@ export const en: Record<StringKey, string> = {
   'hud.lives': 'Lives',
   'hud.waveValue': '{current}/{total}',
 
+  'summon.button': 'Summon',
+
   'level.opushka': 'Forest Edge',
 
   'cat.fire': 'Fire',
