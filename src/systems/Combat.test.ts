@@ -19,17 +19,31 @@ const cats: CatsConfig = {
   projectileSpeed: 200,
   hitRadiusMult: 0.5,
   targetMargin: 5,
+  // У всех стихий множители 1, кроме каменного: гибрид 1-го уровня бьёт на 15, базовый кот — на 10.
   elements: {
-    ...catsJson.elements,
-    fire: { ...catsJson.elements.fire, dmg: 1, rate: 1 },
+    ...(Object.fromEntries(
+      Object.entries(catsJson.elements).map(([id, element]) => [id, { ...element, dmg: 1, rate: 1 }]),
+    ) as CatsConfig['elements']),
     earth: { ...catsJson.elements.earth, dmg: 2, rate: 0.5 },
-    steam: { ...catsJson.elements.steam, dmg: 1, rate: 1 },
+  },
+  effects: {
+    burn: { burnDps: 0.5, burnTime: 2 },
+    slow: { slowFactor: 0.5, slowTime: 1 },
+    heavy: {},
+    none: {},
+    splash_slow: { slowFactor: 0.6, slowTime: 1, splashRadius: 20, splashDamage: 0.5 },
+    splash_burn: { burnDps: 0.4, burnTime: 2, splashRadius: 20, splashDamage: 0.5, splashBurnDps: 0.2 },
+    chain: { jumps: 2, jumpRadius: 30, jumpDamage: 0.5 },
+    freeze: { slowFactor: 0.2, slowTime: 1 },
+    poison: { poisonDps: 0.5, poisonCap: 1.2, poisonTime: 3 },
+    aura: {},
   },
 };
 
 const type = { color: '#000000', hp: 1, speed: 40, gold: 2, radius: 8, shield: 0, crystalChance: 0, crystalDrop: 0 };
 const enemies: EnemiesConfig = {
   ...enemiesJson,
+  bossSlowResist: 0.5,
   types: {
     mouse: { ...type, lifeDamage: 1 },
     rat: { ...type, lifeDamage: 2, crystalChance: 0.3, crystalDrop: 1 },
@@ -54,10 +68,26 @@ const MIDDLE = 70;
 const DT = 0.05;
 
 function enemy(type: EnemyTypeId = 'mouse', distance = 0, overrides: Partial<Enemy> = {}): Enemy {
-  return { type, distance, hp: 20, maxHp: 20, speed: 0, gold: 2, shield: 0, ...overrides };
+  return {
+    type,
+    distance,
+    hp: 20,
+    maxHp: 20,
+    speed: 0,
+    gold: 2,
+    shield: 0,
+    slowFactor: 1,
+    slowTime: 0,
+    burnDps: 0,
+    burnTime: 0,
+    poisonDps: 0,
+    poisonTime: 0,
+    ...overrides,
+  };
 }
 
-function cat(element: ElementId = 'fire', level = 1, overrides: Partial<Cat> = {}): Cat {
+/** По умолчанию ветряной: бьёт без побочных эффектов. */
+function cat(element: ElementId = 'air', level = 1, overrides: Partial<Cat> = {}): Cat {
   return { element, level, cooldown: 0, ritual: 0, ...overrides };
 }
 
@@ -234,7 +264,7 @@ describe('Combat: попадание', () => {
 
     const events = run(combat, [cat()], 0.3);
 
-    expect(ofKind(events, 'hit')).toEqual([{ kind: 'hit', enemy: mouse, x: 50, y: 50, element: 'fire' }]);
+    expect(ofKind(events, 'hit')).toEqual([{ kind: 'hit', enemy: mouse, x: 50, y: 50, element: 'air' }]);
     expect(mouse.hp).toBe(10);
     expect(combat.projectiles).toEqual([]);
   });
@@ -272,7 +302,7 @@ describe('Combat: попадание', () => {
     const combat = create([bearer]);
 
     // Два выстрела: первый снимает щит, второй ранит.
-    const events = run(combat, [cat('fire', 2)], 0.8);
+    const events = run(combat, [cat('air', 2)], 0.8);
 
     expect(ofKind(events, 'blocked')).toHaveLength(1);
     expect(ofKind(events, 'hit')).toHaveLength(1);
@@ -343,5 +373,310 @@ describe('Combat: убийство', () => {
     const shots = ofKind(run(combat, [cat()], 1), 'shot');
 
     expect(shots.map((shot) => shot.projectile.target)).toEqual([first, second]);
+  });
+});
+
+/** Один кот в клетке 0 делает один выстрел, и снаряд долетает (перезарядка 0.67 с, полёт 0.15 с). */
+function oneHit(combat: Combat, element: ElementId): CombatEvent[] {
+  return run(combat, [cat(element)], 0.3);
+}
+
+describe('Combat: огонь', () => {
+  it('огненный кот поджигает: доля урона попадания в секунду', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 100 });
+    const combat = create([mouse]);
+
+    combat.update(DT, [cat('fire')]);
+    run(combat, [], 0.1);
+
+    // Попадание на 10 → огонь 5 в секунду на 2 с.
+    expect(mouse).toMatchObject({ hp: 90, burnDps: 5, burnTime: 2 });
+  });
+
+  it('огонь наносит урон со временем и гаснет', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 100, burnDps: 5, burnTime: 2 });
+    const combat = create([mouse]);
+
+    run(combat, [], 1);
+    expect(mouse.hp).toBeCloseTo(95);
+
+    run(combat, [], 3);
+    expect(mouse.hp).toBeCloseTo(90);
+  });
+
+  it('огонь жжёт мимо щита', () => {
+    const bearer = enemy('shield', MIDDLE, { hp: 100, shield: 5 });
+    const combat = create([bearer]);
+
+    oneHit(combat, 'fire');
+    run(combat, [], 1);
+
+    expect(bearer.shield).toBe(4);
+    expect(bearer.hp).toBeLessThan(100);
+  });
+
+  it('враг, сгоревший от огня, тоже даёт награду', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 1, gold: 4, burnDps: 5, burnTime: 2 });
+    const combat = create([mouse]);
+
+    const events = run(combat, [], 1);
+
+    expect(ofKind(events, 'killed')).toEqual([{ kind: 'killed', enemy: mouse, x: 50, y: 50, gold: 4, crystals: 0 }]);
+    expect(combat.enemies).toEqual([]);
+  });
+
+  it('слабый огонь не сбивает сильный, но продлевает его', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 1000, burnDps: 50, burnTime: 1 });
+    const combat = create([mouse]);
+
+    combat.update(DT, [cat('fire')]);
+    run(combat, [], 0.1);
+
+    expect(mouse).toMatchObject({ burnDps: 50, burnTime: 2 });
+  });
+
+  it('погасший огонь не возвращается с прежней силой', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 1000, burnDps: 50, burnTime: 0 });
+    const combat = create([mouse]);
+
+    oneHit(combat, 'fire');
+
+    expect(mouse.burnDps).toBe(5);
+  });
+});
+
+describe('Combat: замедление', () => {
+  it('водный кот замедляет', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 100 });
+    const combat = create([mouse]);
+
+    combat.update(DT, [cat('water')]);
+    run(combat, [], 0.1);
+
+    expect(mouse).toMatchObject({ hp: 90, slowFactor: 0.5, slowTime: 1 });
+  });
+
+  it('ледяной кот почти останавливает', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 100 });
+    const combat = create([mouse]);
+
+    oneHit(combat, 'ice');
+
+    expect(mouse.slowFactor).toBe(0.2);
+  });
+
+  it('замедленный враг идёт медленнее, пока действует эффект', () => {
+    const mouse = enemy('mouse', 0, { speed: 40, slowFactor: 0.5, slowTime: 1 });
+    const combat = create([mouse]);
+
+    run(combat, [], 0.5);
+    expect(mouse.distance).toBeCloseTo(10);
+
+    run(combat, [], 1);
+    expect(mouse.slowFactor).toBe(1);
+    const before = mouse.distance;
+    run(combat, [], 1);
+    expect(mouse.distance - before).toBeCloseTo(40);
+  });
+
+  it('слабое замедление не сбивает сильное', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 100, slowFactor: 0.2, slowTime: 5 });
+    const combat = create([mouse]);
+
+    oneHit(combat, 'water');
+
+    expect(mouse.slowFactor).toBe(0.2);
+  });
+
+  it('командир замедляется вдвое слабее', () => {
+    const boss = enemy('boss', MIDDLE, { hp: 100 });
+    const combat = create([boss]);
+
+    oneHit(combat, 'water');
+
+    expect(boss.slowFactor).toBe(0.75);
+  });
+});
+
+describe('Combat: каменный и ветряной', () => {
+  it('бьют без побочных эффектов', () => {
+    for (const element of ['earth', 'air'] as const) {
+      const mouse = enemy('mouse', MIDDLE, { hp: 100 });
+      const neighbour = enemy('mouse', MIDDLE - 5, { hp: 100 });
+      const combat = create([mouse, neighbour]);
+
+      const events = oneHit(combat, element);
+
+      expect(ofKind(events, 'hit')).toHaveLength(1);
+      expect(mouse).toMatchObject({ slowTime: 0, burnTime: 0, poisonTime: 0 });
+      expect(neighbour.hp).toBe(100);
+    }
+  });
+});
+
+describe('Combat: урон по площади', () => {
+  /** Цель под клеткой, сосед в 10 от неё, дальний — в 30 (радиус взрыва 20). */
+  function trio(): [Enemy, Enemy, Enemy] {
+    return [
+      enemy('mouse', MIDDLE, { hp: 100 }),
+      enemy('shield', MIDDLE - 10, { hp: 100, shield: 3 }),
+      enemy('mouse', MIDDLE - 30, { hp: 100 }),
+    ];
+  }
+
+  it('паровой кот: облако ранит и замедляет соседей', () => {
+    const [target, neighbour, far] = trio();
+    const combat = create([target, neighbour, far]);
+
+    const events = oneHit(combat, 'steam');
+
+    expect(target).toMatchObject({ hp: 85, slowFactor: 0.6 });
+    // Половина урона, мимо щита.
+    expect(neighbour).toMatchObject({ hp: 92.5, shield: 3, slowFactor: 0.6 });
+    expect(far).toMatchObject({ hp: 100, slowFactor: 1 });
+    expect(ofKind(events, 'splash')).toEqual([{ kind: 'splash', x: 50, y: 50, radius: 20, element: 'steam' }]);
+  });
+
+  it('лавовый кот: взрыв ранит и поджигает соседей', () => {
+    const [target, neighbour, far] = trio();
+    const combat = create([target, neighbour, far]);
+
+    combat.update(DT, [cat('lava')]);
+    run(combat, [], 0.1);
+
+    expect(target).toMatchObject({ hp: 85, burnDps: 6 });
+    expect(neighbour).toMatchObject({ hp: 92.5, burnDps: 3, burnTime: 2 });
+    expect(far).toMatchObject({ hp: 100, burnTime: 0 });
+  });
+
+  it('сосед, убитый взрывом, даёт награду', () => {
+    const neighbour = enemy('mouse', MIDDLE - 10, { hp: 5 });
+    const combat = create([enemy('mouse', MIDDLE, { hp: 100 }), neighbour]);
+
+    const killed = ofKind(oneHit(combat, 'lava'), 'killed');
+
+    expect(killed.map((event) => event.enemy)).toEqual([neighbour]);
+  });
+});
+
+describe('Combat: цепная молния', () => {
+  it('грозовой кот: молния перескакивает на соседей с ослабленным уроном', () => {
+    const target = enemy('mouse', MIDDLE, { hp: 100 });
+    const second = enemy('mouse', MIDDLE - 10, { hp: 100 });
+    const third = enemy('mouse', MIDDLE - 25, { hp: 100 });
+    const fourth = enemy('mouse', MIDDLE - 40, { hp: 100 });
+    const combat = create([target, second, third, fourth]);
+
+    const events = oneHit(combat, 'storm');
+
+    // Два прыжка по 50% урона; на третьего соседа прыжков не хватает.
+    expect([target.hp, second.hp, third.hp, fourth.hp]).toEqual([85, 92.5, 92.5, 100]);
+    expect(ofKind(events, 'chain')).toEqual([
+      { kind: 'chain', from: [50, 50], to: [40, 50], element: 'storm' },
+      { kind: 'chain', from: [40, 50], to: [25, 50], element: 'storm' },
+    ]);
+  });
+
+  it('молния не прыгает дальше своего радиуса', () => {
+    const target = enemy('mouse', MIDDLE, { hp: 100 });
+    const far = enemy('mouse', MIDDLE - 31, { hp: 100 });
+    const combat = create([target, far]);
+
+    expect(ofKind(oneHit(combat, 'storm'), 'chain')).toEqual([]);
+    expect(far.hp).toBe(100);
+  });
+
+  it('прыжок молнии — прямое попадание: щит его принимает', () => {
+    const bearer = enemy('shield', MIDDLE - 10, { hp: 100, shield: 2 });
+    const combat = create([enemy('mouse', MIDDLE, { hp: 100 }), bearer]);
+
+    oneHit(combat, 'storm');
+
+    expect(bearer).toMatchObject({ hp: 100, shield: 1 });
+  });
+});
+
+describe('Combat: яд', () => {
+  it('болотный кот: яд копится от попадания к попаданию до потолка', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 10000 });
+    const combat = create([mouse]);
+    const board = [cat('swamp')];
+    const doses: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      // Перезарядка 0.67 с: в каждое окно попадает ровно один снаряд.
+      run(combat, board, 0.65);
+      doses.push(mouse.poisonDps);
+    }
+
+    // Попадание на 15: +7.5 в секунду за каждое, потолок 15 × 1.2.
+    expect(doses).toEqual([7.5, 15, 18, 18]);
+  });
+
+  it('яд наносит урон со временем и выветривается', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 100, poisonDps: 10, poisonTime: 2 });
+    const combat = create([mouse]);
+
+    run(combat, [], 4);
+
+    expect(mouse.hp).toBeCloseTo(80);
+    expect(mouse.poisonDps).toBe(0);
+  });
+
+  it('слабый яд не сбивает сильный, но продлевает его', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 10000, poisonDps: 100, poisonTime: 0.5 });
+    const combat = create([mouse]);
+
+    combat.update(DT, [cat('swamp')]);
+    run(combat, [], 0.1);
+
+    expect(mouse).toMatchObject({ poisonDps: 100, poisonTime: 3 });
+  });
+
+  it('враг, умирающий сразу от огня и яда, считается убитым один раз', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 1, burnDps: 100, burnTime: 2, poisonDps: 100, poisonTime: 2 });
+    const combat = create([mouse]);
+
+    expect(ofKind(run(combat, [], 0.5), 'killed')).toHaveLength(1);
+  });
+});
+
+describe('Combat: буря', () => {
+  it('песчаный кот бьёт всех в радиусе сразу, без снаряда', () => {
+    const near = enemy('mouse', MIDDLE, { hp: 100 });
+    const alsoNear = enemy('mouse', MIDDLE - 20, { hp: 100 });
+    const far = enemy('mouse', MIDDLE - 60, { hp: 100 });
+    const storm = cat('sand');
+    const combat = create([near, alsoNear, far]);
+
+    const events = combat.update(DT, [storm]);
+
+    expect(ofKind(events, 'aura')).toEqual([{ kind: 'aura', slot: 0, radius: 60, element: 'sand' }]);
+    expect(ofKind(events, 'shot')).toEqual([]);
+    expect(combat.projectiles).toEqual([]);
+    expect([near.hp, alsoNear.hp, far.hp]).toEqual([85, 85, 100]);
+    expect(storm.cooldown).toBeCloseTo(1 / 1.5);
+  });
+
+  it('буря не поднимается, пока в радиусе никого нет', () => {
+    const storm = cat('sand');
+    const combat = create([enemy('mouse', MIDDLE - 60)]);
+
+    expect(run(combat, [storm], 1)).toEqual([]);
+    expect(storm.cooldown).toBe(0);
+  });
+
+  it('удар бури — прямое попадание: щит его принимает', () => {
+    const bearer = enemy('shield', MIDDLE, { hp: 100, shield: 2 });
+    const combat = create([bearer]);
+
+    combat.update(DT, [cat('sand')]);
+
+    expect(bearer).toMatchObject({ hp: 100, shield: 1 });
+  });
+
+  it('буря повторяется после перезарядки', () => {
+    const combat = create([enemy('mouse', MIDDLE, { hp: 10000 })]);
+
+    expect(ofKind(run(combat, [cat('sand')], 1.5), 'aura')).toHaveLength(3);
   });
 });

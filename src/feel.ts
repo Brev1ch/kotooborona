@@ -99,6 +99,32 @@ export const ENEMY_FEEL = {
   deathScale: 0.3,
 };
 
+/** Метки эффектов на враге: кольцо замедления, точки огня и яда. */
+export const STATUS_FEEL = {
+  /** Замедление сильнее этого рисуется как заморозка. */
+  frozenBelow: 0.4,
+  ringGap: 3,
+  ringWidth: 2,
+  dotRadius: 2.5,
+};
+
+/** Вспышки эффектов стихий. */
+export const FX_FEEL = {
+  /** Облако и взрыв: круг растёт от доли радиуса до полного и гаснет. */
+  splashMs: 350,
+  splashAlpha: 0.4,
+  splashFrom: 0.5,
+  /** Молния между врагами. */
+  boltMs: 250,
+  boltWidth: 2,
+  boltKink: 6,
+  /** Буря: кольцо расходится до радиуса кота. */
+  auraMs: 450,
+  auraAlpha: 0.5,
+  auraFrom: 0.7,
+  auraWidth: 3,
+};
+
 /** Выстрелы котов и награда за врага. */
 export const SHOT_FEEL = {
   radius: 3.5,

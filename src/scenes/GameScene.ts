@@ -5,7 +5,7 @@ import { CatView } from '../entities/CatView';
 import type { Enemy } from '../entities/Enemy';
 import type { Projectile } from '../entities/Projectile';
 import { EnemyView } from '../entities/EnemyView';
-import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, HINT_FEEL, MERGE_FEEL, SHOT_FEEL, TOAST_FEEL } from '../feel';
+import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, SHOT_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
 import { platform } from '../platform';
@@ -185,6 +185,43 @@ export class GameScene extends Phaser.Scene {
           this.enemyViews.get(event.enemy)?.playHit();
           break;
 
+        case 'splash': {
+          const { x, y, radius } = event;
+          const color = elementColor(event.element);
+          this.playFx(FX_FEEL.splashMs, (g, k) => {
+            g.fillStyle(color, FX_FEEL.splashAlpha * (1 - k));
+            g.fillCircle(x, y, radius * (FX_FEEL.splashFrom + (1 - FX_FEEL.splashFrom) * k));
+          });
+          break;
+        }
+
+        case 'chain': {
+          const [fromX, fromY] = event.from;
+          const [toX, toY] = event.to;
+          const color = elementColor(event.element);
+          this.playFx(FX_FEEL.boltMs, (g, k) => {
+            g.lineStyle(FX_FEEL.boltWidth, color, 1 - k);
+            g.beginPath();
+            g.moveTo(fromX, fromY);
+            g.lineTo((fromX + toX) / 2 + FX_FEEL.boltKink, (fromY + toY) / 2 - FX_FEEL.boltKink);
+            g.lineTo(toX, toY);
+            g.strokePath();
+          });
+          break;
+        }
+
+        case 'aura': {
+          const [x, y] = this.slotCenter(event.slot);
+          const { radius } = event;
+          const color = elementColor(event.element);
+          this.views[event.slot]?.playShot();
+          this.playFx(FX_FEEL.auraMs, (g, k) => {
+            g.lineStyle(FX_FEEL.auraWidth, color, FX_FEEL.auraAlpha * (1 - k));
+            g.strokeCircle(x, y, radius * (FX_FEEL.auraFrom + (1 - FX_FEEL.auraFrom) * k));
+          });
+          break;
+        }
+
         case 'blocked':
           this.enemyViews.get(event.enemy)?.playBlock();
           break;
@@ -231,6 +268,21 @@ export class GameScene extends Phaser.Scene {
       .circle(projectile.x, projectile.y, heavy ? SHOT_FEEL.heavyRadius : SHOT_FEEL.radius, elementColor(projectile.element))
       .setDepth(DEPTH.projectile);
     this.projectileViews.set(projectile, view);
+  }
+
+  /** Короткая вспышка эффекта: `draw` перерисовывает её, пока `k` идёт от 0 до 1. */
+  private playFx(duration: number, draw: (g: Phaser.GameObjects.Graphics, k: number) => void): void {
+    const g = this.add.graphics().setDepth(DEPTH.fx);
+    this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration,
+      onUpdate: (tween) => {
+        g.clear();
+        draw(g, tween.getValue() ?? 0);
+      },
+      onComplete: () => g.destroy(),
+    });
   }
 
   /** Всплывающая награда над убитым врагом. */

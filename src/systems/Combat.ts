@@ -40,7 +40,13 @@ export type CombatEvent =
   | { kind: 'hit'; enemy: Enemy; x: number; y: number; element: ElementId }
   /** Щит принял попадание на себя. */
   | { kind: 'blocked'; enemy: Enemy; x: number; y: number }
-  | { kind: 'killed'; enemy: Enemy; x: number; y: number; gold: number; crystals: number };
+  | { kind: 'killed'; enemy: Enemy; x: number; y: number; gold: number; crystals: number }
+  /** Облако или взрыв: задело всех в радиусе. */
+  | { kind: 'splash'; x: number; y: number; radius: number; element: ElementId }
+  /** Молния перескочила с врага на врага. */
+  | { kind: 'chain'; from: Point; to: Point; element: ElementId }
+  /** Кот ударил всех вокруг себя. */
+  | { kind: 'aura'; slot: number; radius: number; element: ElementId };
 
 /** Движение врагов, выбор целей, урон и эффекты стихий. */
 export class Combat {
@@ -81,9 +87,27 @@ export class Combat {
 
   private moveEnemies(dt: number): void {
     const { enemies, path } = this.setup;
-    for (const enemy of this.alive) enemy.distance += enemy.speed * dt;
+    for (const enemy of this.alive) {
+      const [x, y] = positionAt(path, enemy.distance);
+      if (enemy.slowTime > 0) {
+        enemy.slowTime -= dt;
+        if (enemy.slowTime <= 0) enemy.slowFactor = 1;
+      }
+      // Огонь и яд жгут мимо щита.
+      if (enemy.burnTime > 0) {
+        enemy.burnTime -= dt;
+        this.damage(enemy, enemy.burnDps * dt, x, y);
+      }
+      if (enemy.poisonTime > 0) {
+        enemy.poisonTime -= dt;
+        this.damage(enemy, enemy.poisonDps * dt, x, y);
+        if (enemy.poisonTime <= 0) enemy.poisonDps = 0;
+      }
+      enemy.distance += enemy.speed * enemy.slowFactor * dt;
+    }
 
     this.alive = this.alive.filter((enemy) => {
+      if (enemy.hp <= 0) return false;
       if (enemy.distance < path.length) return true;
       this.events.push({ kind: 'leaked', enemy, lifeDamage: enemies.types[enemy.type].lifeDamage });
       return false;
@@ -98,7 +122,18 @@ export class Combat {
 
     const { cats, slots } = this.setup;
     const [x, y] = slots[slot];
-    const target = this.pickTarget(x, y, catRange(cats, cat));
+    const range = catRange(cats, cat);
+
+    if (cats.elements[cat.element].fx === 'aura') {
+      const targets = this.near(x, y, range).filter((enemy) => this.visible(enemy));
+      if (targets.length === 0) return;
+      cat.cooldown = 1 / catRate(cats, cat);
+      this.events.push({ kind: 'aura', slot, radius: range, element: cat.element });
+      for (const enemy of targets) this.hurt(enemy, catDamage(cats, cat), cat.element);
+      return;
+    }
+
+    const target = this.pickTarget(x, y, range);
     if (!target) return;
 
     cat.cooldown = 1 / catRate(cats, cat);
@@ -109,17 +144,29 @@ export class Combat {
 
   /** Враг в радиусе, прошедший по дороге дальше всех. */
   private pickTarget(x: number, y: number, range: number): Enemy | null {
-    const { path, bounds, cats } = this.setup;
-    const margin = cats.targetMargin;
     let best: Enemy | null = null;
-    for (const enemy of this.alive) {
-      if (enemy.hp <= 0) continue;
-      const [ex, ey] = positionAt(path, enemy.distance);
-      if (ex < -margin || ey < -margin || ex > bounds.width + margin || ey > bounds.height + margin) continue;
-      if (Math.hypot(ex - x, ey - y) > range) continue;
+    for (const enemy of this.near(x, y, range)) {
+      if (!this.visible(enemy)) continue;
       if (!best || enemy.distance > best.distance) best = enemy;
     }
     return best;
+  }
+
+  /** Живые враги не дальше `radius` от точки, кроме `except`; в порядке появления. */
+  private near(x: number, y: number, radius: number, except?: Enemy): Enemy[] {
+    return this.alive.filter((enemy) => {
+      if (enemy.hp <= 0 || enemy === except) return false;
+      const [ex, ey] = positionAt(this.setup.path, enemy.distance);
+      return Math.hypot(ex - x, ey - y) <= radius;
+    });
+  }
+
+  /** Враг уже вышел на поле и ещё не ушёл с него. */
+  private visible(enemy: Enemy): boolean {
+    const { path, bounds, cats } = this.setup;
+    const margin = cats.targetMargin;
+    const [x, y] = positionAt(path, enemy.distance);
+    return x >= -margin && y >= -margin && x <= bounds.width + margin && y <= bounds.height + margin;
   }
 
   private moveProjectiles(dt: number): void {
@@ -145,8 +192,85 @@ export class Combat {
     });
   }
 
-  private applyHit(projectile: Projectile): void {
-    this.hurt(projectile.target, projectile.damage, projectile.element);
+  /** Попадание снаряда: прямой урон по цели и эффект стихии. Статусы ложатся и на прикрытого щитом. */
+  private applyHit({ target, damage, element }: Projectile): void {
+    const { cats, path } = this.setup;
+    const fx = cats.elements[element].fx;
+    const effect = cats.effects[fx];
+    const [x, y] = positionAt(path, target.distance);
+
+    this.hurt(target, damage, element);
+
+    switch (fx) {
+      case 'burn':
+        this.burn(target, damage * effect.burnDps, effect.burnTime);
+        break;
+
+      case 'slow':
+      case 'freeze':
+        this.slow(target, effect.slowFactor, effect.slowTime);
+        break;
+
+      case 'splash_slow':
+        this.slow(target, effect.slowFactor, effect.slowTime);
+        for (const other of this.near(x, y, effect.splashRadius, target)) {
+          this.damage(other, damage * effect.splashDamage, ...positionAt(path, other.distance));
+          this.slow(other, effect.slowFactor, effect.slowTime);
+        }
+        this.events.push({ kind: 'splash', x, y, radius: effect.splashRadius, element });
+        break;
+
+      case 'splash_burn':
+        this.burn(target, damage * effect.burnDps, effect.burnTime);
+        for (const other of this.near(x, y, effect.splashRadius, target)) {
+          this.damage(other, damage * effect.splashDamage, ...positionAt(path, other.distance));
+          this.burn(other, damage * effect.splashBurnDps, effect.burnTime);
+        }
+        this.events.push({ kind: 'splash', x, y, radius: effect.splashRadius, element });
+        break;
+
+      case 'chain': {
+        const struck = new Set([target]);
+        let from: Point = [x, y];
+        for (let i = 0; i < effect.jumps; i++) {
+          const next = this.near(from[0], from[1], effect.jumpRadius).find((enemy) => !struck.has(enemy));
+          if (!next) break;
+          struck.add(next);
+          const to = positionAt(path, next.distance);
+          this.events.push({ kind: 'chain', from, to, element });
+          this.hurt(next, damage * effect.jumpDamage, element);
+          from = to;
+        }
+        break;
+      }
+
+      case 'poison':
+        // Яд копится от попадания к попаданию до потолка; более сильный яд слабым не сбивается.
+        target.poisonDps = Math.max(
+          target.poisonDps,
+          Math.min(target.poisonDps + damage * effect.poisonDps, damage * effect.poisonCap),
+        );
+        target.poisonTime = effect.poisonTime;
+        break;
+
+      case 'heavy':
+      case 'none':
+      case 'aura':
+        break;
+    }
+  }
+
+  /** Замедления не складываются: действует сильнейшее. Командир замедляется слабее. */
+  private slow(enemy: Enemy, factor: number, time: number): void {
+    const applied = enemy.type === 'boss' ? 1 - (1 - factor) * this.setup.enemies.bossSlowResist : factor;
+    enemy.slowFactor = Math.min(enemy.slowTime > 0 ? enemy.slowFactor : 1, applied);
+    enemy.slowTime = Math.max(enemy.slowTime, time);
+  }
+
+  /** Поджог продлевается каждым попаданием; из двух огней горит сильнейший. */
+  private burn(enemy: Enemy, dps: number, time: number): void {
+    enemy.burnDps = enemy.burnTime > 0 ? Math.max(enemy.burnDps, dps) : dps;
+    enemy.burnTime = time;
   }
 
   /** Прямое попадание: щит съедает его целиком. */
@@ -162,7 +286,9 @@ export class Combat {
     this.damage(enemy, damage, x, y);
   }
 
+  /** Урон мимо щита: осколки взрыва, огонь, яд. */
   private damage(enemy: Enemy, amount: number, x: number, y: number): void {
+    if (enemy.hp <= 0) return;
     enemy.hp -= amount;
     if (enemy.hp > 0) return;
     const { crystalChance, crystalDrop } = this.setup.enemies.types[enemy.type];

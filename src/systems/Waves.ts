@@ -99,6 +99,12 @@ export class Waves {
       speed: config.speed + this.wave * speedPerWave,
       gold: config.gold + Math.floor(this.wave / bonusGoldEveryWaves),
       shield: config.shield,
+      slowFactor: 1,
+      slowTime: 0,
+      burnDps: 0,
+      burnTime: 0,
+      poisonDps: 0,
+      poisonTime: 0,
     };
   }
 }

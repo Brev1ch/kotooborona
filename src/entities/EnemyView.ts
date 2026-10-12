@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { enemies, enemyColor } from '../data';
-import { ENEMY_FEEL } from '../feel';
+import { elementColor, enemies, enemyColor } from '../data';
+import { ENEMY_FEEL, STATUS_FEEL } from '../feel';
 import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
 import type { Enemy } from './Enemy';
 
@@ -12,7 +12,9 @@ export class EnemyView extends Phaser.GameObjects.Container {
   private readonly shield: Phaser.GameObjects.Container;
   private readonly shieldCount: Phaser.GameObjects.Text;
   private readonly bar: Phaser.GameObjects.Graphics;
+  private readonly marks: Phaser.GameObjects.Graphics;
   private shownHp = -1;
+  private shownStatus = '';
 
   constructor(scene: Phaser.Scene, x: number, y: number, enemy: Enemy) {
     super(scene, x, y);
@@ -47,7 +49,8 @@ export class EnemyView extends Phaser.GameObjects.Container {
 
     this.turning = scene.add.container(0, 0, [g, this.shield]);
     this.bar = scene.add.graphics();
-    this.add([this.turning, this.bar]);
+    this.marks = scene.add.graphics();
+    this.add([this.turning, this.marks, this.bar]);
     this.setDepth(DEPTH.enemy);
     scene.add.existing(this);
 
@@ -60,6 +63,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.turning.setRotation(angle);
     this.shield.setVisible(enemy.shield > 0);
     this.shieldCount.setText(String(enemy.shield));
+    this.syncStatus(enemy);
 
     if (enemy.hp === this.shownHp) return;
     this.shownHp = enemy.hp;
@@ -70,6 +74,33 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.bar.fillRect(-width / 2, top, width, ENEMY_FEEL.hpBarHeight);
     this.bar.fillStyle(COLORS.hp);
     this.bar.fillRect(-width / 2, top, width * Phaser.Math.Clamp(enemy.hp / enemy.maxHp, 0, 1), ENEMY_FEEL.hpBarHeight);
+  }
+
+  /** Кольцо замедления или заморозки, точки огня и яда над врагом. */
+  private syncStatus(enemy: Enemy): void {
+    const slowed = enemy.slowTime > 0;
+    const frozen = slowed && enemy.slowFactor < STATUS_FEEL.frozenBelow;
+    const burning = enemy.burnTime > 0;
+    const poisoned = enemy.poisonTime > 0;
+    const status = `${slowed}${frozen}${burning}${poisoned}`;
+    if (status === this.shownStatus) return;
+    this.shownStatus = status;
+
+    const r = this.radius;
+    const g = this.marks;
+    g.clear();
+    if (slowed) {
+      g.lineStyle(STATUS_FEEL.ringWidth, elementColor(frozen ? 'ice' : 'water'));
+      g.strokeCircle(0, 0, r + STATUS_FEEL.ringGap);
+    }
+    if (burning) {
+      g.fillStyle(elementColor('fire'));
+      g.fillCircle(-r * 0.6, -r, STATUS_FEEL.dotRadius);
+    }
+    if (poisoned) {
+      g.fillStyle(elementColor('swamp'));
+      g.fillCircle(r * 0.6, -r, STATUS_FEEL.dotRadius);
+    }
   }
 
   /** Попадание прошло: враг вздрагивает. */
@@ -85,6 +116,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
   /** Враг убит: сжимается, гаснет и удаляется. */
   playDeath(): void {
     this.bar.setVisible(false);
+    this.marks.setVisible(false);
     this.scene.tweens.killTweensOf(this.turning);
     this.scene.tweens.add({
       targets: this,

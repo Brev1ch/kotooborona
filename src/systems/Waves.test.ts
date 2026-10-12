@@ -175,7 +175,13 @@ describe('Waves: враги', () => {
     const [mouse] = nextWave(create());
 
     // HP: 10 × 2^0 × hpMult 2 × 1; скорость: 44 + 1 за волну; монеты: 2 + ⌊1/2⌋.
-    expect(mouse).toEqual({ type: 'mouse', distance: 0, hp: 20, maxHp: 20, speed: 45, gold: 2, shield: 0 });
+    expect(mouse).toMatchObject({ type: 'mouse', distance: 0, hp: 20, maxHp: 20, speed: 45, gold: 2, shield: 0 });
+  });
+
+  it('враг появляется без замедления, огня и яда', () => {
+    const [mouse] = nextWave(create());
+
+    expect(mouse).toMatchObject({ slowFactor: 1, slowTime: 0, burnDps: 0, burnTime: 0, poisonDps: 0, poisonTime: 0 });
   });
 
   it('с каждой волной враги крепче, быстрее и дороже', () => {
