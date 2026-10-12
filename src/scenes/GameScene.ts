@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
-import { cats, elementColor, gear, getLevel, levels, type LevelConfig, type Point } from '../data';
+import { cats, elementColor, gear, getLevel, levels, type ElementId, type LevelConfig, type Point } from '../data';
 import type { Cat } from '../entities/Cat';
 import { CatView } from '../entities/CatView';
-import { CAT_FEEL, DRAG_FEEL, MERGE_FEEL, TOAST_FEEL } from '../feel';
+import { CAT_FEEL, DRAG_FEEL, HINT_FEEL, MERGE_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
+import { platform } from '../platform';
 import { catRange } from '../systems/Combat';
 import { Economy } from '../systems/Economy';
-import { Merge, type MergeBlock } from '../systems/Merge';
+import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
 import { Summon } from '../systems/Summon';
 import { GameEvent, SceneKey, type HudState, type LevelSceneData } from './keys';
 
@@ -16,7 +17,11 @@ const STAFF_ID = gear.defaults.staff;
 
 const BLOCK_TEXT: Record<MergeBlock, StringKey> = {
   maxLevel: 'merge.maxLevel',
+  noCrystal: 'merge.noCrystal',
 };
+
+/** Ключ сохранения: стихии гибридов, которых игрок уже получал. */
+const BOOK_KEY = 'book';
 
 interface Drag {
   pointerId: number;
@@ -38,6 +43,9 @@ export class GameScene extends Phaser.Scene {
   private highlights!: Phaser.GameObjects.Graphics;
   private rangeRing!: Phaser.GameObjects.Graphics;
   private toast: Phaser.GameObjects.Text | null = null;
+  /** Подпись над клеткой под пальцем: кто получится при слиянии. */
+  private hint!: Phaser.GameObjects.Text;
+  private discovered = new Set<ElementId>();
 
   constructor() {
     super(SceneKey.Game);
@@ -60,11 +68,31 @@ export class GameScene extends Phaser.Scene {
 
     this.economy = new Economy(this.level, gear.summon);
     this.summoner = new Summon(cats, gear.staff.find((item) => item.id === STAFF_ID));
-    this.merger = new Merge(this.level);
+    this.merger = new Merge(cats, {
+      maxCatLevel: this.level.maxCatLevel,
+      ritualTime: gear.ritual.time,
+      crystalCost: gear.ritual.crystalCost,
+    });
     this.board = this.level.slots.map(() => null);
     this.views = this.level.slots.map(() => null);
     this.drag = null;
     this.toast = null;
+
+    this.discovered = new Set();
+    void platform.load<ElementId[]>(BOOK_KEY, []).then((saved) => {
+      for (const element of saved) this.discovered.add(element);
+    });
+
+    this.hint = this.add
+      .text(0, 0, '', {
+        fontFamily: FONTS.body,
+        fontSize: '11px',
+        backgroundColor: TEXT_COLORS.dark,
+        padding: { x: 6, y: 3 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(DEPTH.toast)
+      .setVisible(false);
 
     this.highlights = this.add.graphics().setDepth(DEPTH.highlight);
     this.rangeRing = this.add.graphics().setDepth(DEPTH.fx).setVisible(false);
@@ -78,9 +106,27 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch(SceneKey.UI, data);
   }
 
+  update(_time: number, delta: number): void {
+    const dt = delta / 1000;
+    this.board.forEach((cat, slot) => {
+      if (!cat || cat.ritual <= 0) return;
+      const view = this.views[slot];
+      if (!this.merger.advanceRitual(cat, dt)) {
+        view?.setRitualProgress(1 - cat.ritual / gear.ritual.time);
+        return;
+      }
+      view?.finishRitual();
+      this.playRing(...this.slotCenter(slot), elementColor(cat.element));
+      this.discover(cat.element);
+      // Кот вышел из ритуала и мог стать парой для того, которого сейчас держат.
+      if (this.drag) this.drawHighlights();
+    });
+  }
+
   hudState(): HudState {
     return {
       gold: this.economy.gold,
+      crystals: this.economy.crystals,
       summonCost: this.economy.summonCost,
       canSummon: this.economy.canAffordSummon() && this.board.includes(null),
     };
@@ -110,6 +156,10 @@ export class GameScene extends Phaser.Scene {
     const cat = this.board[slot];
     const view = this.views[slot];
     if (!cat || !view) return;
+    if (cat.ritual > 0) {
+      this.showToast(slot, t('merge.ritual'));
+      return;
+    }
 
     this.drag = { pointerId: pointer.id, slot, view, hover: null };
     view.lift();
@@ -144,12 +194,14 @@ export class GameScene extends Phaser.Scene {
     const to = this.slotAt(pointer);
     this.drag = null;
     this.highlights.clear();
+    this.hint.setVisible(false);
     this.rangeRing.setVisible(false);
 
-    const result = this.merger.drop(this.board, from, to);
-    if (to === null || result.kind === 'stay' || result.kind === 'blocked') {
+    const result = this.merger.drop(this.board, from, to, this.economy.crystals);
+    if (to === null || result.kind === 'stay' || result.kind === 'blocked' || result.kind === 'busy') {
       view.settle(...this.slotCenter(from), CAT_FEEL.returnMs);
-      if (to !== null && result.kind === 'blocked') this.showBlocked(to, result.reason);
+      if (to !== null && result.kind === 'blocked') this.showToast(to, this.blockText(result.reason));
+      if (to !== null && result.kind === 'busy') this.showToast(to, t('merge.ritual'));
       return;
     }
 
@@ -176,6 +228,7 @@ export class GameScene extends Phaser.Scene {
         view.absorb(x, y);
         target?.absorb(x, y);
 
+        this.economy.crystals -= result.crystalCost;
         this.board[to] = result.cat;
         this.board[from] = null;
         const merged = new CatView(this, x, y, result.cat);
@@ -183,7 +236,13 @@ export class GameScene extends Phaser.Scene {
         this.views[to] = merged;
         this.views[from] = null;
 
-        this.playRing(x, y, elementColor(result.cat.element));
+        if (result.cat.ritual > 0) {
+          // Вспышка, кольцо и открытие кота — по окончании ритуала, см. update().
+          merged.startRitual();
+        } else {
+          this.playRing(x, y, elementColor(result.cat.element), MERGE_FEEL.absorbMs);
+          this.discover(result.cat.element);
+        }
         break;
       }
     }
@@ -197,10 +256,11 @@ export class GameScene extends Phaser.Scene {
     this.rangeRing.setPosition(x, y);
   }
 
-  /** Обводит клетки, с которыми взятый кот сольётся или упрётся в потолок уровня. */
+  /** Обводит клетки, с которыми взятый кот сольётся или слияние чем-то заблокировано, и подписывает ту, что под пальцем. */
   private drawHighlights(): void {
     const g = this.highlights;
     g.clear();
+    this.hint.setVisible(false);
     if (!this.drag) return;
     const dragged = this.board[this.drag.slot];
     if (!dragged) return;
@@ -214,20 +274,52 @@ export class GameScene extends Phaser.Scene {
       }
       const cat = this.board[slot];
       if (!cat) return;
-      const check = this.merger.check(dragged, cat);
+      const check = this.merger.check(dragged, cat, this.economy.crystals);
       if (check.kind === 'none') return;
       g.lineStyle(DRAG_FEEL.highlightLineWidth, check.kind === 'merge' ? elementColor(check.cat.element) : COLORS.danger);
       g.strokeRoundedRect(x, y, size, size, SLOT_RADIUS);
+      if (slot === this.drag?.hover) this.showHint(slot, check);
     });
   }
 
-  /** Расходящееся кольцо слияния; стартует, когда коты стянулись в точку. */
-  private playRing(x: number, y: number, color: number): void {
+  private showHint(slot: number, check: Exclude<MergeCheck, { kind: 'none' }>): void {
+    const [x, y] = this.level.slots[slot];
+    this.hint
+      .setText(this.hintText(check))
+      .setColor(check.kind === 'merge' ? cats.elements[check.cat.element].color : TEXT_COLORS.danger)
+      .setPosition(x + levels.slotSize / 2, y - HINT_FEEL.offsetY)
+      .setVisible(true);
+  }
+
+  private hintText(check: Exclude<MergeCheck, { kind: 'none' }>): string {
+    if (check.kind === 'blocked') return this.blockText(check.reason);
+
+    const { element, level } = check.cat;
+    // Ещё не открытый гибрид остаётся загадкой до конца ритуала.
+    const known = !this.merger.isHybrid(element) || this.discovered.has(element);
+    const text = known ? t('merge.preview', { name: t(`cat.${element}`), level }) : t('merge.previewUnknown');
+    return check.crystalCost > 0 ? t('merge.crystalCost', { text, cost: check.crystalCost }) : text;
+  }
+
+  private blockText(reason: MergeBlock): string {
+    return t(BLOCK_TEXT[reason], { level: this.level.maxCatLevel });
+  }
+
+  /** Запоминает гибрида, полученного впервые, и сообщает об этом HUD. */
+  private discover(element: ElementId): void {
+    if (!this.merger.isHybrid(element) || this.discovered.has(element)) return;
+    this.discovered.add(element);
+    void platform.save(BOOK_KEY, [...this.discovered]);
+    this.events.emit(GameEvent.Discovered, element);
+  }
+
+  /** Расходящееся кольцо цвета стихии: после слияния (с задержкой, пока коты стягиваются) и в конце ритуала. */
+  private playRing(x: number, y: number, color: number, delay = 0): void {
     const ring = this.add.graphics().setDepth(DEPTH.fx);
     this.tweens.addCounter({
       from: 0,
       to: 1,
-      delay: MERGE_FEEL.absorbMs,
+      delay,
       duration: MERGE_FEEL.ringMs,
       ease: MERGE_FEEL.ringEase,
       onUpdate: (tween) => {
@@ -240,8 +332,8 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  /** Всплывающая надпись над клеткой: почему слияние не состоялось. */
-  private showBlocked(slot: number, reason: MergeBlock): void {
+  /** Всплывающая надпись над клеткой: почему слияние или перетаскивание не состоялось. */
+  private showToast(slot: number, text: string): void {
     if (this.toast) {
       this.tweens.killTweensOf(this.toast);
       this.toast.destroy();
@@ -249,7 +341,7 @@ export class GameScene extends Phaser.Scene {
 
     const [x, y] = this.level.slots[slot];
     const toast = this.add
-      .text(x + levels.slotSize / 2, y - TOAST_FEEL.offsetY, t(BLOCK_TEXT[reason], { level: this.level.maxCatLevel }), {
+      .text(x + levels.slotSize / 2, y - TOAST_FEEL.offsetY, text, {
         fontFamily: FONTS.display,
         fontSize: '13px',
         color: TEXT_COLORS.danger,

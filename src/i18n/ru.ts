@@ -11,6 +11,13 @@ export const ru = {
   'summon.button': 'Призвать',
 
   'merge.maxLevel': 'Максимум {level} ур.',
+  'merge.noCrystal': 'Нужен кристалл',
+  'merge.ritual': 'Кот проводит ритуал',
+  'merge.preview': '{name} {level}',
+  'merge.previewUnknown': '??? новый кот',
+  'merge.crystalCost': '{text} · ◆{cost}',
+
+  'book.discovered': 'Открыт новый кот: {name}',
 
   'level.opushka': 'Опушка',
 

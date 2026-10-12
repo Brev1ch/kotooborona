@@ -13,11 +13,14 @@ export interface LevelSceneData {
 /** События GameScene, на которые подписывается HUD. */
 export const GameEvent = {
   Changed: 'changed',
+  /** Игрок впервые получил гибрида; аргумент — его стихия. */
+  Discovered: 'discovered',
 } as const;
 
 /** Срез состояния игры для HUD. */
 export interface HudState {
   gold: number;
+  crystals: number;
   summonCost: number;
   canSummon: boolean;
 }

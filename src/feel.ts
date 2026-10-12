@@ -35,6 +35,42 @@ export const MERGE_FEEL = {
   ringEase: 'Cubic.easeOut',
 };
 
+/** Ритуал смешения: полупрозрачный кот, кольцо прогресса и вспышка в конце. */
+export const RITUAL_FEEL = {
+  catAlpha: 0.55,
+  ringRadius: 30,
+  ringLineWidth: 3,
+  ringTrackAlpha: 0.25,
+  revealMs: 160,
+  flashRadius: 30,
+  flashAlpha: 0.9,
+  flashScale: 1.4,
+  flashMs: 320,
+  popScale: 1.25,
+  popMs: 260,
+  popEase: 'Back.easeOut',
+};
+
+/** Подпись над клеткой: кто получится при слиянии. */
+export const HINT_FEEL = {
+  offsetY: 3,
+};
+
+/** Уведомление об открытии нового кота. */
+export const BANNER_FEEL = {
+  slide: 12,
+  showMs: 220,
+  showEase: 'Cubic.easeOut',
+  holdMs: 2400,
+  hideMs: 300,
+};
+
+/** Счётчик в HUD вздрагивает, когда значение меняется. */
+export const STAT_FEEL = {
+  pulseScale: 1.3,
+  pulseMs: 110,
+};
+
 /** Всплывающая надпись над клеткой. */
 export const TOAST_FEEL = {
   offsetY: 6,

@@ -13,6 +13,13 @@ export const en: Record<StringKey, string> = {
   'summon.button': 'Summon',
 
   'merge.maxLevel': 'Max level {level}',
+  'merge.noCrystal': 'Crystal needed',
+  'merge.ritual': 'This cat is in a ritual',
+  'merge.preview': '{name} {level}',
+  'merge.previewUnknown': '??? new cat',
+  'merge.crystalCost': '{text} · ◆{cost}',
+
+  'book.discovered': 'New cat unlocked: {name}',
 
   'level.opushka': 'Forest Edge',
 

@@ -1,16 +1,21 @@
-import type { ElementId } from '../data/types';
+import type { CatsConfig, ElementId } from '../data/types';
 import type { Cat } from '../entities/Cat';
 
 export interface MergeRules {
   maxCatLevel: number;
+  /** Длительность ритуала смешения, секунды. */
+  ritualTime: number;
+  /** Сколько кристаллов стоит гибрид. */
+  crystalCost: number;
 }
 
 /** Почему подходящую пару сейчас слить нельзя. */
-export type MergeBlock = 'maxLevel';
+export type MergeBlock = 'maxLevel' | 'noCrystal';
 
 export type MergeCheck =
   | { kind: 'none' }
-  | { kind: 'merge'; cat: Cat }
+  /** `crystalCost` больше нуля только при смешении стихий. */
+  | { kind: 'merge'; cat: Cat; crystalCost: number }
   | { kind: 'blocked'; element: ElementId; reason: MergeBlock };
 
 /** Что произойдёт, если отпустить кота над клеткой. */
@@ -18,35 +23,73 @@ export type DropResult =
   | { kind: 'stay' }
   | { kind: 'move' }
   | { kind: 'swap' }
+  /** Кот в клетке проводит ритуал: его нельзя ни слить, ни сдвинуть. */
+  | { kind: 'busy' }
   | Exclude<MergeCheck, { kind: 'none' }>;
 
 /** Слияние одинаковых котов и ритуал смешения стихий. */
 export class Merge {
-  constructor(private readonly rules: MergeRules) {}
+  /** Гибрид по паре базовых стихий. */
+  private readonly recipes = new Map<string, ElementId>();
+
+  constructor(
+    private readonly cats: CatsConfig,
+    private readonly rules: MergeRules,
+  ) {
+    for (const id of Object.keys(cats.elements) as ElementId[]) {
+      const from = cats.elements[id].from;
+      if (from) this.recipes.set(recipeKey(from[0], from[1]), id);
+    }
+  }
+
+  isHybrid(element: ElementId): boolean {
+    return !!this.cats.elements[element].from;
+  }
 
   /** Можно ли слить пару и какой кот получится; самих котов не меняет. */
-  check(a: Cat, b: Cat): MergeCheck {
+  check(a: Cat, b: Cat, crystals: number): MergeCheck {
+    if (a.ritual > 0 || b.ritual > 0) return { kind: 'none' };
     if (a.level !== b.level) return { kind: 'none' };
     const element = this.resultElement(a, b);
     if (!element) return { kind: 'none' };
     if (a.level >= this.rules.maxCatLevel) return { kind: 'blocked', element, reason: 'maxLevel' };
-    return { kind: 'merge', cat: { element, level: a.level + 1, cooldown: 0, ritual: 0 } };
+
+    const mixed = a.element !== b.element;
+    const crystalCost = mixed ? this.rules.crystalCost : 0;
+    if (crystals < crystalCost) return { kind: 'blocked', element, reason: 'noCrystal' };
+
+    const ritual = mixed ? this.rules.ritualTime : 0;
+    return { kind: 'merge', cat: { element, level: a.level + 1, cooldown: 0, ritual }, crystalCost };
   }
 
   /** Исход перетаскивания кота из клетки `from` в клетку `to` (null — мимо клеток); поле не меняет. */
-  drop(board: readonly (Cat | null)[], from: number, to: number | null): DropResult {
+  drop(board: readonly (Cat | null)[], from: number, to: number | null, crystals: number): DropResult {
     const dragged = board[from];
-    if (!dragged || to === null || to === from) return { kind: 'stay' };
+    if (!dragged || dragged.ritual > 0 || to === null || to === from) return { kind: 'stay' };
 
     const target = board[to];
     if (!target) return { kind: 'move' };
+    if (target.ritual > 0) return { kind: 'busy' };
 
-    const check = this.check(dragged, target);
+    const check = this.check(dragged, target, crystals);
     return check.kind === 'none' ? { kind: 'swap' } : check;
+  }
+
+  /** Продвигает ритуал кота на `dt` секунд. Возвращает true в тот момент, когда ритуал завершился. */
+  advanceRitual(cat: Cat, dt: number): boolean {
+    if (cat.ritual <= 0) return false;
+    cat.ritual = Math.max(0, cat.ritual - dt);
+    return cat.ritual === 0;
   }
 
   /** Стихия кота, который получится из пары одного уровня, или null, если пара не сливается. */
   private resultElement(a: Cat, b: Cat): ElementId | null {
-    return a.element === b.element ? a.element : null;
+    if (a.element === b.element) return a.element;
+    // Гибриды смешиваются только с такими же гибридами: в рецептах есть лишь пары базовых стихий.
+    return this.recipes.get(recipeKey(a.element, b.element)) ?? null;
   }
+}
+
+function recipeKey(a: ElementId, b: ElementId): string {
+  return a < b ? `${a}+${b}` : `${b}+${a}`;
 }

@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
-import { getLevel, type LevelConfig } from '../data';
-import { BUTTON_FEEL } from '../feel';
+import { cats, getLevel, type ElementId, type LevelConfig } from '../data';
+import { BANNER_FEEL, BUTTON_FEEL, STAT_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
-import { COLORS, CONTROLS_H, CONTROLS_Y, FONTS, GAME_W, HUD_H, TEXT_COLORS } from '../layout';
+import { BOARD_Y, COLORS, CONTROLS_H, CONTROLS_Y, FONTS, GAME_W, HUD_H, TEXT_COLORS } from '../layout';
 import type { GameScene } from './GameScene';
 import { GameEvent, SceneKey, type LevelSceneData } from './keys';
 
@@ -15,11 +15,17 @@ const SUMMON_H = 44;
 const SUMMON_PAD = 16;
 const COIN_RADIUS = 5;
 
+const BANNER_W = 280;
+const BANNER_H = 46;
+const BANNER_Y = BOARD_Y + 8;
+
 /** HUD поверх GameScene: показатели уровня и кнопка призыва. */
 export class UIScene extends Phaser.Scene {
   private level!: LevelConfig;
   private gameScene!: GameScene;
   private goldText!: Phaser.GameObjects.Text;
+  private crystalsText!: Phaser.GameObjects.Text;
+  private banner: Phaser.GameObjects.Container | null = null;
   private summonButton!: Phaser.GameObjects.Container;
   private summonBg!: Phaser.GameObjects.Rectangle;
   private summonLabel!: Phaser.GameObjects.Text;
@@ -43,7 +49,7 @@ export class UIScene extends Phaser.Scene {
 
     const { startGold, startCrystals, startLives, waves } = this.level;
     this.goldText = this.addStat(g, 0, 'hud.gold', String(startGold), TEXT_COLORS.brass);
-    this.addStat(g, 1, 'hud.crystals', String(startCrystals), TEXT_COLORS.crystal);
+    this.crystalsText = this.addStat(g, 1, 'hud.crystals', String(startCrystals), TEXT_COLORS.crystal);
     this.addStat(g, 2, 'hud.wave', t('hud.waveValue', { current: 0, total: waves }), TEXT_COLORS.fg);
     this.addStat(g, 3, 'hud.lives', String(startLives), TEXT_COLORS.danger);
 
@@ -51,9 +57,12 @@ export class UIScene extends Phaser.Scene {
 
     this.gameScene = this.scene.get(SceneKey.Game) as GameScene;
     this.gameScene.events.on(GameEvent.Changed, this.refresh, this);
+    this.gameScene.events.on(GameEvent.Discovered, this.showDiscovered, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.gameScene.events.off(GameEvent.Changed, this.refresh, this);
+      this.gameScene.events.off(GameEvent.Discovered, this.showDiscovered, this);
     });
+    this.banner = null;
     this.refresh();
   }
 
@@ -103,10 +112,11 @@ export class UIScene extends Phaser.Scene {
   }
 
   private refresh(): void {
-    const { gold, summonCost, canSummon } = this.gameScene.hudState();
+    const { gold, crystals, summonCost, canSummon } = this.gameScene.hudState();
     this.canSummon = canSummon;
 
     this.goldText.setText(String(gold));
+    this.setStat(this.crystalsText, String(crystals));
     this.summonCost.setText(String(summonCost));
     this.summonCoin.setX(this.summonCost.x - this.summonCost.width - COIN_RADIUS - 4);
 
@@ -116,6 +126,70 @@ export class UIScene extends Phaser.Scene {
     this.summonLabel.setColor(textColor);
     this.summonCost.setColor(textColor);
     this.summonCoin.setFillStyle(canSummon ? COLORS.bg : COLORS.line);
+  }
+
+  /** Обновляет счётчик; если значение изменилось, он вздрагивает. */
+  private setStat(text: Phaser.GameObjects.Text, value: string): void {
+    if (text.text === value) return;
+    text.setText(value);
+    this.tweens.killTweensOf(text);
+    text.setScale(1);
+    this.tweens.add({
+      targets: text,
+      scale: STAT_FEEL.pulseScale,
+      duration: STAT_FEEL.pulseMs,
+      yoyo: true,
+    });
+  }
+
+  /** Уведомление вверху поля: игрок впервые получил гибрида. */
+  private showDiscovered(element: ElementId): void {
+    if (this.banner) {
+      this.tweens.killTweensOf(this.banner);
+      this.banner.destroy();
+    }
+
+    const bg = this.add.graphics();
+    bg.fillStyle(COLORS.bg);
+    bg.lineStyle(1, COLORS.line);
+    bg.fillRoundedRect(-BANNER_W / 2, 0, BANNER_W, BANNER_H, 10);
+    bg.strokeRoundedRect(-BANNER_W / 2, 0, BANNER_W, BANNER_H, 10);
+
+    const title = this.add
+      .text(0, 8, t('book.discovered', { name: t(`cat.${element}`) }), {
+        fontFamily: FONTS.display,
+        fontSize: '13px',
+        color: cats.elements[element].color,
+      })
+      .setOrigin(0.5, 0);
+    const desc = this.add
+      .text(0, 27, t(`cat.${element}.desc`), {
+        fontFamily: FONTS.body,
+        fontSize: '11px',
+        color: TEXT_COLORS.fg,
+      })
+      .setOrigin(0.5, 0);
+
+    const banner = this.add.container(GAME_W / 2, BANNER_Y - BANNER_FEEL.slide, [bg, title, desc]).setAlpha(0);
+    this.banner = banner;
+
+    this.tweens.add({
+      targets: banner,
+      y: BANNER_Y,
+      alpha: 1,
+      duration: BANNER_FEEL.showMs,
+      ease: BANNER_FEEL.showEase,
+    });
+    this.tweens.add({
+      targets: banner,
+      alpha: 0,
+      delay: BANNER_FEEL.showMs + BANNER_FEEL.holdMs,
+      duration: BANNER_FEEL.hideMs,
+      onComplete: () => {
+        banner.destroy();
+        if (this.banner === banner) this.banner = null;
+      },
+    });
   }
 
   private addStat(

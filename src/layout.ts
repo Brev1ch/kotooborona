@@ -29,6 +29,8 @@ export const COLORS = {
   gateWall: 0x5b4a6e,
   gateDoor: 0x2b2238,
   danger: 0xe2604f,
+  crystal: 0xb48cf2,
+  flash: 0xffffff,
 };
 
 export const TEXT_COLORS = {
