@@ -1126,6 +1126,67 @@ async function hurryIntoBattle(page: Page, step: string): Promise<void> {
   }
 }
 
+/** Парад: сколько ждём, пока последний враг выйдет на видимую часть дороги, и сколько — пока крот дойдёт до подкопа под огнём котов. */
+const PARADE_SETTLE_MS = 1_000;
+const PARADE_BURROW_MS = 6_000;
+/** Через столько после появления врагов над обоими уже всплыло слово. */
+const NOTES_MS = 1_300;
+
+test('парад врагов: все типы на дороге, признаки видны, крот уходит под землю', async ({ page }) => {
+  await page.goto('/?smoke');
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.Menu),
+    (s) => `Игра не дошла до меню: ${scenesText(s)}`,
+  );
+  // Пятый уровень: без подсказок обучения, дорога петляет через всё поле.
+  const id = ((await page.evaluate(() => window.__smoke?.levelIds())) ?? [])[4];
+  await page.evaluate((levelId) => window.__smoke?.startLevel(levelId), id);
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.UI) && s.hud !== null,
+    (s) => `Уровень ${id} не запустился: ${scenesText(s)}`,
+  );
+  // Сначала без котов: враги идут цепочкой, каждого видно целиком.
+  await page.evaluate(() => window.__smoke?.parade());
+  await waitFor(
+    page,
+    WAVE_TIMEOUT,
+    (s) => s.enemies >= 11,
+    (s) => `На парад вышли не все: врагов ${s?.enemies ?? 0}`,
+  );
+  await page.waitForTimeout(PARADE_SETTLE_MS);
+  await page.screenshot({ path: `${SHOTS}/enemies-parade.png` });
+
+  // Коты первого уровня врагов не убивают, но показывают «Иммунитет» (вода и лёд по сапогам, огонь по пожарной) и «Мимо».
+  await page.evaluate(() => {
+    (['water', 'ice', 'fire', 'air', 'swamp', 'sand'] as const).forEach((element, i) => window.__smoke?.placeCat(i + 3, element, 1));
+  });
+  await page.waitForTimeout(PARADE_BURROW_MS);
+  await page.screenshot({ path: `${SHOTS}/enemies-burrow.png` });
+
+  // Всплывающие слова: водный кот бьёт по мыши в сапогах, ветряной — по ниндзя, каждый достаёт только своего.
+  await page.evaluate((levelId) => window.__smoke?.startLevel(levelId), id);
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.UI) && s.hud?.wave === 0,
+    (s) => `Уровень ${id} не перезапустился: ${scenesText(s)}`,
+  );
+  await page.evaluate(() => {
+    window.__smoke?.placeCat(3, 'water', 1);
+    window.__smoke?.placeCat(5, 'air', 1);
+    window.__smoke?.spawnEnemy('boots', 150);
+    window.__smoke?.spawnEnemy('ninja', 530);
+  });
+  await page.waitForTimeout(NOTES_MS);
+  await page.screenshot({ path: `${SHOTS}/enemies-notes.png` });
+  await checkTexts(page, 'всплывающие «Иммунитет» и «Мимо»');
+  checkConsole('парад врагов');
+});
+
 test('уровень за уровнем: победа → следующий уровень пять раз подряд, затем победа → меню → уровень', async ({ page }) => {
   await page.goto('/?smoke');
   await waitFor(

@@ -154,6 +154,16 @@ export const FX_FEEL = {
   auraAlpha: 0.5,
   auraFrom: 0.7,
   auraWidth: 3,
+  /** Лечение шамана: кольцо расходится до радиуса лечения. */
+  healMs: 500,
+  healAlpha: 0.7,
+  healFrom: 0.25,
+  /** Всплывающие «Иммунитет» и «Мимо» над врагом; над одним врагом — не чаще раза в `noteEveryMs`. */
+  noteOffsetY: 12,
+  noteRise: 16,
+  noteMs: 700,
+  noteEveryMs: 700,
+  noteMargin: 2,
 };
 
 /** Выстрелы котов и награда за врага. */

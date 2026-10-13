@@ -5,19 +5,109 @@ import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
 import { addBakedShape, ensureTextures, Texture } from '../scenes/textures';
 import type { Enemy } from './Enemy';
 
-/** Тело мыши вокруг начала координат, носом вправо. Им же рисуются портреты в сценках. */
+/** Прямоугольник вокруг центра врага, в который помещается всё нарисованное `drawEnemyBody`: ширина и высота. */
+export function enemyBodySize(type: EnemyTypeId): [number, number] {
+  const r = enemies.types[type].radius;
+  // Хвост уходит назад на 2,2 радиуса, уши — в стороны на 1,1; крылья, посох и концы повязки торчат дальше.
+  const tall = type === 'bat' ? 5 : type === 'shaman' || type === 'ninja' || type === 'fire' ? 3.4 : 2.6;
+  return [r * 4.8, r * tall];
+}
+
+function fillShape(g: Phaser.GameObjects.Graphics, points: [number, number][]): void {
+  g.fillPoints(points.map(([x, y]) => new Phaser.Math.Vector2(x, y)), true);
+}
+
+/**
+ * Тело мыши вокруг начала координат, носом вправо. Им же рисуются портреты в сценках и бестиарии.
+ * У каждого врага с особенностью — свой признак, заметный с первого взгляда.
+ */
 export function drawEnemyBody(g: Phaser.GameObjects.Graphics, type: EnemyTypeId): void {
   const r = enemies.types[type].radius;
   const color = enemyColor(type);
-  g.lineStyle(2, color);
-  g.lineBetween(-r, 0, -r * 1.6, r * 0.35);
-  g.lineBetween(-r * 1.6, r * 0.35, -r * 2.2, 0);
+  if (type === 'bat') {
+    // Перепончатые крылья в стороны вместо хвоста.
+    g.fillStyle(COLORS.wing);
+    for (const side of [-1, 1]) {
+      fillShape(g, [
+        [r * 0.6, side * r * 0.2],
+        [r * 0.35, side * r * 2.35],
+        [-r * 0.2, side * r * 1.65],
+        [-r * 0.55, side * r * 2.15],
+        [-r * 0.85, side * r * 1.45],
+        [-r * 1.25, side * r * 1.75],
+        [-r * 0.9, side * r * 0.2],
+      ]);
+    }
+  } else {
+    g.lineStyle(2, color);
+    g.lineBetween(-r, 0, -r * 1.6, r * 0.35);
+    g.lineBetween(-r * 1.6, r * 0.35, -r * 2.2, 0);
+  }
+  if (type === 'boots') {
+    // Четыре железных сапога по бокам, с блестящими носами.
+    for (const [x, side] of [[r * 0.5, -1], [r * 0.5, 1], [-r * 0.6, -1], [-r * 0.6, 1]]) {
+      g.fillStyle(COLORS.iron);
+      g.fillRect(x - r * 0.4, side * r * 0.98 - r * 0.3, r * 0.8, r * 0.6);
+      g.fillStyle(COLORS.ironLight);
+      g.fillRect(x + r * 0.12, side * r * 0.98 - r * 0.3, r * 0.28, r * 0.6);
+    }
+  }
+  if (type === 'shaman') {
+    // Посох вдоль бока со светящимся навершием впереди.
+    g.lineStyle(2.5, COLORS.staff);
+    g.lineBetween(-r * 1.1, r * 1.2, r * 1.4, r * 1.2);
+    g.fillStyle(COLORS.staffOrb);
+    g.fillCircle(r * 1.5, r * 1.2, r * 0.42);
+    g.fillStyle(COLORS.flash);
+    g.fillCircle(r * 1.42, r * 1.12, r * 0.14);
+  }
+  if (type === 'ninja') {
+    // Концы повязки развеваются за головой.
+    g.fillStyle(COLORS.headband);
+    g.fillTriangle(r * 0.3, r * 0.6, -r * 0.9, r * 1.1, -r * 0.6, r * 1.55);
+    g.fillTriangle(r * 0.3, r * 0.6, -r * 1.2, r * 0.75, -r * 0.9, r * 1.1);
+  }
   g.fillStyle(color);
   g.fillEllipse(0, 0, r * 2.3, r * 1.7);
   g.fillCircle(r * 0.3, -r * 0.7, r * 0.4);
   g.fillCircle(r * 0.3, r * 0.7, r * 0.4);
   g.fillStyle(COLORS.enemyNose);
-  g.fillCircle(r * 1.15, 0, r * 0.18);
+  g.fillCircle(r * 1.15, 0, r * (type === 'mole' ? 0.3 : 0.18));
+  if (type === 'fire') {
+    // Ведро воды сбоку и красная каска с жёлтым гребнем.
+    g.fillStyle(COLORS.bucket);
+    g.fillCircle(-r * 0.7, r * 1.05, r * 0.52);
+    g.fillStyle(COLORS.bucketWater);
+    g.fillCircle(-r * 0.7, r * 1.05, r * 0.34);
+    g.fillStyle(COLORS.helmet);
+    g.fillCircle(r * 0.4, 0, r * 0.68);
+    g.fillStyle(COLORS.helmetCrest);
+    g.fillRect(-r * 0.25, -r * 0.13, r * 1.3, r * 0.26);
+  }
+  if (type === 'shaman') {
+    // Три пера на затылке.
+    g.fillStyle(COLORS.feather);
+    g.fillTriangle(r * 0.1, -r * 0.35, r * 0.1, -r * 0.05, -r * 0.95, -r * 0.5);
+    g.fillTriangle(r * 0.1, -r * 0.15, r * 0.1, r * 0.15, -r * 1.05, 0);
+    g.fillTriangle(r * 0.1, r * 0.05, r * 0.1, r * 0.35, -r * 0.95, r * 0.5);
+    g.fillStyle(COLORS.staffOrb);
+    g.fillCircle(r * 0.15, 0, r * 0.2);
+  }
+  if (type === 'ninja') {
+    g.fillStyle(COLORS.headband);
+    g.fillRect(r * 0.3, -r * 0.82, r * 0.34, r * 1.64);
+  }
+  if (type === 'mole') {
+    // Большие лапы с когтями впереди.
+    for (const side of [-1, 1]) {
+      g.fillStyle(COLORS.claw);
+      g.fillCircle(r * 0.75, side * r * 0.9, r * 0.3);
+      for (const spread of [-0.22, 0, 0.22]) {
+        const y = side * r * (0.9 + spread);
+        g.fillTriangle(r * 0.85, y - r * 0.09, r * 0.85, y + r * 0.09, r * 1.45, y);
+      }
+    }
+  }
   if (type === 'boss') {
     g.fillStyle(COLORS.brass);
     g.fillRect(-r * 0.3, -r * 0.35, r * 0.6, r * 0.7);
@@ -55,6 +145,9 @@ export class EnemyView extends Phaser.GameObjects.Container {
   private shownHp = -1;
   private shownShield = -1;
   private shownStatus = '';
+  /** Холмик на месте врага, ушедшего под землю; только у тех, кто умеет копать. */
+  private readonly mound: Phaser.GameObjects.Image | null = null;
+  private shownBurrowed = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number, enemy: Enemy) {
     super(scene, x, y);
@@ -63,12 +156,25 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.radius = r;
     ensureTextures(scene);
 
-    // Прямоугольник вокруг центра: хвост уходит назад на 2,2 радиуса, уши — в стороны на 1,1.
     const key = `enemy-${enemy.type}`;
+    const [width, height] = enemyBodySize(enemy.type);
     const draw = (g: Phaser.GameObjects.Graphics): void => drawEnemyBody(g, enemy.type);
-    const body = addBakedShape(scene, key, r * 4.8, r * 2.6, draw);
-    this.flash = addBakedShape(scene, key, r * 4.8, r * 2.6, draw).setTintFill(COLORS.flash).setAlpha(0);
+    const body = addBakedShape(scene, key, width, height, draw);
+    this.flash = addBakedShape(scene, key, width, height, draw).setTintFill(COLORS.flash).setAlpha(0);
     this.turning = scene.add.container(0, 0, [body, this.flash]);
+
+    if (enemies.types[enemy.type].burrow) {
+      this.mound = addBakedShape(scene, `mound-${enemy.type}`, r * 3.2, r * 2.4, (g) => {
+        g.fillStyle(COLORS.moundDark);
+        g.fillEllipse(0, 0, r * 3, r * 2.2);
+        g.fillStyle(COLORS.mound);
+        g.fillEllipse(-r * 0.1, -r * 0.1, r * 2.3, r * 1.6);
+        g.fillStyle(COLORS.moundDark);
+        g.fillCircle(-r * 0.5, -r * 0.2, r * 0.18);
+        g.fillCircle(r * 0.4, r * 0.25, r * 0.22);
+        g.fillCircle(r * 0.2, -r * 0.4, r * 0.14);
+      }).setVisible(false);
+    }
 
     if (enemy.shield > 0) {
       const plate = addBakedShape(scene, `shield-${enemy.type}`, r, r * 2, (g) => {
@@ -84,17 +190,26 @@ export class EnemyView extends Phaser.GameObjects.Container {
     }
 
     this.bar = scene.add.graphics();
-    this.add([this.turning, this.bar]);
+    this.add(this.mound ? [this.mound, this.turning, this.bar] : [this.turning, this.bar]);
     this.setDepth(DEPTH.enemy);
     scene.add.existing(this);
 
     this.sync(enemy, x, y, 0);
   }
 
-  /** Ставит врага в точку дороги и обновляет щит и полоску здоровья. `angle` — направление движения в радианах. */
-  sync(enemy: Enemy, x: number, y: number, angle: number): void {
+  /**
+   * Ставит врага в точку дороги и обновляет щит и полоску здоровья. `angle` — направление движения в радианах.
+   * Под землёй (`burrowed`) от врага виден только ползущий холмик.
+   */
+  sync(enemy: Enemy, x: number, y: number, angle: number, burrowed = false): void {
     this.setPosition(x, y);
     this.turning.setRotation(angle);
+    if (burrowed !== this.shownBurrowed) {
+      this.shownBurrowed = burrowed;
+      this.turning.setVisible(!burrowed);
+      this.bar.setVisible(!burrowed);
+      this.mound?.setVisible(burrowed);
+    }
     if (enemy.shield !== this.shownShield) {
       this.shownShield = enemy.shield;
       this.shield?.setVisible(enemy.shield > 0);
@@ -115,10 +230,12 @@ export class EnemyView extends Phaser.GameObjects.Container {
 
   /** Кольцо замедления или заморозки, точки огня и яда над врагом. */
   private syncStatus(enemy: Enemy): void {
-    const slowed = enemy.slowTime > 0;
+    // Под землёй меток не видно.
+    const shown = !this.shownBurrowed;
+    const slowed = shown && enemy.slowTime > 0;
     const frozen = slowed && enemy.slowFactor < STATUS_FEEL.frozenBelow;
-    const burning = enemy.burnTime > 0;
-    const poisoned = enemy.poisonTime > 0;
+    const burning = shown && enemy.burnTime > 0;
+    const poisoned = shown && enemy.poisonTime > 0;
     const status = `${slowed}${frozen}${burning}${poisoned}`;
     if (status === this.shownStatus) return;
     this.shownStatus = status;
@@ -158,6 +275,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
   /** Враг убит: сжимается, гаснет и удаляется. */
   playDeath(): void {
     this.bar.setVisible(false);
+    this.mound?.setVisible(false);
     this.slowRing?.setVisible(false);
     this.burnDot?.setVisible(false);
     this.poisonDot?.setVisible(false);

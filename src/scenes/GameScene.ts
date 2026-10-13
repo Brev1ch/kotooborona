@@ -30,7 +30,7 @@ import { platform } from '../platform';
 import { progress } from '../progress';
 import { CoinAd, SecondChance } from '../systems/Ads';
 import { Buildings } from '../systems/Buildings';
-import { catRange, Combat, type Blast, type CombatEvent } from '../systems/Combat';
+import { catRange, Combat, isBurrowed, type Blast, type CombatEvent } from '../systems/Combat';
 import { Economy, starsFor } from '../systems/Economy';
 import { gearBonuses } from '../systems/Loadout';
 import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
@@ -40,7 +40,7 @@ import { levelFish } from '../systems/Rewards';
 import { buildPath, positionAt, type Path } from '../systems/Path';
 import { Summon } from '../systems/Summon';
 import { densestPoint, findMergePair, findSellSlot, type TutorialState } from '../systems/Tutorial';
-import { Waves } from '../systems/Waves';
+import { mixAllEnemies, Waves } from '../systems/Waves';
 import {
   GameEvent,
   SceneKey,
@@ -79,6 +79,9 @@ interface RewardLabel {
 }
 
 const REWARD_STYLE = { fontFamily: FONTS.display, fontSize: '13px' };
+/** Имя всплывающих надписей поля: наград и слов над врагами. Они живут меньше секунды и могут всплыть рядом, когда двое гибнут разом. */
+export const FLOAT_NAME = 'float';
+const NOTE_STYLE = { fontFamily: FONTS.display, fontSize: '11px', stroke: TEXT_COLORS.dark, strokeThickness: 3 };
 
 interface Drag {
   pointerId: number;
@@ -132,6 +135,10 @@ export class GameScene extends Phaser.Scene {
   /** Холсты для молний и взрыва метеора. */
   private canvases!: Pool<Phaser.GameObjects.Graphics>;
   private rewards!: Pool<RewardLabel>;
+  /** Всплывающие «Иммунитет» и «Мимо» и время, когда над врагом в последний раз что-то всплывало. */
+  private immuneNotes!: Pool<Phaser.GameObjects.Text>;
+  private missNotes!: Pool<Phaser.GameObjects.Text>;
+  private notedAt = new WeakMap<Enemy, number>();
   /** Номер волны и объявление, уже показанные в HUD. */
   private shownWave = '';
   /** Бой окончен: поле замирает, призыв и перетаскивание отключены. */
@@ -159,6 +166,10 @@ export class GameScene extends Phaser.Scene {
 
   init(data: LevelSceneData): void {
     this.level = getLevel(data.levelId);
+    // В разработке `?enemies=all` подмешивает в волны уровня все типы врагов поровну: так смотрят тех, кого в главе ещё нет.
+    if (import.meta.env.DEV && new URLSearchParams(location.search).get('enemies') === 'all') {
+      this.level = mixAllEnemies(this.level, enemies);
+    }
   }
 
   create(): void {
@@ -420,7 +431,8 @@ export class GameScene extends Phaser.Scene {
     for (const enemy of this.combat.enemies) {
       const [x, y] = positionAt(this.path, enemy.distance);
       const [aheadX, aheadY] = positionAt(this.path, enemy.distance + LOOK_AHEAD);
-      this.enemyViews.get(enemy)?.sync(enemy, x, y, Math.atan2(aheadY - y, aheadX - x));
+      const burrowed = isBurrowed(enemies, enemy, this.path.length);
+      this.enemyViews.get(enemy)?.sync(enemy, x, y, Math.atan2(aheadY - y, aheadX - x), burrowed);
     }
 
     const wave = `${this.waves.wave}:${this.waves.upcoming?.wave ?? ''}`;
@@ -558,6 +570,21 @@ export class GameScene extends Phaser.Scene {
         this.enemyViews.get(event.enemy)?.playBlock();
         break;
 
+      case 'immune':
+        this.showNote(this.immuneNotes, event.enemy, event.x, event.y);
+        break;
+
+      case 'dodged':
+        this.showNote(this.missNotes, event.enemy, event.x, event.y);
+        break;
+
+      case 'healed': {
+        const { x, y, radius } = event;
+        const { healFrom, healAlpha, healMs } = FX_FEEL;
+        this.playCircle(this.rings, x, y, COLORS.hp, radius * healFrom, radius, healAlpha, healMs);
+        break;
+      }
+
       case 'spawned':
         // Подмога короля уже в бою — ей нужна только картинка.
         this.addEnemyView(event.enemy);
@@ -645,6 +672,31 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /** Всплывающее слово над врагом: «Иммунитет» или «Мимо». Над одним врагом — не чаще раза в `noteEveryMs`, у края поля не обрезается. */
+  private showNote(pool: Pool<Phaser.GameObjects.Text>, enemy: Enemy, x: number, y: number): void {
+    const { noteOffsetY, noteRise, noteMs, noteEveryMs, noteMargin } = FX_FEEL;
+    const now = this.time.now;
+    if (now - (this.notedAt.get(enemy) ?? -noteEveryMs) < noteEveryMs) return;
+    this.notedAt.set(enemy, now);
+
+    const note = pool.acquire();
+    const halfW = note.width / 2 + noteMargin;
+    const halfH = note.height / 2 + noteMargin;
+    const top = Math.max(y - enemies.types[enemy.type].radius - noteOffsetY, halfH + noteRise);
+    note.setPosition(Phaser.Math.Clamp(x, halfW, BOARD_W - halfW), top).setAlpha(1).setVisible(true);
+    this.tweens.add({
+      targets: note,
+      y: top - noteRise,
+      alpha: 0,
+      duration: noteMs,
+      ease: 'Cubic.easeIn',
+      onComplete: () => {
+        note.setVisible(false);
+        pool.release(note);
+      },
+    });
+  }
+
   /** Всплывающая награда над убитым врагом. */
   private showReward(x: number, y: number, gold: number, crystals: number): void {
     const label = this.rewards.acquire();
@@ -727,10 +779,21 @@ export class GameScene extends Phaser.Scene {
     this.discs = new Pool(image(Texture.disc, DEPTH.fx));
     this.rings = new Pool(image(Texture.ring, DEPTH.fx));
     this.canvases = new Pool(() => this.add.graphics().setDepth(DEPTH.fx));
+    // Слово в надписи не меняется: текст рисуется один раз при создании.
+    const note = (key: StringKey, color: string) => () =>
+      this.add
+        .text(0, 0, t(key), { ...NOTE_STYLE, color })
+        .setOrigin(0.5)
+        .setDepth(DEPTH.fx)
+        .setName(FLOAT_NAME)
+        .setVisible(false);
+    this.immuneNotes = new Pool(note('fx.immune', TEXT_COLORS.fg));
+    this.missNotes = new Pool(note('fx.miss', TEXT_COLORS.muted));
+    this.notedAt = new WeakMap();
     this.rewards = new Pool(() => {
-      const gold = this.add.text(0, 0, '', { ...REWARD_STYLE, color: TEXT_COLORS.brass }).setOrigin(0, 0.5);
+      const gold = this.add.text(0, 0, '', { ...REWARD_STYLE, color: TEXT_COLORS.brass }).setOrigin(0, 0.5).setName(FLOAT_NAME);
       const icon = addCrystalIcon(this, 0, 0, SHOT_FEEL.rewardIconSize);
-      const count = this.add.text(0, 0, '', { ...REWARD_STYLE, color: TEXT_COLORS.crystal }).setOrigin(0, 0.5);
+      const count = this.add.text(0, 0, '', { ...REWARD_STYLE, color: TEXT_COLORS.crystal }).setOrigin(0, 0.5).setName(FLOAT_NAME);
       const box = this.add.container(0, 0, [gold, icon, count]).setDepth(DEPTH.fx);
       return { box, gold, icon, count, crystal: false };
     });

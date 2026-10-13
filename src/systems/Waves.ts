@@ -9,6 +9,19 @@ export interface UpcomingWave {
   king: boolean;
 }
 
+/** Обычные враги волн — все, кроме мыши (она занимает остаток долей), командира и короля: у тех свои волны. */
+const NOT_IN_MIX: readonly EnemyTypeId[] = ['mouse', 'boss', 'king'];
+
+/**
+ * Уровень, в волнах которого поровну идут все типы обычных врагов, включая мышей.
+ * Нужен только в разработке (`?enemies=all`): посмотреть врагов, которых в главе ещё нет.
+ */
+export function mixAllEnemies(level: LevelConfig, enemies: EnemiesConfig): LevelConfig {
+  const types = (Object.keys(enemies.types) as EnemyTypeId[]).filter((type) => !NOT_IN_MIX.includes(type));
+  const share = 1 / (types.length + 1);
+  return { ...level, enemies: Object.fromEntries(types.map((type) => [type, share])) };
+}
+
 /** Расписание волн и появление врагов. */
 export class Waves {
   /** Номер идущей волны; 0 — первая ещё не началась. */

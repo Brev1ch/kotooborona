@@ -19,6 +19,8 @@ export const en: Record<StringKey, string> = {
   'wave.kingSoon': 'The Rat King! Wave {wave} incoming',
 
   'reward.gold': '+{gold}',
+  'fx.immune': 'Immune',
+  'fx.miss': 'Miss',
 
   'result.win': 'Level complete',
   'result.lose': 'The castle has fallen',

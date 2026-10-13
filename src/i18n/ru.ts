@@ -17,6 +17,8 @@ export const ru = {
   'wave.kingSoon': 'Крысиный король! Волна {wave} скоро',
 
   'reward.gold': '+{gold}',
+  'fx.immune': 'Иммунитет',
+  'fx.miss': 'Мимо',
 
   'result.win': 'Уровень пройден',
   'result.lose': 'Замок пал',

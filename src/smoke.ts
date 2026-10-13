@@ -1,11 +1,11 @@
 import type Phaser from 'phaser';
 import { audio } from './audio';
-import { enemies, levels, type ElementId } from './data';
+import { enemies, levels, type ElementId, type EnemyTypeId } from './data';
 import type { Enemy } from './entities/Enemy';
 import { BOARD_Y, GAME_H, GAME_W } from './layout';
-import { stress } from './debug';
+import { debugEnemy, parade, stress } from './debug';
 import { progress } from './progress';
-import type { GameScene } from './scenes/GameScene';
+import { FLOAT_NAME, type GameScene } from './scenes/GameScene';
 import type { StoryScene } from './scenes/StoryScene';
 import type { UIScene } from './scenes/UIScene';
 import { GameEvent, SceneKey, type HudState, type LevelSceneData, type StorySceneData } from './scenes/keys';
@@ -109,6 +109,10 @@ export interface SmokeProbe {
   win(): void;
   /** Стресс-проверка из src/debug.ts: поле гибридов и толпа врагов. */
   stress(): void;
+  /** Ставит на дорогу живучего врага типа `type`, уже прошедшего `distance`. */
+  spawnEnemy(type: EnemyTypeId, distance: number): void;
+  /** Парад из src/debug.ts: по одному врагу каждого типа друг за другом. */
+  parade(): void;
   /** Вся игра остановлена площадкой: идёт реклама или игру свернули. */
   frozen(): boolean;
   toggleSound(): void;
@@ -278,6 +282,8 @@ export function installSmokeProbe(game: Phaser.Game): void {
             const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
             // Надпись под затемнением окна (пауза, итог боя, сундук) и надпись в самом окне друг другу не мешают.
             if (layers.get(texts[i]) !== layers.get(texts[j])) continue;
+            // Всплывающие надписи поля мимолётны: две награды за убитых разом врагов ложатся рядом, и это не ошибка вёрстки.
+            if (texts[i].name === FLOAT_NAME && texts[j].name === FLOAT_NAME) continue;
             if (overlapX > TEXT_OVERLAP && overlapY > TEXT_OVERLAP) {
               issues.push(`«${texts[i].text}» наезжает на «${texts[j].text}» (${scene.scene.key})`);
             }
@@ -336,6 +342,12 @@ export function installSmokeProbe(game: Phaser.Game): void {
     },
     stress() {
       stress(game.scene.getScene(SceneKey.Game) as GameScene);
+    },
+    spawnEnemy(type, distance) {
+      (game.scene.getScene(SceneKey.Game) as GameScene).addEnemy({ ...debugEnemy(type, 5000), distance });
+    },
+    parade() {
+      parade(game.scene.getScene(SceneKey.Game) as GameScene);
     },
     state() {
       const active = game.scene.getScenes(true);

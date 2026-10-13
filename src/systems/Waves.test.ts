@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { enemies as enemiesJson, levels } from '../data';
 import type { EnemiesConfig, LevelConfig, WavesConfig } from '../data';
 import type { Enemy } from '../entities/Enemy';
-import { Waves } from './Waves';
+import { mixAllEnemies, Waves } from './Waves';
 
 // Числа зафиксированы здесь, чтобы тесты не зависели от правок баланса в JSON.
 const config: WavesConfig = {
@@ -270,6 +270,19 @@ describe('Waves: враги', () => {
       expect(shares.reduce((sum, share) => sum + share, 0), id).toBeLessThanOrEqual(1);
       expect(Object.keys(mix).filter((type) => !(type in enemiesJson.types) || type === 'boss' || type === 'king'), id).toEqual([]);
     }
+  });
+
+  it('отладочная смесь: все обычные типы и мыши поровну, без командира и короля', () => {
+    const mixed = mixAllEnemies(level, enemies);
+
+    expect(Object.keys(mixed.enemies)).toEqual(['rat', 'shield', 'boots', 'fire', 'shaman', 'mole', 'ninja', 'bat']);
+    expect(Object.values(mixed.enemies).every((share) => share === 1 / 9)).toBe(true);
+    expect(level.enemies).toEqual({ rat: 0.2, shield: 0.3 });
+
+    const typeAt = (roll: number) => nextWave(new Waves(config, mixed, enemies, () => roll))[0].type;
+    expect(typeAt(0.25)).toBe('boots');
+    expect(typeAt(0.85)).toBe('bat');
+    expect(typeAt(0.95)).toBe('mouse');
   });
 
   it('в волне командира выходят только командиры, реже обычных врагов', () => {

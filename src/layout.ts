@@ -253,6 +253,21 @@ export const COLORS = {
   fishDark: 0x3f8fb0,
   /** Кнопки наградной рекламы. */
   reward: 0x3f8f5f,
+  /** Отличительные признаки врагов: сапоги, каска с ведром, посох, повязка, крылья, когти и холмик крота. */
+  iron: 0x4a5462,
+  ironLight: 0xaeb9c8,
+  helmet: 0xd9382c,
+  helmetCrest: 0xf2c94c,
+  bucket: 0xc9d3dc,
+  bucketWater: 0x4aa3df,
+  staff: 0x9a6a36,
+  staffOrb: 0x7cf2a0,
+  feather: 0xf2efe6,
+  headband: 0xe2384a,
+  wing: 0x3a2d4d,
+  claw: 0xf2e6d0,
+  mound: 0x7a5c3a,
+  moundDark: 0x4f3b26,
 };
 
 export const TEXT_COLORS = {

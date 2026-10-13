@@ -22,14 +22,19 @@ export function getLevel(id: string): LevelConfig {
   return level;
 }
 
-/** Цвет стихии числом, как его ждёт Phaser. */
-export function elementColor(element: ElementId): number {
-  return parseInt(cats.elements[element].color.slice(1), 16);
+/** Цвет из данных числом, как его ждёт Phaser: шесть шестнадцатеричных цифр, с `#` в начале или без. */
+export function parseColor(value: string): number {
+  const hex = value.startsWith('#') ? value.slice(1) : value;
+  if (!/^[0-9a-f]{6}$/i.test(hex)) throw new Error(`Bad color: ${value}`);
+  return parseInt(hex, 16);
 }
 
-/** Цвет врага числом, как его ждёт Phaser. */
+export function elementColor(element: ElementId): number {
+  return parseColor(cats.elements[element].color);
+}
+
 export function enemyColor(type: EnemyTypeId): number {
-  return parseInt(enemies.types[type].color.slice(1), 16);
+  return parseColor(enemies.types[type].color);
 }
 
 export * from './types';

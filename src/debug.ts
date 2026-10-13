@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import type { ElementId, EnemyTypeId } from './data';
+import type { Enemy } from './entities/Enemy';
 import { enemies } from './data';
 import { BOARD_Y, COLORS, CONTROLS_Y, FONTS, GAME_W, TEXT_COLORS } from './layout';
 import type { GameScene } from './scenes/GameScene';
@@ -23,7 +24,44 @@ const STRESS_ENEMY_HP: Record<EnemyTypeId, number> = { mouse: 40, rat: 3000, shi
 const STRESS_SPAWN_MS = 350;
 const STRESS_LIVES = 999;
 
+// Парад: по одному врагу каждого типа друг за другом, чтобы сравнить их вид на телефоне.
+// Здоровья хватает дойти до ворот под огнём котов первых уровней; жизни не тратятся.
+const PARADE_HP = 600;
+const PARADE_SPAWN_MS = 1100;
+
 const FPS_EVERY_MS = 500;
+
+/** Враг типа `type` в начале дороги; его же ставит на поле смоук-проверка. */
+export function debugEnemy(type: EnemyTypeId, hp: number): Enemy {
+  const config = enemies.types[type];
+  return {
+    type,
+    distance: 0,
+    hp,
+    maxHp: hp,
+    speed: config.speed,
+    gold: config.gold,
+    shield: config.shield,
+    slowFactor: 1,
+    slowTime: 0,
+    burnDps: 0,
+    burnTime: 0,
+    poisonDps: 0,
+    poisonTime: 0,
+  };
+}
+
+/** Выпускает по одному врагу каждого типа в порядке `enemies.json`. Его же вызывает смоук-проверка. */
+export function parade(game: GameScene): void {
+  game.economy.lives = STRESS_LIVES;
+  const types = Object.keys(enemies.types) as EnemyTypeId[];
+  let spawned = 0;
+  game.time.addEvent({
+    delay: PARADE_SPAWN_MS,
+    repeat: types.length - 1,
+    callback: () => game.addEnemy(debugEnemy(types[spawned++], PARADE_HP)),
+  });
+}
 
 /** Худший случай для отрисовки; им же меряет производительность `npm run perf`. */
 export function stress(game: GameScene): void {
@@ -45,22 +83,7 @@ export function stress(game: GameScene): void {
     repeat: STRESS_ENEMY_COUNT - 1,
     callback: () => {
       const type = STRESS_ENEMIES[spawned++ % STRESS_ENEMIES.length];
-      const config = enemies.types[type];
-      game.addEnemy({
-        type,
-        distance: 0,
-        hp: STRESS_ENEMY_HP[type],
-        maxHp: STRESS_ENEMY_HP[type],
-        speed: config.speed,
-        gold: config.gold,
-        shield: config.shield,
-        slowFactor: 1,
-        slowTime: 0,
-        burnDps: 0,
-        burnTime: 0,
-        poisonDps: 0,
-        poisonTime: 0,
-      });
+      game.addEnemy(debugEnemy(type, STRESS_ENEMY_HP[type]));
     },
   });
 }
@@ -69,9 +92,10 @@ const BUTTONS: { label: string; color: string; apply: (game: GameScene) => void 
   { label: '+100 монет', color: TEXT_COLORS.brass, apply: (game) => (game.economy.gold += 100) },
   { label: '+5 кристаллов', color: TEXT_COLORS.crystal, apply: (game) => (game.economy.crystals += 5) },
   { label: 'стресс', color: TEXT_COLORS.danger, apply: stress },
+  { label: 'парад врагов', color: TEXT_COLORS.fg, apply: parade },
 ];
 
-/** Маленькие кнопки в ряд над нижней полосой, под дорогой: монеты, кристаллы и стресс-проверка. */
+/** Маленькие кнопки в ряд над нижней полосой, под дорогой: монеты, кристаллы, стресс-проверка и парад врагов. */
 export function addDebugButtons(ui: Phaser.Scene, game: GameScene): void {
   const y = CONTROLS_Y - BUTTON_H / 2 - 2;
 
