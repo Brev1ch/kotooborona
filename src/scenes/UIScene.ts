@@ -21,6 +21,7 @@ import { MAX_STARS } from '../systems/Progress';
 import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
 import { GameEvent, SceneKey, type LevelResult, type LevelSceneData } from './keys';
+import { addButton } from './widgets';
 
 const STAT_PAD = 6;
 const STAT_GAP = 6;
@@ -378,24 +379,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private addResultButton(x: number, label: StringKey, primary: boolean, onClick: () => void): Phaser.GameObjects.Container {
-    const bg = this.add
-      .rectangle(0, 0, RESULT_BUTTON_W, RESULT_BUTTON_H, primary ? COLORS.brass : COLORS.panel)
-      .setStrokeStyle(1, COLORS.line, primary ? 0 : 1)
-      .setInteractive({ useHandCursor: true });
-    const text = this.add
-      .text(0, 0, t(label), {
-        fontFamily: FONTS.display,
-        fontSize: '15px',
-        color: primary ? TEXT_COLORS.dark : TEXT_COLORS.fg,
-      })
-      .setOrigin(0.5);
-    const button = this.add.container(x, RESULT_Y + 78, [bg, text]);
-
-    bg.on('pointerdown', () => {
-      this.tweens.add({ targets: button, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
-    });
-    bg.once('pointerup', onClick);
-    return button;
+    return addButton(this, x, RESULT_Y + 78, RESULT_BUTTON_W, RESULT_BUTTON_H, t(label), primary, onClick);
   }
 
   /** Уведомление вверху поля: игрок впервые получил гибрида. */

@@ -72,6 +72,19 @@ export const ru = {
   'gear.amulet.alch': 'Алхимика',
   'gear.amulet.cry': 'Кристаллов',
   'gear.amulet.purse': 'Кошель',
+  'gear.title': 'Снаряжение',
+  'gear.back': 'Назад',
+  'gear.start': 'В бой',
+  'gear.slot.staff': 'Посох',
+  'gear.slot.mantle': 'Мантия',
+  'gear.slot.amulet': 'Амулет',
+  'gear.bonus.none': 'Без бонуса',
+  'gear.bonus.summonChance': '{element} кот: шанс {chance}% вместо {base}%',
+  'gear.bonus.summonCost': 'Призыв на {percent}% дешевле',
+  'gear.bonus.meteorCooldown': 'Перезарядка метеора на {percent}% короче',
+  'gear.bonus.ritualTime': 'Ритуал на {percent}% короче',
+  'gear.bonus.crystals': 'Кристаллы на старте: +{count}',
+  'gear.bonus.gold': 'Монеты на старте: +{count}',
 };
 
 export type StringKey = keyof typeof ru;

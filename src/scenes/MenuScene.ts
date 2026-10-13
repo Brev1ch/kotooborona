@@ -74,7 +74,7 @@ export class MenuScene extends Phaser.Scene {
     bg.on('pointerdown', () => {
       this.tweens.add({ targets: card, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
     });
-    bg.once('pointerup', () => this.scene.start(SceneKey.Game, data));
+    bg.once('pointerup', () => this.scene.start(SceneKey.Gear, data));
   }
 
   private drawLock(x: number, y: number): Phaser.GameObjects.Graphics {

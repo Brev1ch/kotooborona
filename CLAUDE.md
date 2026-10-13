@@ -15,7 +15,7 @@
 ```
 src/
   main.ts            точка входа, конфиг Phaser
-  scenes/            Boot, Preload, Menu, Game, UI (HUD поверх Game)
+  scenes/            Boot, Preload, Menu, Gear, Game, UI (HUD поверх Game)
   systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy
   entities/          Cat, Enemy, Projectile, Hero
   data/              JSON-конфиги: cats.json, enemies.json, levels.json, gear.json
@@ -45,7 +45,7 @@ docs/                GDD и прототип
 - `npm run build` — сборка в `dist/`
 - `npm run typecheck` — проверка типов
 - `npm test` — тесты систем (Vitest)
-- `npm run smoke` — смоук-проверка: сборка, `vite preview`, headless Chromium 360×640; меню → первый уровень → 3 кота → первая волна, скриншоты шагов в `screenshots/`. Падает при ошибке в консоли или если игра не дошла до экрана (тогда смотреть `screenshots/failure.png`)
+- `npm run smoke` — смоук-проверка: сборка, `vite preview`, headless Chromium 360×640; меню → первый уровень → снаряжение → «В бой» → 3 кота → первая волна, скриншоты шагов в `screenshots/`. Падает при ошибке в консоли или если игра не дошла до экрана (тогда смотреть `screenshots/failure.png`)
 
 ## Текущий этап
 

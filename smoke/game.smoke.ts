@@ -1,5 +1,5 @@
 import { test, type Page } from '@playwright/test';
-import { CONTROLS_H, CONTROLS_Y, GAME_H, GAME_W, menuCardCenter, SUMMON_X } from '../src/layout';
+import { CONTROLS_H, CONTROLS_Y, GAME_H, GAME_W, gearButtonCenter, menuCardCenter, SUMMON_X } from '../src/layout';
 import { SceneKey } from '../src/scenes/keys';
 import type { SmokeState } from '../src/smoke';
 
@@ -72,7 +72,7 @@ test.afterEach(async ({ page }, testInfo) => {
   }
 });
 
-test('меню → первый уровень → три кота → первая волна', async ({ page }) => {
+test('меню → первый уровень → снаряжение → три кота → первая волна', async ({ page }) => {
   await test.step('меню', async () => {
     await page.goto('/?smoke');
     await waitFor(
@@ -90,10 +90,22 @@ test('меню → первый уровень → три кота → перв�
     await waitFor(
       page,
       SCREEN_TIMEOUT,
-      (s) => s.scenes.includes(SceneKey.Game) && s.scenes.includes(SceneKey.UI),
-      (s) => `После нажатия на первый уровень игра не дошла до игрового поля за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
+      (s) => s.scenes.includes(SceneKey.Gear),
+      (s) => `После нажатия на первый уровень игра не дошла до экрана снаряжения за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
     );
-    await page.screenshot({ path: `${SHOTS}/02-game.png` });
+    await page.screenshot({ path: `${SHOTS}/02-gear.png` });
+    checkConsole('снаряжение');
+  });
+
+  await test.step('«В бой»', async () => {
+    await tap(page, ...gearButtonCenter('start'));
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Game) && s.scenes.includes(SceneKey.UI),
+      (s) => `После нажатия «В бой» игра не дошла до игрового поля за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
+    );
+    await page.screenshot({ path: `${SHOTS}/03-game.png` });
     checkConsole('игровое поле');
   });
 
@@ -107,7 +119,7 @@ test('меню → первый уровень → три кота → перв�
         (s) => `После нажатия «Призвать» котов на поле: ${s?.cats ?? 0}, ожидалось ${n} (монет: ${s?.hud?.gold ?? '?'})`,
       );
       await page.waitForTimeout(SPAWN_SETTLE_MS);
-      await page.screenshot({ path: `${SHOTS}/0${n + 2}-cat-${n}.png` });
+      await page.screenshot({ path: `${SHOTS}/0${n + 3}-cat-${n}.png` });
       checkConsole(`призыв кота ${n}`);
     });
   }
@@ -120,7 +132,7 @@ test('меню → первый уровень → три кота → перв�
       (s) => `Волна не началась за ${WAVE_TIMEOUT / 1000} с (волна ${s?.hud?.wave ?? 0}, врагов ${s?.enemies ?? 0})`,
     );
     await page.waitForTimeout(WAVE_SETTLE_MS);
-    await page.screenshot({ path: `${SHOTS}/0${CATS + 3}-wave.png` });
+    await page.screenshot({ path: `${SHOTS}/0${CATS + 4}-wave.png` });
     checkConsole('первая волна');
   });
 });

@@ -3,11 +3,12 @@ import type { UpcomingWave } from '../systems/Waves';
 export const SceneKey = {
   Boot: 'Boot',
   Menu: 'Menu',
+  Gear: 'Gear',
   Game: 'Game',
   UI: 'UI',
 } as const;
 
-/** Данные, с которыми запускаются Game и UI. */
+/** Данные, с которыми запускаются Gear, Game и UI. */
 export interface LevelSceneData {
   levelId: string;
 }

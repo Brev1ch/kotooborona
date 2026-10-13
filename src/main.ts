@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, GAME_H, GAME_W } from './layout';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
+import { GearScene } from './scenes/GearScene';
 import { MenuScene } from './scenes/MenuScene';
 import { UIScene } from './scenes/UIScene';
 
@@ -15,7 +16,7 @@ const game = new Phaser.Game({
     width: GAME_W,
     height: GAME_H,
   },
-  scene: [BootScene, MenuScene, GameScene, UIScene],
+  scene: [BootScene, MenuScene, GearScene, GameScene, UIScene],
 });
 
 // Зонд для смоук-проверки (npm run smoke): отдельный чанк, у игроков не загружается.

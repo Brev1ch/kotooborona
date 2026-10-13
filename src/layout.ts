@@ -21,6 +21,31 @@ export function menuCardCenter(index: number): [number, number] {
   return [left + col * (cardW + gap) + cardW / 2, gridY + row * (cardH + gap) + cardH / 2];
 }
 
+// Экран снаряжения: заголовок, три слота с предметами-плашками, кнопки внизу.
+export const GEAR = {
+  titleY: 56,
+  subtitleY: 88,
+  listY: 126,
+  pad: 14,
+  headH: 22,
+  chipH: 38,
+  chipGap: 8,
+  chipPadX: 14,
+  descH: 22,
+  blockGap: 18,
+  buttonY: 588,
+  buttonH: 50,
+  backW: 120,
+  startW: 200,
+  buttonGap: 12,
+};
+
+/** Центр кнопки внизу экрана снаряжения: «Назад» слева, «В бой» справа. */
+export function gearButtonCenter(button: 'back' | 'start'): [number, number] {
+  const { pad, backW, startW, buttonGap, buttonY } = GEAR;
+  return [button === 'back' ? pad + backW / 2 : pad + backW + buttonGap + startW / 2, buttonY];
+}
+
 // Нижняя полоса: «Призвать» слева, «Метеор» справа.
 export const CONTROLS_PAD = 8;
 export const SUMMON_W = 204;
