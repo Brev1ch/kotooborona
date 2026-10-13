@@ -1,11 +1,17 @@
 import Phaser from 'phaser';
 import { levels } from '../data';
+import { BUTTON_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
-import { COLORS, FONTS, GAME_H, GAME_W, MENU_PLAY_Y, TEXT_COLORS } from '../layout';
+import { COLORS, FONTS, GAME_W, MENU, menuCardCenter, TEXT_COLORS } from '../layout';
+import { progress } from '../progress';
+import { campaignTiles, type CampaignTile } from '../systems/Campaign';
+import { MAX_STARS } from '../systems/Progress';
 import { SceneKey, type LevelSceneData } from './keys';
 
-const BUTTON_W = 200;
-const BUTTON_H = 56;
+const CARD_PAD = 14;
+const NUMBER_W = 26;
+const STAR_STEP = 20;
+const LOCKED_ALPHA = 0.55;
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -13,40 +19,72 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
-    const level = levels.levels[0];
-    const cx = GAME_W / 2;
-
     this.add
-      .text(cx, GAME_H * 0.3, t('game.title'), {
+      .text(GAME_W / 2, MENU.titleY, t('game.title'), {
         fontFamily: FONTS.display,
         fontSize: '32px',
         color: TEXT_COLORS.fg,
       })
       .setOrigin(0.5);
 
-    this.add
-      .text(cx, GAME_H * 0.3 + 40, t(`level.${level.id}` as StringKey), {
-        fontFamily: FONTS.body,
-        fontSize: '14px',
-        color: TEXT_COLORS.muted,
-      })
-      .setOrigin(0.5);
+    const levelIds = levels.levels.map((level) => level.id);
+    const tiles = campaignTiles(levelIds, levels.chapterLevels, (id) => progress.stars(id));
+    tiles.forEach((tile, index) => this.addCard(tile, ...menuCardCenter(index)));
+  }
 
-    const button = this.add
-      .rectangle(cx, MENU_PLAY_Y, BUTTON_W, BUTTON_H, COLORS.brass)
-      .setInteractive({ useHandCursor: true });
+  /** Плитка уровня: номер, название и звёзды; у закрытого — номер и замок. */
+  private addCard(tile: CampaignTile, x: number, y: number): void {
+    const { cardW, cardH } = MENU;
+    const open = tile.unlocked && tile.levelId !== null;
+    const left = -cardW / 2 + CARD_PAD;
 
-    this.add
-      .text(cx, MENU_PLAY_Y, t('menu.play'), {
+    const bg = this.add.rectangle(0, 0, cardW, cardH, COLORS.panel).setStrokeStyle(1, open ? COLORS.brass : COLORS.line);
+    const number = this.add
+      .text(left + NUMBER_W / 2, 0, String(tile.number), {
         fontFamily: FONTS.display,
-        fontSize: '20px',
-        color: TEXT_COLORS.dark,
+        fontSize: '22px',
+        color: open ? TEXT_COLORS.brass : TEXT_COLORS.muted,
       })
       .setOrigin(0.5);
+    const card = this.add.container(x, y, [bg, number]);
 
-    button.on('pointerup', () => {
-      const data: LevelSceneData = { levelId: level.id };
-      this.scene.start(SceneKey.Game, data);
+    if (!open || tile.levelId === null) {
+      card.add(this.drawLock(cardW / 2 - CARD_PAD - 10, 0));
+      card.setAlpha(LOCKED_ALPHA);
+      return;
+    }
+
+    const contentX = left + NUMBER_W + 10;
+    card.add(
+      this.add
+        .text(contentX, -12, t(`level.${tile.levelId}` as StringKey), {
+          fontFamily: FONTS.body,
+          fontSize: '16px',
+          color: TEXT_COLORS.fg,
+        })
+        .setOrigin(0, 0.5),
+    );
+    for (let i = 0; i < MAX_STARS; i++) {
+      const color = i < tile.stars ? COLORS.brass : COLORS.line;
+      card.add(this.add.star(contentX + 8 + i * STAR_STEP, 13, 5, 4, 8.5, color));
+    }
+
+    const data: LevelSceneData = { levelId: tile.levelId };
+    bg.setInteractive({ useHandCursor: true });
+    bg.on('pointerdown', () => {
+      this.tweens.add({ targets: card, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
     });
+    bg.once('pointerup', () => this.scene.start(SceneKey.Game, data));
+  }
+
+  private drawLock(x: number, y: number): Phaser.GameObjects.Graphics {
+    const g = this.add.graphics({ x, y });
+    g.lineStyle(2.5, COLORS.line);
+    g.beginPath();
+    g.arc(0, -3, 5, Math.PI, 0);
+    g.strokePath();
+    g.fillStyle(COLORS.line);
+    g.fillRoundedRect(-8, -3, 16, 12, 3);
+    return g;
   }
 }

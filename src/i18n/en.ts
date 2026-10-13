@@ -2,7 +2,6 @@ import type { StringKey } from './ru';
 
 export const en: Record<StringKey, string> = {
   'game.title': 'Cat Defense',
-  'menu.play': 'Play',
 
   'hud.gold': 'Coins',
   'hud.crystals': 'Crystals',

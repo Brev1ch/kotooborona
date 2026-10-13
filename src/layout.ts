@@ -9,8 +9,17 @@ export const BOARD_Y = HUD_H;
 export const CONTROLS_Y = BOARD_Y + BOARD_H;
 export const CONTROLS_H = GAME_H - CONTROLS_Y;
 
-/** Центр кнопки «Играть» в меню по вертикали. */
-export const MENU_PLAY_Y = GAME_H * 0.6;
+// Меню: название игры и сетка уровней главы.
+export const MENU = { titleY: 84, gridY: 150, cols: 2, cardW: 160, cardH: 66, gap: 12 };
+
+/** Центр плитки уровня в меню; `index` — номер в главе с нуля. */
+export function menuCardCenter(index: number): [number, number] {
+  const { gridY, cols, cardW, cardH, gap } = MENU;
+  const left = (GAME_W - cols * cardW - (cols - 1) * gap) / 2;
+  const col = index % cols;
+  const row = Math.floor(index / cols);
+  return [left + col * (cardW + gap) + cardW / 2, gridY + row * (cardH + gap) + cardH / 2];
+}
 
 // Нижняя полоса: «Призвать» слева, «Метеор» справа.
 export const CONTROLS_PAD = 8;

@@ -1,6 +1,5 @@
 export const ru = {
   'game.title': 'Кото-оборона',
-  'menu.play': 'Играть',
 
   'hud.gold': 'Монеты',
   'hud.crystals': 'Кристаллы',

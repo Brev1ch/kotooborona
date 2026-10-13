@@ -1,5 +1,6 @@
 {
   "slotSize": 64,
+  "chapterLevels": 10,
   "waves": {
     "enemiesBase": 6,
     "enemiesPerWave": 2,

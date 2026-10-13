@@ -107,6 +107,8 @@ export interface WavesConfig {
 
 export interface LevelsConfig {
   slotSize: number;
+  /** Сколько уровней в главе; тех, что ещё не описаны в `levels`, меню показывает закрытыми. */
+  chapterLevels: number;
   waves: WavesConfig;
   stars: { threeStarsMaxLost: number; twoStarsMaxLost: number };
   levels: LevelConfig[];

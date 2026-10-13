@@ -1,5 +1,5 @@
 import { test, type Page } from '@playwright/test';
-import { CONTROLS_H, CONTROLS_Y, GAME_H, GAME_W, MENU_PLAY_Y, SUMMON_X } from '../src/layout';
+import { CONTROLS_H, CONTROLS_Y, GAME_H, GAME_W, menuCardCenter, SUMMON_X } from '../src/layout';
 import { SceneKey } from '../src/scenes/keys';
 import type { SmokeState } from '../src/smoke';
 
@@ -72,7 +72,7 @@ test.afterEach(async ({ page }, testInfo) => {
   }
 });
 
-test('меню → игра → три кота → первая волна', async ({ page }) => {
+test('меню → первый уровень → три кота → первая волна', async ({ page }) => {
   await test.step('меню', async () => {
     await page.goto('/?smoke');
     await waitFor(
@@ -85,13 +85,13 @@ test('меню → игра → три кота → первая волна', as
     checkConsole('меню');
   });
 
-  await test.step('«Играть»', async () => {
-    await tap(page, GAME_W / 2, MENU_PLAY_Y);
+  await test.step('первый уровень', async () => {
+    await tap(page, ...menuCardCenter(0));
     await waitFor(
       page,
       SCREEN_TIMEOUT,
       (s) => s.scenes.includes(SceneKey.Game) && s.scenes.includes(SceneKey.UI),
-      (s) => `После нажатия «Играть» игра не дошла до игрового поля за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
+      (s) => `После нажатия на первый уровень игра не дошла до игрового поля за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
     );
     await page.screenshot({ path: `${SHOTS}/02-game.png` });
     checkConsole('игровое поле');
