@@ -680,3 +680,64 @@ describe('Combat: буря', () => {
     expect(ofKind(run(combat, [cat('sand')], 1.5), 'aura')).toHaveLength(3);
   });
 });
+
+describe('Combat: взрыв по площади (метеор)', () => {
+  const blast = { radius: 20, damage: 30, burnDps: 4, burnTime: 2 };
+
+  it('задевает только тех, кто в радиусе в момент удара', () => {
+    const center = enemy('mouse', MIDDLE, { hp: 100 });
+    const edge = enemy('mouse', MIDDLE + 20, { hp: 100 });
+    const outside = enemy('mouse', MIDDLE + 21, { hp: 100 });
+    const combat = create([center, edge, outside]);
+
+    const events = combat.strike(50, 50, blast);
+
+    expect([center.hp, edge.hp, outside.hp]).toEqual([70, 70, 100]);
+    expect(ofKind(events, 'hit').map((event) => event.enemy)).toEqual([center, edge]);
+  });
+
+  it('удар мимо врагов ничего не делает', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 100 });
+    const combat = create([mouse]);
+
+    expect(combat.strike(50, 90, blast)).toEqual([]);
+    expect(mouse).toMatchObject({ hp: 100, burnTime: 0 });
+  });
+
+  it('щит не спасает и не тратится', () => {
+    const bearer = enemy('shield', MIDDLE, { hp: 100, shield: 3 });
+    const events = create([bearer]).strike(50, 50, blast);
+
+    expect(bearer).toMatchObject({ hp: 70, shield: 3 });
+    expect(ofKind(events, 'blocked')).toEqual([]);
+  });
+
+  it('поджигает задетых: огонь жжёт в следующих шагах', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 100 });
+    const combat = create([mouse]);
+
+    combat.strike(50, 50, blast);
+    expect(mouse).toMatchObject({ burnDps: 4, burnTime: 2 });
+
+    run(combat, [], 1);
+    expect(mouse.hp).toBeCloseTo(66);
+  });
+
+  it('более сильный огонь слабым не сбивается', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 100, burnDps: 9, burnTime: 1 });
+    create([mouse]).strike(50, 50, blast);
+
+    expect(mouse).toMatchObject({ burnDps: 9, burnTime: 2 });
+  });
+
+  it('убитый сразу снимается с поля и приносит награду', () => {
+    const weak = enemy('mouse', MIDDLE, { hp: 30, gold: 7 });
+    const strong = enemy('mouse', MIDDLE + 10, { hp: 100 });
+    const combat = create([weak, strong]);
+
+    const events = combat.strike(50, 50, blast);
+
+    expect(ofKind(events, 'killed')).toEqual([{ kind: 'killed', enemy: weak, x: 50, y: 50, gold: 7, crystals: 0 }]);
+    expect(combat.enemies).toEqual([strong]);
+  });
+});

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { cats, getLevel, type ElementId, type LevelConfig } from '../data';
-import { ANNOUNCE_FEEL, BANNER_FEEL, BUTTON_FEEL, RESULT_FEEL, STAT_FEEL } from '../feel';
+import { ANNOUNCE_FEEL, BANNER_FEEL, BUTTON_FEEL, METEOR_FEEL, RESULT_FEEL, STAT_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_Y, COLORS, CONTROLS_H, CONTROLS_Y, FONTS, GAME_W, HUD_H, TEXT_COLORS } from '../layout';
 import type { UpcomingWave } from '../systems/Waves';
@@ -11,9 +11,17 @@ const STAT_PAD = 6;
 const STAT_GAP = 6;
 const STAT_COUNT = 4;
 
-const SUMMON_W = 200;
+// Нижняя полоса: «Призвать» слева, «Метеор» справа.
+const CONTROLS_PAD = 8;
+const CONTROLS_GAP = 8;
+const SUMMON_W = 204;
 const SUMMON_H = 44;
 const SUMMON_PAD = 16;
+const SUMMON_X = CONTROLS_PAD + SUMMON_W / 2;
+const METEOR_W = GAME_W - CONTROLS_PAD * 2 - CONTROLS_GAP - SUMMON_W;
+const METEOR_X = GAME_W - CONTROLS_PAD - METEOR_W / 2;
+const METEOR_LABEL_Y = -8;
+const METEOR_STATUS_Y = 11;
 const COIN_RADIUS = 5;
 
 const BANNER_W = 280;
@@ -33,7 +41,7 @@ const ANNOUNCE_BG = `rgba(27, 34, 51, ${ANNOUNCE_FEEL.bgAlpha})`;
 /** Объявление волны — между клетками и нижним отрезком дороги, чтобы не закрывать котов. */
 const ANNOUNCE_Y = CONTROLS_Y - 86;
 
-/** HUD поверх GameScene: показатели уровня и кнопка призыва. */
+/** HUD поверх GameScene: показатели уровня, кнопки призыва и метеора. */
 export class UIScene extends Phaser.Scene {
   private level!: LevelConfig;
   private gameScene!: GameScene;
@@ -51,6 +59,14 @@ export class UIScene extends Phaser.Scene {
   private summonCost!: Phaser.GameObjects.Text;
   private summonCoin!: Phaser.GameObjects.Arc;
   private canSummon = false;
+  private meteorButton!: Phaser.GameObjects.Container;
+  private meteorBg!: Phaser.GameObjects.Rectangle;
+  /** Заполняется слева направо, пока идёт перезарядка. */
+  private meteorFill!: Phaser.GameObjects.Rectangle;
+  private meteorLabel!: Phaser.GameObjects.Text;
+  private meteorStatus!: Phaser.GameObjects.Text;
+  /** Состояние кнопки метеора, уже показанное на экране. */
+  private shownMeteor = '';
 
   constructor() {
     super(SceneKey.UI);
@@ -83,6 +99,7 @@ export class UIScene extends Phaser.Scene {
       .setAlpha(0);
 
     this.addSummonButton();
+    this.addMeteorButton();
 
     this.gameScene = this.scene.get(SceneKey.Game) as GameScene;
     this.gameScene.events.on(GameEvent.Changed, this.refresh, this);
@@ -95,6 +112,7 @@ export class UIScene extends Phaser.Scene {
     });
     this.banner = null;
     this.refresh();
+    this.refreshMeteor();
 
     // Ветка и сам модуль вырезаются из сборки для игроков.
     if (import.meta.env.DEV) {
@@ -125,7 +143,7 @@ export class UIScene extends Phaser.Scene {
 
     this.summonCoin = this.add.circle(0, 0, COIN_RADIUS, COLORS.bg);
 
-    this.summonButton = this.add.container(GAME_W / 2, CONTROLS_Y + CONTROLS_H / 2, [
+    this.summonButton = this.add.container(SUMMON_X, CONTROLS_Y + CONTROLS_H / 2, [
       this.summonBg,
       this.summonLabel,
       this.summonCost,
@@ -145,6 +163,78 @@ export class UIScene extends Phaser.Scene {
       });
       this.gameScene.summon();
     });
+  }
+
+  private addMeteorButton(): void {
+    this.meteorBg = this.add.rectangle(0, 0, METEOR_W, SUMMON_H, COLORS.meteor).setInteractive({ useHandCursor: true });
+    this.meteorFill = this.add
+      .rectangle(-METEOR_W / 2, 0, METEOR_W, SUMMON_H, COLORS.meteor, METEOR_FEEL.buttonFillAlpha)
+      .setOrigin(0, 0.5);
+
+    this.meteorLabel = this.add
+      .text(0, METEOR_LABEL_Y, t('meteor.button'), {
+        fontFamily: FONTS.display,
+        fontSize: '15px',
+        color: TEXT_COLORS.dark,
+      })
+      .setOrigin(0.5);
+    this.meteorStatus = this.add
+      .text(0, METEOR_STATUS_Y, '', {
+        fontFamily: FONTS.body,
+        fontSize: '11px',
+        color: TEXT_COLORS.dark,
+      })
+      .setOrigin(0.5);
+
+    this.meteorButton = this.add.container(METEOR_X, CONTROLS_Y + CONTROLS_H / 2, [
+      this.meteorBg,
+      this.meteorFill,
+      this.meteorLabel,
+      this.meteorStatus,
+    ]);
+    this.shownMeteor = '';
+
+    // Повторное нажатие отменяет прицеливание.
+    this.meteorBg.on('pointerdown', () => {
+      if (!this.gameScene.meteorState().ready) return;
+      this.tweens.killTweensOf(this.meteorButton);
+      this.meteorButton.setScale(1);
+      this.tweens.add({
+        targets: this.meteorButton,
+        scale: BUTTON_FEEL.pressScale,
+        duration: BUTTON_FEEL.pressMs,
+        yoyo: true,
+      });
+      this.gameScene.toggleMeteorAim();
+      this.refreshMeteor();
+    });
+  }
+
+  update(): void {
+    this.refreshMeteor();
+  }
+
+  /** Кнопка метеора: готов, идёт перезарядка (полоса и секунды) или прицеливание. */
+  private refreshMeteor(): void {
+    const { ready, aiming, remaining, progress } = this.gameScene.meteorState();
+    this.meteorFill.setScale(progress, 1);
+
+    const seconds = Math.ceil(remaining);
+    const shown = `${ready}:${aiming}:${seconds}`;
+    if (shown === this.shownMeteor) return;
+    this.shownMeteor = shown;
+
+    this.meteorFill.setVisible(!ready);
+    this.meteorBg.setFillStyle(ready ? COLORS.meteor : COLORS.panel);
+    this.meteorBg.setStrokeStyle(
+      aiming ? METEOR_FEEL.buttonAimStroke : 1,
+      aiming ? COLORS.range : COLORS.line,
+      aiming || !ready ? 1 : 0,
+    );
+    this.meteorLabel.setColor(ready ? TEXT_COLORS.dark : TEXT_COLORS.muted);
+    this.meteorStatus
+      .setColor(ready ? TEXT_COLORS.dark : TEXT_COLORS.fg)
+      .setText(aiming ? t('meteor.aim') : ready ? t('meteor.ready') : t('meteor.cooldown', { seconds }));
   }
 
   private refresh(): void {

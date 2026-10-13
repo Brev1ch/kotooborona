@@ -35,6 +35,12 @@ export const COLORS = {
   hpBack: 0x000000,
   hp: 0x7cc48a,
   shield: 0x8fa3c4,
+  meteor: 0xff7a3c,
+  shadow: 0x000000,
+  heroFur: 0xf2efe6,
+  heroMantle: 0x4b3f7a,
+  heroHat: 0x3b3a6b,
+  heroStaff: 0xa07c4c,
 };
 
 export const TEXT_COLORS = {

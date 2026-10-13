@@ -32,6 +32,15 @@ export interface CombatSetup {
   rng?: () => number;
 }
 
+/** Взрыв по площади, не привязанный к коту: умение героя. */
+export interface Blast {
+  radius: number;
+  damage: number;
+  /** Урон от огня в секунду для всех задетых. */
+  burnDps: number;
+  burnTime: number;
+}
+
 /** Что произошло за шаг боя; сцена по этим событиям меняет экономику и картинку. */
 export type CombatEvent =
   /** Враг дошёл до ворот и снят с поля. */
@@ -81,6 +90,22 @@ export class Combat {
       if (cat) this.attack(cat, slot, dt);
     });
     this.moveProjectiles(dt);
+    this.alive = this.alive.filter((enemy) => enemy.hp > 0);
+    return this.events;
+  }
+
+  /**
+   * Взрыв в точке: урон мимо щита и поджог всем, кто сейчас в радиусе.
+   * Возвращает события так же, как update().
+   */
+  strike(x: number, y: number, { radius, damage, burnDps, burnTime }: Blast): CombatEvent[] {
+    this.events = [];
+    for (const enemy of this.near(x, y, radius)) {
+      const [ex, ey] = positionAt(this.setup.path, enemy.distance);
+      this.events.push({ kind: 'hit', enemy, x: ex, y: ey, element: 'fire' });
+      this.damage(enemy, damage, ex, ey);
+      this.burn(enemy, burnDps, burnTime);
+    }
     this.alive = this.alive.filter((enemy) => enemy.hp > 0);
     return this.events;
   }

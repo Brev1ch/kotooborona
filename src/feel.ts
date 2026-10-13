@@ -155,6 +155,72 @@ export const RESULT_FEEL = {
   starEase: 'Back.easeOut',
 };
 
+/** Герой у ворот: покачивание и сфера на посохе. */
+export const HERO_FEEL = {
+  shadowAlpha: 0.3,
+  /** Голова со шляпой ходит вверх-вниз. */
+  bobY: 1.5,
+  bobMs: 1500,
+  orbRadius: 6,
+  haloScale: 2,
+  /** Умение на перезарядке: сфера маленькая и тусклая. */
+  orbIdleScale: 0.65,
+  orbIdleAlpha: 0.35,
+  /** Умение готово: сфера и ореол пульсируют. */
+  orbPulseScale: 1.25,
+  orbPulseAlphaFrom: 0.6,
+  orbPulseAlphaTo: 1,
+  haloPulseAlphaFrom: 0.1,
+  haloPulseAlphaTo: 0.35,
+  orbPulseMs: 520,
+  /** Сфера вспыхивает, когда умение перезарядилось. */
+  readyPopScale: 2,
+  readyPopMs: 260,
+  /** Отдача посоха при ударе. */
+  castScale: 1.12,
+  castMs: 160,
+};
+
+/** Умение «Метеор»: прицел, полёт и взрыв. */
+export const METEOR_FEEL = {
+  /** Подсветка поля, пока игрок выбирает точку. */
+  aimFillAlpha: 0.08,
+  aimBorderWidth: 3,
+  aimBorderAlpha: 0.7,
+  aimBorderInset: 3,
+  aimPulseAlpha: 0.55,
+  aimPulseMs: 500,
+  reticleFillAlpha: 0.18,
+  reticleLineWidth: 2,
+  reticleLineAlpha: 0.9,
+  reticleDot: 3,
+  /** Полёт короткий: враги не должны успеть выйти из круга. */
+  flightMs: 300,
+  flightEase: 'Quad.easeIn',
+  ballRadius: 9,
+  ballFromScale: 0.5,
+  /** Хвост: гаснущие следы за шаром. */
+  trailEveryMs: 25,
+  trailMs: 180,
+  trailAlpha: 0.6,
+  trailScale: 0.7,
+  /** Взрыв: круг растёт от доли радиуса до полного, по краю — кольцо. */
+  blastMs: 420,
+  blastAlpha: 0.55,
+  blastFrom: 0.35,
+  blastRingWidth: 4,
+  blastCoreMs: 160,
+  blastCoreRadius: 0.5,
+  flashMs: 220,
+  flashAlpha: 0.3,
+  shakeMs: 260,
+  shakeIntensity: 0.012,
+  /** Обводка кнопки в режиме прицеливания. */
+  buttonAimStroke: 2,
+  /** Заполнение кнопки, пока идёт перезарядка. */
+  buttonFillAlpha: 0.35,
+};
+
 export const BUTTON_FEEL = {
   pressScale: 0.94,
   pressMs: 70,

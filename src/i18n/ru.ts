@@ -25,6 +25,11 @@ export const ru = {
 
   'summon.button': 'Призвать',
 
+  'meteor.button': 'Метеор',
+  'meteor.ready': 'готов',
+  'meteor.cooldown': '{seconds} с',
+  'meteor.aim': 'коснись поля',
+
   'merge.maxLevel': 'Максимум {level} ур.',
   'merge.noCrystal': 'Нужен кристалл',
   'merge.ritual': 'Кот проводит ритуал',

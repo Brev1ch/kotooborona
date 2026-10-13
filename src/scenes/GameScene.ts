@@ -5,20 +5,23 @@ import { CatView } from '../entities/CatView';
 import type { Enemy } from '../entities/Enemy';
 import type { Projectile } from '../entities/Projectile';
 import { EnemyView } from '../entities/EnemyView';
-import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, SHOT_FEEL, TOAST_FEEL } from '../feel';
+import { HeroView } from '../entities/HeroView';
+import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
 import { platform } from '../platform';
-import { catRange, Combat } from '../systems/Combat';
+import { catRange, Combat, type Blast, type CombatEvent } from '../systems/Combat';
 import { Economy, starsFor } from '../systems/Economy';
 import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
+import { Meteor } from '../systems/Meteor';
 import { buildPath, positionAt, type Path } from '../systems/Path';
 import { Summon } from '../systems/Summon';
 import { Waves } from '../systems/Waves';
-import { GameEvent, SceneKey, type HudState, type LevelResult, type LevelSceneData } from './keys';
+import { GameEvent, SceneKey, type HudState, type LevelResult, type LevelSceneData, type MeteorState } from './keys';
 
-// Пока снаряжение не выбирается игроком, посох берётся из умолчаний.
+// Пока снаряжение не выбирается игроком, посох и мантия берутся из умолчаний.
 const STAFF_ID = gear.defaults.staff;
+const MANTLE_ID = gear.defaults.mantle;
 
 const BLOCK_TEXT: Record<MergeBlock, StringKey> = {
   maxLevel: 'merge.maxLevel',
@@ -66,6 +69,14 @@ export class GameScene extends Phaser.Scene {
   private shownWave = '';
   /** Бой окончен: поле замирает, призыв и перетаскивание отключены. */
   private finished = false;
+  private meteor!: Meteor;
+  private hero!: HeroView;
+  /** Подсветка поля, пока игрок выбирает точку удара. */
+  private aimGlow!: Phaser.GameObjects.Graphics;
+  /** Круг радиуса удара под пальцем. */
+  private reticle!: Phaser.GameObjects.Graphics;
+  /** Палец, который коснулся поля в режиме прицеливания: удар — когда он отпустит. */
+  private aimPointerId: number | null = null;
 
   constructor() {
     super(SceneKey.Game);
@@ -87,7 +98,10 @@ export class GameScene extends Phaser.Scene {
     this.drawSlots(g, this.level.slots);
 
     this.economy = new Economy(this.level, gear.summon);
-    this.summoner = new Summon(cats, gear.staff.find((item) => item.id === STAFF_ID));
+    const staff = gear.staff.find((item) => item.id === STAFF_ID);
+    this.summoner = new Summon(cats, staff);
+    this.meteor = new Meteor(gear.meteor, gear.mantle.find((item) => item.id === MANTLE_ID));
+    this.hero = new HeroView(this, ...this.level.hero, staff?.element ? elementColor(staff.element) : COLORS.meteor);
     this.merger = new Merge(cats, {
       maxCatLevel: this.level.maxCatLevel,
       ritualTime: gear.ritual.time,
@@ -129,6 +143,7 @@ export class GameScene extends Phaser.Scene {
 
     this.highlights = this.add.graphics().setDepth(DEPTH.highlight);
     this.rangeRing = this.add.graphics().setDepth(DEPTH.fx).setVisible(false);
+    this.addAimLayers();
 
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.onPointerDown, this);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.onPointerMove, this);
@@ -142,6 +157,8 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     if (this.finished) return;
     const dt = Math.min(MAX_STEP, delta / 1000);
+    this.meteor.update(dt);
+    this.hero.setReady(this.meteor.ready);
     this.updateRituals(dt);
     this.updateBattle(dt);
 
@@ -151,13 +168,9 @@ export class GameScene extends Phaser.Scene {
 
   private finish(won: boolean): void {
     this.finished = true;
-    if (this.drag) {
-      this.drag.view.settle(...this.slotCenter(this.drag.slot), CAT_FEEL.returnMs);
-      this.drag = null;
-      this.highlights.clear();
-      this.hint.setVisible(false);
-      this.rangeRing.setVisible(false);
-    }
+    this.cancelDrag();
+    this.meteor.cancelAim();
+    this.syncAim();
 
     const livesLost = this.level.startLives - this.economy.lives;
     const result: LevelResult = {
@@ -196,75 +209,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const event of this.combat.update(dt, this.board)) {
-      switch (event.kind) {
-        case 'leaked':
-          this.economy.loseLives(event.lifeDamage);
-          this.enemyViews.get(event.enemy)?.destroy();
-          this.enemyViews.delete(event.enemy);
-          this.cameras.main.shake(ENEMY_FEEL.leakShakeMs, ENEMY_FEEL.leakShakeIntensity);
-          changed = true;
-          break;
-
-        case 'shot':
-          this.views[event.slot]?.playShot();
-          this.addProjectileView(event.projectile);
-          break;
-
-        case 'hit':
-          this.enemyViews.get(event.enemy)?.playHit();
-          break;
-
-        case 'splash': {
-          const { x, y, radius } = event;
-          const color = elementColor(event.element);
-          this.playFx(FX_FEEL.splashMs, (g, k) => {
-            g.fillStyle(color, FX_FEEL.splashAlpha * (1 - k));
-            g.fillCircle(x, y, radius * (FX_FEEL.splashFrom + (1 - FX_FEEL.splashFrom) * k));
-          });
-          break;
-        }
-
-        case 'chain': {
-          const [fromX, fromY] = event.from;
-          const [toX, toY] = event.to;
-          const color = elementColor(event.element);
-          this.playFx(FX_FEEL.boltMs, (g, k) => {
-            g.lineStyle(FX_FEEL.boltWidth, color, 1 - k);
-            g.beginPath();
-            g.moveTo(fromX, fromY);
-            g.lineTo((fromX + toX) / 2 + FX_FEEL.boltKink, (fromY + toY) / 2 - FX_FEEL.boltKink);
-            g.lineTo(toX, toY);
-            g.strokePath();
-          });
-          break;
-        }
-
-        case 'aura': {
-          const [x, y] = this.slotCenter(event.slot);
-          const { radius } = event;
-          const color = elementColor(event.element);
-          this.views[event.slot]?.playShot();
-          this.playFx(FX_FEEL.auraMs, (g, k) => {
-            g.lineStyle(FX_FEEL.auraWidth, color, FX_FEEL.auraAlpha * (1 - k));
-            g.strokeCircle(x, y, radius * (FX_FEEL.auraFrom + (1 - FX_FEEL.auraFrom) * k));
-          });
-          break;
-        }
-
-        case 'blocked':
-          this.enemyViews.get(event.enemy)?.playBlock();
-          break;
-
-        case 'killed':
-          this.economy.reward(event.gold, event.crystals);
-          this.enemyViews.get(event.enemy)?.playDeath();
-          this.enemyViews.delete(event.enemy);
-          this.showReward(event.x, event.y, event.gold, event.crystals);
-          // С новым кристаллом заблокированное смешение могло стать доступным.
-          if (this.drag && event.crystals > 0) this.drawHighlights();
-          changed = true;
-          break;
-      }
+      if (this.handleCombatEvent(event)) changed = true;
     }
 
     const flying = new Set(this.combat.projectiles);
@@ -289,6 +234,78 @@ export class GameScene extends Phaser.Scene {
       changed = true;
     }
     if (changed) this.events.emit(GameEvent.Changed);
+  }
+
+  /** Меняет экономику и картинку по событию боя. Возвращает true, если HUD пора обновить. */
+  private handleCombatEvent(event: CombatEvent): boolean {
+    switch (event.kind) {
+      case 'leaked':
+        this.economy.loseLives(event.lifeDamage);
+        this.enemyViews.get(event.enemy)?.destroy();
+        this.enemyViews.delete(event.enemy);
+        this.cameras.main.shake(ENEMY_FEEL.leakShakeMs, ENEMY_FEEL.leakShakeIntensity);
+        return true;
+
+      case 'shot':
+        this.views[event.slot]?.playShot();
+        this.addProjectileView(event.projectile);
+        break;
+
+      case 'hit':
+        this.enemyViews.get(event.enemy)?.playHit();
+        break;
+
+      case 'splash': {
+        const { x, y, radius } = event;
+        const color = elementColor(event.element);
+        this.playFx(FX_FEEL.splashMs, (g, k) => {
+          g.fillStyle(color, FX_FEEL.splashAlpha * (1 - k));
+          g.fillCircle(x, y, radius * (FX_FEEL.splashFrom + (1 - FX_FEEL.splashFrom) * k));
+        });
+        break;
+      }
+
+      case 'chain': {
+        const [fromX, fromY] = event.from;
+        const [toX, toY] = event.to;
+        const color = elementColor(event.element);
+        this.playFx(FX_FEEL.boltMs, (g, k) => {
+          g.lineStyle(FX_FEEL.boltWidth, color, 1 - k);
+          g.beginPath();
+          g.moveTo(fromX, fromY);
+          g.lineTo((fromX + toX) / 2 + FX_FEEL.boltKink, (fromY + toY) / 2 - FX_FEEL.boltKink);
+          g.lineTo(toX, toY);
+          g.strokePath();
+        });
+        break;
+      }
+
+      case 'aura': {
+        const [x, y] = this.slotCenter(event.slot);
+        const { radius } = event;
+        const color = elementColor(event.element);
+        this.views[event.slot]?.playShot();
+        this.playFx(FX_FEEL.auraMs, (g, k) => {
+          g.lineStyle(FX_FEEL.auraWidth, color, FX_FEEL.auraAlpha * (1 - k));
+          g.strokeCircle(x, y, radius * (FX_FEEL.auraFrom + (1 - FX_FEEL.auraFrom) * k));
+        });
+        break;
+      }
+
+      case 'blocked':
+        this.enemyViews.get(event.enemy)?.playBlock();
+        break;
+
+      case 'killed':
+        this.economy.reward(event.gold, event.crystals);
+        this.enemyViews.get(event.enemy)?.playDeath();
+        this.enemyViews.delete(event.enemy);
+        this.showReward(event.x, event.y, event.gold, event.crystals);
+        // С новым кристаллом заблокированное смешение могло стать доступным.
+        if (this.drag && event.crystals > 0) this.drawHighlights();
+        return true;
+    }
+    return false;
   }
 
   private addProjectileView(projectile: Projectile): void {
@@ -346,6 +363,136 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
+  meteorState(): MeteorState {
+    const { ready, aiming, remaining, progress } = this.meteor;
+    return { ready, aiming, remaining, progress };
+  }
+
+  /** Кнопка «Метеор»: включает прицеливание или отменяет его. */
+  toggleMeteorAim(): void {
+    if (this.finished) return;
+    // Пока идёт прицеливание, котов не таскают: взятый возвращается на место.
+    if (this.meteor.toggleAim()) this.cancelDrag();
+    this.syncAim();
+  }
+
+  private addAimLayers(): void {
+    const inset = METEOR_FEEL.aimBorderInset;
+    this.aimGlow = this.add.graphics().setDepth(DEPTH.highlight).setVisible(false);
+    this.aimGlow.fillStyle(COLORS.meteor, METEOR_FEEL.aimFillAlpha);
+    this.aimGlow.fillRect(0, 0, BOARD_W, BOARD_H);
+    this.aimGlow.lineStyle(METEOR_FEEL.aimBorderWidth, COLORS.meteor, METEOR_FEEL.aimBorderAlpha);
+    this.aimGlow.strokeRect(inset, inset, BOARD_W - inset * 2, BOARD_H - inset * 2);
+
+    const { radius } = gear.meteor;
+    this.reticle = this.add.graphics().setDepth(DEPTH.dragged).setVisible(false);
+    this.reticle.fillStyle(COLORS.meteor, METEOR_FEEL.reticleFillAlpha);
+    this.reticle.fillCircle(0, 0, radius);
+    this.reticle.lineStyle(METEOR_FEEL.reticleLineWidth, COLORS.meteor, METEOR_FEEL.reticleLineAlpha);
+    this.reticle.strokeCircle(0, 0, radius);
+    this.reticle.fillStyle(COLORS.meteor);
+    this.reticle.fillCircle(0, 0, METEOR_FEEL.reticleDot);
+    this.aimPointerId = null;
+  }
+
+  /** Показывает или прячет подсветку поля по состоянию прицеливания. */
+  private syncAim(): void {
+    const { aiming } = this.meteor;
+    if (aiming === this.aimGlow.visible) return;
+    this.tweens.killTweensOf(this.aimGlow);
+    this.aimGlow.setVisible(aiming).setAlpha(1);
+    if (aiming) {
+      this.tweens.add({
+        targets: this.aimGlow,
+        alpha: METEOR_FEEL.aimPulseAlpha,
+        duration: METEOR_FEEL.aimPulseMs,
+        ease: 'Sine.easeInOut',
+        yoyo: true,
+        repeat: -1,
+      });
+    } else {
+      this.reticle.setVisible(false);
+      this.aimPointerId = null;
+    }
+  }
+
+  /** Ставит круг удара под указатель; за пределами поля круг прячется. */
+  private moveReticle(pointer: Phaser.Input.Pointer): Point | null {
+    const point = this.boardPoint(pointer);
+    this.reticle.setVisible(point !== null);
+    if (point) this.reticle.setPosition(...point);
+    return point;
+  }
+
+  /** Метеор летит от посоха героя в точку и взрывается там. */
+  private castMeteor(x: number, y: number): void {
+    const blast = this.meteor.cast(this.waves.wave, this.level.hpMult);
+    this.syncAim();
+    if (!blast) return;
+
+    this.hero.playCast();
+    const [fromX, fromY] = this.hero.orbPoint();
+    const ball = this.add.circle(fromX, fromY, METEOR_FEEL.ballRadius, COLORS.meteor).setDepth(DEPTH.dragged);
+    const trail = this.time.addEvent({
+      delay: METEOR_FEEL.trailEveryMs,
+      loop: true,
+      callback: () => {
+        const spark = this.add
+          .circle(ball.x, ball.y, METEOR_FEEL.ballRadius * ball.scale * METEOR_FEEL.trailScale, COLORS.brass, METEOR_FEEL.trailAlpha)
+          .setDepth(DEPTH.fx);
+        this.tweens.add({
+          targets: spark,
+          alpha: 0,
+          scale: 0,
+          duration: METEOR_FEEL.trailMs,
+          onComplete: () => spark.destroy(),
+        });
+      },
+    });
+    this.tweens.add({
+      targets: ball,
+      x,
+      y,
+      scale: { from: METEOR_FEEL.ballFromScale, to: 1 },
+      duration: METEOR_FEEL.flightMs,
+      ease: METEOR_FEEL.flightEase,
+      onComplete: () => {
+        trail.remove();
+        ball.destroy();
+        this.landMeteor(x, y, blast);
+      },
+    });
+  }
+
+  /** Взрыв: урон получают те, кто в круге в момент прилёта. */
+  private landMeteor(x: number, y: number, blast: Blast): void {
+    if (this.finished) return;
+
+    let changed = false;
+    for (const event of this.combat.strike(x, y, blast)) {
+      if (this.handleCombatEvent(event)) changed = true;
+    }
+    if (changed) this.events.emit(GameEvent.Changed);
+
+    const { radius } = blast;
+    this.playFx(METEOR_FEEL.blastMs, (g, k) => {
+      const r = radius * (METEOR_FEEL.blastFrom + (1 - METEOR_FEEL.blastFrom) * Phaser.Math.Easing.Cubic.Out(k));
+      g.fillStyle(COLORS.meteor, METEOR_FEEL.blastAlpha * (1 - k));
+      g.fillCircle(x, y, r);
+      g.lineStyle(METEOR_FEEL.blastRingWidth, COLORS.brass, 1 - k);
+      g.strokeCircle(x, y, r);
+    });
+    this.playFx(METEOR_FEEL.blastCoreMs, (g, k) => {
+      g.fillStyle(COLORS.flash, 1 - k);
+      g.fillCircle(x, y, radius * METEOR_FEEL.blastCoreRadius * (1 - k));
+    });
+    this.playFx(METEOR_FEEL.flashMs, (g, k) => {
+      g.fillStyle(COLORS.flash, METEOR_FEEL.flashAlpha * (1 - k));
+      g.fillRect(0, 0, BOARD_W, BOARD_H);
+    });
+    this.cameras.main.shake(METEOR_FEEL.shakeMs, METEOR_FEEL.shakeIntensity);
+  }
+
   summon(): void {
     if (this.finished || !this.economy.canAffordSummon()) return;
     const result = this.summoner.summon(this.board);
@@ -365,6 +512,10 @@ export class GameScene extends Phaser.Scene {
 
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (this.drag || this.finished) return;
+    if (this.meteor.aiming) {
+      if (this.moveReticle(pointer)) this.aimPointerId = pointer.id;
+      return;
+    }
     const slot = this.slotAt(pointer);
     if (slot === null) return;
     const cat = this.board[slot];
@@ -391,6 +542,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onPointerMove(pointer: Phaser.Input.Pointer): void {
+    if (this.meteor.aiming) {
+      // Мышь водит круг и без нажатия; второй палец прицел не перехватывает.
+      if (this.aimPointerId === null || pointer.id === this.aimPointerId) this.moveReticle(pointer);
+      return;
+    }
     if (!this.drag || pointer.id !== this.drag.pointerId) return;
     this.followPointer(pointer);
 
@@ -403,6 +559,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onPointerUp(pointer: Phaser.Input.Pointer): void {
+    if (this.meteor.aiming) {
+      if (pointer.id !== this.aimPointerId) return;
+      this.aimPointerId = null;
+      // Отпустили за краем поля — удара нет, прицеливание продолжается.
+      const point = this.moveReticle(pointer);
+      if (point) this.castMeteor(...point);
+      return;
+    }
     if (!this.drag || pointer.id !== this.drag.pointerId) return;
     const { slot: from, view } = this.drag;
     const to = this.slotAt(pointer);
@@ -461,6 +625,16 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.events.emit(GameEvent.Changed);
+  }
+
+  /** Возвращает взятого кота на место. */
+  private cancelDrag(): void {
+    if (!this.drag) return;
+    this.drag.view.settle(...this.slotCenter(this.drag.slot), CAT_FEEL.returnMs);
+    this.drag = null;
+    this.highlights.clear();
+    this.hint.setVisible(false);
+    this.rangeRing.setVisible(false);
   }
 
   private followPointer(pointer: Phaser.Input.Pointer): void {
@@ -589,6 +763,12 @@ export class GameScene extends Phaser.Scene {
     const [x, y] = this.level.slots[slot];
     const half = levels.slotSize / 2;
     return [x + half, y + half];
+  }
+
+  /** Точка поля под указателем или null, если он за краем поля. */
+  private boardPoint(pointer: Phaser.Input.Pointer): Point | null {
+    const { x, y } = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    return x >= 0 && x <= BOARD_W && y >= 0 && y <= BOARD_H ? [x, y] : null;
   }
 
   /** Клетка под указателем или null. */

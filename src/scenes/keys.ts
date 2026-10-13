@@ -34,6 +34,16 @@ export interface HudState {
   upcoming: UpcomingWave | null;
 }
 
+/** Состояние умения героя для кнопки в HUD. */
+export interface MeteorState {
+  ready: boolean;
+  aiming: boolean;
+  /** Секунды до готовности. */
+  remaining: number;
+  /** Доля прошедшей перезарядки от 0 до 1. */
+  progress: number;
+}
+
 /** Итог уровня для экрана победы или поражения. */
 export interface LevelResult {
   won: boolean;

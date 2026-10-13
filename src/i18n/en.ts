@@ -27,6 +27,11 @@ export const en: Record<StringKey, string> = {
 
   'summon.button': 'Summon',
 
+  'meteor.button': 'Meteor',
+  'meteor.ready': 'ready',
+  'meteor.cooldown': '{seconds} s',
+  'meteor.aim': 'tap the field',
+
   'merge.maxLevel': 'Max level {level}',
   'merge.noCrystal': 'Crystal needed',
   'merge.ritual': 'This cat is in a ritual',
