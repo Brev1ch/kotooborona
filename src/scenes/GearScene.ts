@@ -23,7 +23,7 @@ import { drawSlotGlyph, itemAccent, itemLines, itemRarityLine, itemTitle, rarity
 import { SceneKey, type LevelSceneData } from './keys';
 import { sceneBeforeBattle } from './IntroScene';
 import { fadeIn, fadeOut } from './transitions';
-import { addButton, addFishCounter, addPressFeel, type FishCounter } from './widgets';
+import { addButton, addFishCounter, addPressFeel, fitText, type FishCounter } from './widgets';
 
 /**
  * Экран перед уровнем: надетые предметы и инвентарь. Нажатие на предмет открывает карточку с бонусами:
@@ -127,7 +127,7 @@ export class GearScene extends Phaser.Scene {
     const glyph = this.add.graphics({ x: 0, y: -14 });
     drawSlotGlyph(glyph, slot, 26, item ? rarityFill(item.rarity) : COLORS.line, item ? itemAccent(item) : COLORS.line);
     const name = this.add
-      .text(0, 12, item ? itemTitle(item) : t(`gear.slot.${slot}`), {
+      .text(0, 12, item ? itemTitle(item, true) : t(`gear.slot.${slot}`), {
         fontFamily: FONTS.body,
         fontSize: '11px',
         color: item ? TEXT_COLORS.fg : TEXT_COLORS.muted,
@@ -179,9 +179,10 @@ export class GearScene extends Phaser.Scene {
     // Затемнение перехватывает касания, чтобы под карточкой ничего не нажималось.
     const dim = this.add.rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, COLORS.shadow, 0.6).setInteractive();
     const panel = this.add.rectangle(0, 0, w, h, COLORS.panel).setStrokeStyle(2, rarityFill(item.rarity));
-    const title = this.add
-      .text(0, titleY, itemTitle(item), { fontFamily: FONTS.display, fontSize: '18px', color: rarityColor(item.rarity) })
-      .setOrigin(0.5);
+    const title = fitText(
+      this.add.text(0, titleY, itemTitle(item), { fontFamily: FONTS.display, fontSize: '18px', color: rarityColor(item.rarity) }).setOrigin(0.5),
+      w - pad * 2,
+    );
     const rarity = this.add
       .text(0, rarityY, itemRarityLine(item), { fontFamily: FONTS.body, fontSize: '12px', color: TEXT_COLORS.muted })
       .setOrigin(0.5);

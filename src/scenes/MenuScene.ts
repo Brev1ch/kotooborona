@@ -28,7 +28,7 @@ import { MAX_STARS } from '../systems/Progress';
 import { itemLines, itemTitle, rarityColor, rarityFill } from './itemText';
 import { SceneKey, type LevelSceneData } from './keys';
 import { fadeIn, fadeOut } from './transitions';
-import { addAdButton, addButton, addFishCounter, addFishIcon, addLockIcon, addPressFeel, addSoundButton, type FishCounter } from './widgets';
+import { addAdButton, addButton, fitText, addFishCounter, addFishIcon, addLockIcon, addPressFeel, addSoundButton, type FishCounter } from './widgets';
 
 const CARD_PAD = 14;
 const NUMBER_W = 26;
@@ -214,7 +214,7 @@ export class MenuScene extends Phaser.Scene {
     const wrap = { width: w - 32 };
     if (item) {
       window.add([
-        this.add.text(0, itemY, itemTitle(item), { fontFamily: FONTS.display, fontSize: '16px', color: rarityColor(item.rarity) }).setOrigin(0.5),
+        fitText(this.add.text(0, itemY, itemTitle(item), { fontFamily: FONTS.display, fontSize: '16px', color: rarityColor(item.rarity) }).setOrigin(0.5), wrap.width),
         this.add
           .text(0, rarityY, t('item.rarity', { rarity: t(`rarity.${item.rarity}`) }), { fontFamily: FONTS.body, fontSize: '12px', color: TEXT_COLORS.muted })
           .setOrigin(0.5),

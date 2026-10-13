@@ -79,6 +79,47 @@ describe('строки, которые собираются из данных', 
     }
   });
 
+  it('у каждого бонуса из пула есть слово для названия предмета, и в нём есть место для слота', () => {
+    for (const kind of Object.keys(gear.items.pool)) {
+      const key = `item.name.${kind}`;
+      expect(has(key), key).toBe(true);
+      for (const dictionary of [ru, en] as Record<string, string>[]) expect(dictionary[key], key).toContain('{slot}');
+    }
+  });
+
+  it('у бонуса стихии в названии есть место для стихии, у остальных его нет', () => {
+    for (const [kind, rule] of Object.entries(gear.items.pool)) {
+      for (const dictionary of [ru, en] as Record<string, string>[]) {
+        expect(/\{(element|of)\}/.test(dictionary[`item.name.${kind}`]), kind).toBe(rule.element === true);
+      }
+    }
+  });
+
+  it('для названий есть слово каждого слота, каждой базовой стихии и приставка редкости для каждого слота', () => {
+    const slots = ['staff', 'mantle', 'amulet'];
+    for (const slot of slots) expect(has(`item.slotWord.${slot}`), slot).toBe(true);
+    for (const [element, entry] of Object.entries(cats.elements)) {
+      if (entry.from) continue;
+      expect(has(`item.element.${element}`), element).toBe(true);
+      expect(has(`item.elementOf.${element}`), element).toBe(true);
+    }
+    for (const rarity of ['epic', 'legendary']) {
+      for (const slot of slots) expect(has(`item.prefix.${rarity}.${slot}`), `${rarity}.${slot}`).toBe(true);
+    }
+  });
+
+  it('русские названия согласованы в роде: прилагательное стихии стоит только при посохе и амулете, приставка мантии — женского рода', () => {
+    const words = ru as Record<string, string>;
+    for (const [kind, rule] of Object.entries(gear.items.pool)) {
+      if (words[`item.name.${kind}`].includes('{element}')) expect(rule.slots, kind).not.toContain('mantle');
+    }
+    for (const rarity of ['epic', 'legendary']) {
+      expect(words[`item.prefix.${rarity}.mantle`], rarity).toMatch(/ая$/);
+      expect(words[`item.prefix.${rarity}.staff`], rarity).toMatch(/[ыи]й$/);
+      expect(words[`item.prefix.${rarity}.amulet`], rarity).toMatch(/[ыи]й$/);
+    }
+  });
+
   it('у каждой реплики сценки и у каждого говорящего есть строка', () => {
     for (const scene of story.scenes) {
       for (const line of scene.lines) {

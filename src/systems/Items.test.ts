@@ -5,8 +5,11 @@ import { GEAR_SLOTS } from './Gear';
 import {
   bonusKinds,
   bonusValue,
+  itemName,
   itemsBonuses,
   legacyItem,
+  mainBonus,
+  mainKinds,
   RARITIES,
   rollItem,
   rollRarity,
@@ -28,14 +31,14 @@ const config: ItemsConfig = {
     legendary: { bonuses: 3, roll: [0.6, 1], chance: 0.05, shards: 30 },
   },
   pool: {
-    summonChance: { slots: ['staff'], min: 1.5, max: 2, step: 0.1, scales: true, element: true },
-    summonLimit: { slots: ['mantle'], min: 1, max: 1, step: 1, scales: false, rarities: ['epic', 'legendary'] },
-    overLimitCost: { slots: ['mantle', 'amulet'], min: 0.1, max: 0.3, step: 0.05, scales: true, cap: 0.35 },
+    summonChance: { slots: ['staff'], main: ['staff'], min: 1.5, max: 2, step: 0.1, scales: true, element: true },
+    summonLimit: { slots: ['mantle'], main: ['mantle'], min: 1, max: 1, step: 1, scales: false, rarities: ['epic', 'legendary'] },
+    overLimitCost: { slots: ['mantle', 'amulet'], main: ['mantle'], min: 0.1, max: 0.3, step: 0.05, scales: true, cap: 0.35 },
     elementDamage: { slots: ['staff', 'amulet'], min: 0.1, max: 0.2, step: 0.01, scales: true, element: true },
-    meteorCooldown: { slots: ['staff', 'mantle'], min: 0.1, max: 0.3, step: 0.01, scales: true, cap: 0.5 },
-    ritualTime: { slots: ['mantle', 'amulet'], min: 0.2, max: 0.5, step: 0.1, scales: true, cap: 0.75 },
-    gold: { slots: ['mantle', 'amulet'], min: 10, max: 40, step: 5, scales: true },
-    crystals: { slots: ['amulet'], min: 1, max: 2, step: 1, scales: false },
+    meteorCooldown: { slots: ['staff', 'mantle'], main: ['mantle'], min: 0.1, max: 0.3, step: 0.01, scales: true, cap: 0.5 },
+    ritualTime: { slots: ['mantle', 'amulet'], main: ['amulet'], min: 0.2, max: 0.5, step: 0.1, scales: true, cap: 0.75 },
+    gold: { slots: ['mantle', 'amulet'], main: ['amulet'], min: 10, max: 40, step: 5, scales: true },
+    crystals: { slots: ['amulet'], main: ['amulet'], min: 1, max: 2, step: 1, scales: false },
     buildingIncome: { slots: ['mantle', 'amulet'], min: 0.1, max: 0.3, step: 0.01, scales: true },
     level2Chance: { slots: ['staff', 'mantle'], min: 0.04, max: 0.12, step: 0.01, scales: true, cap: 0.3 },
   },
@@ -133,6 +136,102 @@ describe('rollItem: редкость и бонусы', () => {
     for (const slot of GEAR_SLOTS) {
       expect(many(60, 51, { slot, rarity: 'rare' }).every((rolled) => rolled.slot === slot)).toBe(true);
     }
+  });
+});
+
+describe('rollItem: главный бонус', () => {
+  it('первый бонус предмета — характерный для его слота', () => {
+    for (const piece of many(600, 21)) {
+      const kind = piece.bonuses[0].kind;
+      expect(config.pool[kind].main, `${piece.slot}: ${kind}`).toContain(piece.slot);
+    }
+  });
+
+  it('у посоха первым всегда стоит шанс стихии', () => {
+    for (const rarity of RARITIES) {
+      for (const staff of many(100, 22, { slot: 'staff', rarity })) expect(staff.bonuses[0].kind).toBe('summonChance');
+    }
+  });
+
+  it('у мантии и амулета главные бонусы разные и выпадают все', () => {
+    const firsts = (slot: GearSlot): string[] => [...new Set(many(400, 23, { slot, rarity: 'epic' }).map((piece) => piece.bonuses[0].kind))].sort();
+
+    expect(firsts('mantle')).toEqual(['meteorCooldown', 'overLimitCost', 'summonLimit']);
+    expect(firsts('amulet')).toEqual(['crystals', 'gold', 'ritualTime']);
+  });
+
+  it('главный бонус не повторяется среди остальных', () => {
+    for (const piece of many(300, 24, { rarity: 'epic' })) {
+      const kinds = piece.bonuses.map((bonus) => bonus.kind);
+      expect(new Set(kinds).size).toBe(kinds.length);
+    }
+  });
+
+  it('остальные бонусы — любые из пула слота, не только характерные', () => {
+    const rest = new Set(many(600, 25, { rarity: 'epic' }).flatMap((piece) => piece.bonuses.slice(1).map((bonus) => bonus.kind)));
+
+    for (const kind of ['elementDamage', 'buildingIncome', 'level2Chance']) expect(rest.has(kind as BonusKind), kind).toBe(true);
+  });
+
+  it('главный бонус редкости, которой он не положен, первым не выпадает', () => {
+    for (const mantle of many(300, 26, { slot: 'mantle', rarity: 'common' })) expect(mantle.bonuses[0].kind).not.toBe('summonLimit');
+    expect(mainKinds(config, 'mantle', 'common')).not.toContain('summonLimit');
+    expect(mainKinds(config, 'mantle', 'epic')).toContain('summonLimit');
+  });
+
+  it('если характерных бонусов у слота нет, первый берётся из всего пула слота', () => {
+    const plain: ItemsConfig = { ...config, pool: Object.fromEntries(Object.entries(config.pool).map(([kind, rule]) => [kind, { ...rule, main: undefined }])) as ItemsConfig['pool'] };
+
+    const staff = rollItem(plain, cats, seededRandom(3), 'i1', { slot: 'staff', rarity: 'epic' });
+
+    expect(staff.bonuses).toHaveLength(3);
+  });
+
+  it('в данных игры у каждого слота есть характерный бонус для любой редкости, и он из пула этого слота', () => {
+    for (const slot of GEAR_SLOTS) {
+      for (const rarity of RARITIES) expect(mainKinds(gear.items, slot, rarity).length, `${slot} ${rarity}`).toBeGreaterThan(0);
+    }
+    for (const [kind, rule] of Object.entries(gear.items.pool)) {
+      for (const slot of rule.main ?? []) expect(rule.slots, kind).toContain(slot);
+    }
+    expect(mainKinds(gear.items, 'staff', 'common')).toEqual(['summonChance']);
+  });
+});
+
+describe('mainBonus и itemName', () => {
+  const chance = { kind: 'summonChance', value: 1.5, element: 'fire' } as const;
+  const meteor = { kind: 'meteorCooldown', value: 0.2 } as const;
+
+  it('главный бонус — характерный для слота, даже если стоит не первым', () => {
+    expect(mainBonus(config, item({ slot: 'staff', bonuses: [meteor, chance] }))).toEqual(chance);
+  });
+
+  it('без характерных бонусов главный — первый; без бонусов его нет', () => {
+    expect(mainBonus(config, item({ slot: 'staff', bonuses: [meteor] }))).toEqual(meteor);
+    expect(mainBonus(config, item())).toBeNull();
+  });
+
+  it('название — слот, вид и стихия главного бонуса', () => {
+    expect(itemName(config, item({ slot: 'staff', bonuses: [chance] }))).toEqual({ slot: 'staff', kind: 'summonChance', element: 'fire', prefix: null });
+    expect(itemName(config, item({ slot: 'mantle', bonuses: [meteor] }))).toEqual({ slot: 'mantle', kind: 'meteorCooldown', prefix: null });
+  });
+
+  it('приставка редкости — только у эпических и легендарных', () => {
+    const prefix = (rarity: Rarity): Rarity | null => itemName(config, item({ rarity, bonuses: [meteor] })).prefix;
+
+    expect(RARITIES.map(prefix)).toEqual([null, null, 'epic', 'legendary']);
+  });
+
+  it('у легендарного предмета из списка — своё имя, без приставки', () => {
+    expect(itemName(config, item({ slot: 'staff', rarity: 'legendary', legendary: 'phoenix', bonuses: [chance] }))).toEqual({ legendary: 'phoenix', slot: 'staff', kind: null, prefix: null });
+  });
+
+  it('незнакомое легендарное имя не мешает назвать предмет по бонусу', () => {
+    expect(itemName(config, item({ slot: 'staff', rarity: 'legendary', legendary: 'dragon', bonuses: [chance] }))).toEqual({ slot: 'staff', kind: 'summonChance', element: 'fire', prefix: 'legendary' });
+  });
+
+  it('предмет без бонусов называется по слоту', () => {
+    expect(itemName(config, item())).toEqual({ slot: 'amulet', kind: null, prefix: null });
   });
 });
 

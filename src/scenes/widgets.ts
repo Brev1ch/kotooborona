@@ -196,6 +196,13 @@ export function addAdButton(
   return button;
 }
 
+/** Уменьшает шрифт однострочной надписи, если она шире `maxWidth`: длинное название остаётся в своей плашке. */
+export function fitText(text: Phaser.GameObjects.Text, maxWidth: number): Phaser.GameObjects.Text {
+  if (text.width <= maxWidth) return text;
+  const size = parseFloat(String(text.style.fontSize));
+  return text.setFontSize(Math.floor((size * maxWidth) / text.width));
+}
+
 /** Рыбка шириной `size`. */
 export function addFishIcon(scene: Phaser.Scene, x: number, y: number, size: number): Phaser.GameObjects.Image {
   ensureTextures(scene);

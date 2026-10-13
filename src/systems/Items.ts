@@ -59,9 +59,15 @@ export function bonusKinds(config: ItemsConfig, slot: GearSlot, rarity: Rarity):
   });
 }
 
+/** Виды бонусов, характерные для слота: из них выбирается первый бонус предмета, по нему предмет назван. */
+export function mainKinds(config: ItemsConfig, slot: GearSlot, rarity: Rarity): BonusKind[] {
+  return bonusKinds(config, slot, rarity).filter((kind) => config.pool[kind].main?.includes(slot));
+}
+
 /**
  * Новый предмет. Всё случайное берётся из `rng` в одном и том же порядке: редкость, слот (или легендарный предмет),
  * затем для каждого бонуса вид, значение и стихия — поэтому одно зерно даёт один и тот же предмет.
+ * Первый бонус — характерный для слота (`mainKinds`): у посоха это шанс стихии; остальные — любые из пула слота.
  * `fixed` задаёт редкость или слот заранее; тогда их бросок не делается.
  */
 export function rollItem(
@@ -84,8 +90,10 @@ export function rollItem(
   const elements = (Object.keys(cats.elements) as ElementId[]).filter((element) => !cats.elements[element].from);
   const bonuses: ItemBonus[] = [];
   // Один вид бонуса на предмете не повторяется.
+  const mains = mainKinds(config, slot, rarity);
   for (let i = 0; i < rule.bonuses && kinds.length > 0; i++) {
-    const kind = kinds.splice(Math.min(Math.floor(rng() * kinds.length), kinds.length - 1), 1)[0];
+    const kind = pick(i === 0 && mains.length > 0 ? mains : kinds, rng());
+    kinds.splice(kinds.indexOf(kind), 1);
     const { min, max, step, element } = config.pool[kind];
     const part = rule.roll[0] + rng() * (rule.roll[1] - rule.roll[0]);
     const value = tidy(Math.min(max, min + Math.round(((max - min) * part) / step) * step));
@@ -155,6 +163,44 @@ export function itemsBonuses(config: ItemsConfig, items: readonly Item[]): GearB
     }
   }
   return total;
+}
+
+/**
+ * Главный бонус предмета — по нему предмет назван: первый из характерных для слота, а если таких нет — просто первый.
+ * У предметов генератора это всегда первый бонус; у старых и перенесённых порядок мог быть другим. null — бонусов нет.
+ */
+export function mainBonus(config: ItemsConfig, item: Item): ItemBonus | null {
+  return item.bonuses.find((bonus) => config.pool[bonus.kind]?.main?.includes(item.slot)) ?? item.bonuses[0] ?? null;
+}
+
+/** Из чего складывается название предмета; слова подставляет экран (`scenes/itemText.ts`). */
+export interface ItemName {
+  /** Своё имя легендарного предмета: остальные части тогда не нужны. */
+  legendary?: string;
+  slot: GearSlot;
+  /** Главный бонус: его слово стоит в названии; null — предмет без бонусов, называется по слоту. */
+  kind: BonusKind | null;
+  /** Стихия главного бонуса, если он привязан к стихии. */
+  element?: ElementId;
+  /** Редкость, которая выносится в название приставкой: только эпическая и легендарная. */
+  prefix: Rarity | null;
+}
+
+/** Редкости, название которых начинается с приставки. */
+const NAMED_RARITIES: readonly Rarity[] = ['epic', 'legendary'];
+
+export function itemName(config: ItemsConfig, item: Item): ItemName {
+  const { slot } = item;
+  if (item.legendary && config.legendaries.some((rule) => rule.id === item.legendary)) {
+    return { legendary: item.legendary, slot, kind: null, prefix: null };
+  }
+  const main = mainBonus(config, item);
+  return {
+    slot,
+    kind: main?.kind ?? null,
+    ...(main?.element ? { element: main.element } : {}),
+    prefix: NAMED_RARITIES.includes(item.rarity) ? item.rarity : null,
+  };
 }
 
 /** Сколько осколков даёт разбор предмета. */

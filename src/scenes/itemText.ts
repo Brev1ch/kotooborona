@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 import { cats, elementColor, gear, type GearSlot, type Rarity } from '../data';
-import { t, type StringKey } from '../i18n';
+import { t } from '../i18n';
 import { COLORS } from '../layout';
 import { shownBonus, type Item } from '../systems/Items';
+
+export { itemTitle } from './itemTitle';
 
 /** Цвет редкости: числом для рамок и строкой для текста. */
 const RARITY_FILL: Record<Rarity, number> = {
@@ -18,11 +20,6 @@ export function rarityFill(rarity: Rarity): number {
 
 export function rarityColor(rarity: Rarity): string {
   return `#${RARITY_FILL[rarity].toString(16).padStart(6, '0')}`;
-}
-
-/** Название предмета: у легендарного — своё имя, у остальных — слот. */
-export function itemTitle(item: Item): string {
-  return item.legendary ? t(`item.legendary.${item.legendary}` as StringKey) : t(`gear.slot.${item.slot}`);
 }
 
 /** «Редкость: эпическая · Ур. 2». */

@@ -131,7 +131,7 @@ export interface SmokeProbe {
   spawnEnemy(type: EnemyTypeId, distance: number): void;
   /** Открывает врага в бестиарии, как после победы над ним. */
   meetEnemy(type: EnemyTypeId): void;
-  /** Кладёт в инвентарь по предмету каждой редкости в каждый слот и оба легендарных; предметы в каждом прогоне одни и те же. */
+  /** Кладёт в инвентарь по предмету каждой редкости в каждый слот, оба легендарных и два предмета с самыми длинными названиями; предметы в каждом прогоне одни и те же. */
   giveItems(): void;
   /** На сколько пикселей текст открытой карточки предмета заходит на её кнопки; 0 — помещается. */
   cardOverflow(): number;
@@ -395,6 +395,21 @@ export function installSmokeProbe(game: Phaser.Game): void {
         for (const slot of ['staff', 'mantle', 'amulet'] as const) give(seed++, rarity, slot);
       }
       for (const { slot } of gear.items.legendaries) give(seed++, 'legendary', slot);
+      // Самые длинные названия на обоих языках: карточка должна их уместить.
+      progress.addItem({
+        id: progress.newItemId(),
+        slot: 'mantle',
+        rarity: 'epic',
+        bonuses: [{ kind: 'overLimitCost', value: 0.2 }, { kind: 'buildingIncome', value: 0.2 }, { kind: 'level2Chance', value: 0.08 }],
+        level: 1,
+      });
+      progress.addItem({
+        id: progress.newItemId(),
+        slot: 'amulet',
+        rarity: 'legendary',
+        bonuses: [{ kind: 'ritualTime', value: 0.4 }, { kind: 'gold', value: 30 }, { kind: 'elementDamage', value: 0.15, element: 'air' }],
+        level: 1,
+      });
     },
     cardOverflow() {
       return (game.scene.getScene(SceneKey.Gear) as GearScene).cardOverflow;
