@@ -54,6 +54,11 @@ export const RITUAL_FEEL = {
 /** Подпись над клеткой: кто получится при слиянии. */
 export const HINT_FEEL = {
   offsetY: 3,
+  padX: 6,
+  padY: 3,
+  /** Цена смешения: значок кристалла и число после текста. */
+  iconSize: 10,
+  iconGap: 4,
 };
 
 /** Уведомление об открытии нового кота. */
@@ -133,6 +138,9 @@ export const SHOT_FEEL = {
   recoilScale: 1.12,
   recoilMs: 80,
   rewardOffsetY: 14,
+  /** Кристаллы в награде: значок и число после монет. */
+  rewardIconSize: 11,
+  rewardIconGap: 5,
   rewardRise: 24,
   rewardMs: 600,
 };

@@ -14,7 +14,6 @@ export const en: Record<StringKey, string> = {
   'wave.bossSoon': 'Rat Commander! Wave {wave} incoming',
 
   'reward.gold': '+{gold}',
-  'reward.goldCrystals': '+{gold}  ◆{crystals}',
 
   'result.win': 'Level complete',
   'result.lose': 'The castle has fallen',
@@ -37,7 +36,7 @@ export const en: Record<StringKey, string> = {
   'merge.ritual': 'This cat is in a ritual',
   'merge.preview': '{name} {level}',
   'merge.previewUnknown': '??? new cat',
-  'merge.crystalCost': '{text} · ◆{cost}',
+  'merge.withCost': '{text} ·',
 
   'book.discovered': 'New cat unlocked: {name}',
   'book.title': 'Cat Book',

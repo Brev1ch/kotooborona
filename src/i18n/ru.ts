@@ -12,7 +12,6 @@ export const ru = {
   'wave.bossSoon': 'Крыса-командир! Волна {wave} скоро',
 
   'reward.gold': '+{gold}',
-  'reward.goldCrystals': '+{gold}  ◆{crystals}',
 
   'result.win': 'Уровень пройден',
   'result.lose': 'Замок пал',
@@ -35,7 +34,7 @@ export const ru = {
   'merge.ritual': 'Кот проводит ритуал',
   'merge.preview': '{name} {level}',
   'merge.previewUnknown': '??? новый кот',
-  'merge.crystalCost': '{text} · ◆{cost}',
+  'merge.withCost': '{text} ·',
 
   'book.discovered': 'Открыт новый кот: {name}',
   'book.title': 'Книга котов',

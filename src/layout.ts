@@ -98,6 +98,7 @@ export const COLORS = {
   gateDoor: 0x2b2238,
   danger: 0xe2604f,
   crystal: 0xb48cf2,
+  crystalLight: 0xd9c6ff,
   flash: 0xffffff,
   enemyNose: 0xf0a3a3,
   hpBack: 0x000000,

@@ -18,6 +18,7 @@ import { Meteor } from '../systems/Meteor';
 import { buildPath, positionAt, type Path } from '../systems/Path';
 import { Summon } from '../systems/Summon';
 import { Waves } from '../systems/Waves';
+import { addCrystalIcon } from './widgets';
 import { GameEvent, SceneKey, type HudState, type LevelResult, type LevelSceneData, type MeteorState } from './keys';
 
 const BLOCK_TEXT: Record<MergeBlock, StringKey> = {
@@ -51,8 +52,12 @@ export class GameScene extends Phaser.Scene {
   private highlights!: Phaser.GameObjects.Graphics;
   private rangeRing!: Phaser.GameObjects.Graphics;
   private toast: Phaser.GameObjects.Text | null = null;
-  /** Подпись над клеткой под пальцем: кто получится при слиянии. */
-  private hint!: Phaser.GameObjects.Text;
+  /** Подпись над клеткой под пальцем: кто получится при слиянии и сколько кристаллов это стоит. */
+  private hint!: Phaser.GameObjects.Container;
+  private hintBg!: Phaser.GameObjects.Rectangle;
+  private hintLabel!: Phaser.GameObjects.Text;
+  private hintIcon!: Phaser.GameObjects.Image;
+  private hintCost!: Phaser.GameObjects.Text;
   private path!: Path;
   private waves!: Waves;
   private combat!: Combat;
@@ -120,14 +125,13 @@ export class GameScene extends Phaser.Scene {
     this.drag = null;
     this.toast = null;
 
+    const hintStyle = { fontFamily: FONTS.body, fontSize: '11px' };
+    this.hintBg = this.add.rectangle(0, 0, 1, 1, COLORS.bg).setOrigin(0.5, 1);
+    this.hintLabel = this.add.text(0, 0, '', hintStyle).setOrigin(0, 0.5);
+    this.hintIcon = addCrystalIcon(this, 0, 0, HINT_FEEL.iconSize);
+    this.hintCost = this.add.text(0, 0, '', hintStyle).setOrigin(0, 0.5);
     this.hint = this.add
-      .text(0, 0, '', {
-        fontFamily: FONTS.body,
-        fontSize: '11px',
-        backgroundColor: TEXT_COLORS.dark,
-        padding: { x: 6, y: 3 },
-      })
-      .setOrigin(0.5, 1)
+      .container(0, 0, [this.hintBg, this.hintLabel, this.hintIcon, this.hintCost])
       .setDepth(DEPTH.toast)
       .setVisible(false);
 
@@ -327,20 +331,30 @@ export class GameScene extends Phaser.Scene {
 
   /** Всплывающая награда над убитым врагом. */
   private showReward(x: number, y: number, gold: number, crystals: number): void {
-    const text = this.add
-      .text(x, y - SHOT_FEEL.rewardOffsetY, t(crystals > 0 ? 'reward.goldCrystals' : 'reward.gold', { gold, crystals }), {
-        fontFamily: FONTS.display,
-        fontSize: '13px',
-        color: crystals > 0 ? TEXT_COLORS.crystal : TEXT_COLORS.brass,
-      })
-      .setOrigin(0.5, 1)
+    const style = {
+      fontFamily: FONTS.display,
+      fontSize: '13px',
+      color: crystals > 0 ? TEXT_COLORS.crystal : TEXT_COLORS.brass,
+    };
+    const goldText = this.add.text(0, 0, t('reward.gold', { gold }), style).setOrigin(0, 0.5);
+    const parts: Phaser.GameObjects.GameObject[] = [goldText];
+    let width = goldText.width;
+    if (crystals > 0) {
+      const { rewardIconSize: size, rewardIconGap: gap } = SHOT_FEEL;
+      const icon = addCrystalIcon(this, width + gap + size / 2, 0, size);
+      const count = this.add.text(icon.x + size / 2 + gap / 2, 0, String(crystals), style).setOrigin(0, 0.5);
+      parts.push(icon, count);
+      width = count.x + count.width;
+    }
+    const reward = this.add
+      .container(x - width / 2, y - SHOT_FEEL.rewardOffsetY - goldText.height / 2, parts)
       .setDepth(DEPTH.fx);
     this.tweens.add({
-      targets: text,
-      y: text.y - SHOT_FEEL.rewardRise,
+      targets: reward,
+      y: reward.y - SHOT_FEEL.rewardRise,
       alpha: 0,
       duration: SHOT_FEEL.rewardMs,
-      onComplete: () => text.destroy(),
+      onComplete: () => reward.destroy(),
     });
   }
 
@@ -674,11 +688,25 @@ export class GameScene extends Phaser.Scene {
 
   private showHint(slot: number, check: Exclude<MergeCheck, { kind: 'none' }>): void {
     const [x, y] = this.level.slots[slot];
-    this.hint
-      .setText(this.hintText(check))
-      .setColor(check.kind === 'merge' ? cats.elements[check.cat.element].color : TEXT_COLORS.danger)
-      .setPosition(x + levels.slotSize / 2, y - HINT_FEEL.offsetY)
-      .setVisible(true);
+    const cost = check.kind === 'merge' ? check.crystalCost : 0;
+    const color = check.kind === 'merge' ? cats.elements[check.cat.element].color : TEXT_COLORS.danger;
+    const { padX, padY, iconSize, iconGap } = HINT_FEEL;
+
+    this.hintLabel.setText(this.hintText(check)).setColor(color);
+    this.hintIcon.setVisible(cost > 0);
+    this.hintCost.setVisible(cost > 0).setText(String(cost)).setColor(color);
+
+    // Раскладка слева направо: текст, значок кристалла, цена; всё вместе — по центру над клеткой.
+    const iconX = this.hintLabel.width + iconGap + iconSize / 2;
+    const costX = iconX + iconSize / 2 + iconGap / 2;
+    const width = cost > 0 ? costX + this.hintCost.width : this.hintLabel.width;
+    const height = this.hintLabel.height + padY * 2;
+    const left = -width / 2;
+    this.hintBg.setSize(width + padX * 2, height);
+    this.hintLabel.setPosition(left, -height / 2);
+    this.hintIcon.setPosition(left + iconX, -height / 2);
+    this.hintCost.setPosition(left + costX, -height / 2);
+    this.hint.setPosition(x + levels.slotSize / 2, y - HINT_FEEL.offsetY).setVisible(true);
   }
 
   private hintText(check: Exclude<MergeCheck, { kind: 'none' }>): string {
@@ -688,7 +716,7 @@ export class GameScene extends Phaser.Scene {
     // Ещё не открытый гибрид остаётся загадкой до конца ритуала.
     const known = !this.merger.isHybrid(element) || progress.hasCat(element);
     const text = known ? t('merge.preview', { name: t(`cat.${element}`), level }) : t('merge.previewUnknown');
-    return check.crystalCost > 0 ? t('merge.crystalCost', { text, cost: check.crystalCost }) : text;
+    return check.crystalCost > 0 ? t('merge.withCost', { text }) : text;
   }
 
   private blockText(reason: MergeBlock): string {
