@@ -10,7 +10,7 @@ function sequence(...values: number[]): () => number {
 }
 
 function cat(): Cat {
-  return { element: 'fire', level: 1, cooldown: 0, ritual: 0 };
+  return { element: 'fire', level: 1, cooldown: 0, ritual: 0, invested: 0 };
 }
 
 const fireStaff = { fire: 3 };
@@ -77,9 +77,10 @@ describe('Summon.summon', () => {
     // Первое число — клетка, второе — стихия.
     const summon = new Summon(cats, {}, sequence(0.5, 0.25));
 
-    expect(summon.summon([cat(), null, cat(), null])).toEqual({
+    expect(summon.summon([cat(), null, cat(), null], 20)).toEqual({
       slot: 3,
-      cat: { element: 'water', level: 1, cooldown: 0, ritual: 0 },
+      // Кот помнит, сколько за него заплачено.
+      cat: { element: 'water', level: 1, cooldown: 0, ritual: 0, invested: 20 },
     });
   });
 
@@ -87,7 +88,7 @@ describe('Summon.summon', () => {
     const board = [null, cat(), null];
     const before = [...board];
 
-    new Summon(cats, {}, sequence(0)).summon(board);
+    new Summon(cats, {}, sequence(0)).summon(board, 10);
 
     expect(board).toEqual(before);
   });
@@ -95,6 +96,6 @@ describe('Summon.summon', () => {
   it('возвращает null, если поле занято', () => {
     const summon = new Summon(cats, {}, sequence(0));
 
-    expect(summon.summon([cat(), cat()])).toBeNull();
+    expect(summon.summon([cat(), cat()], 10)).toBeNull();
   });
 });

@@ -1,3 +1,4 @@
 {
-  "summon": { "cost": 10, "perWave": 3, "beforeFirstWave": 4, "overLimitMult": [2, 3, 4] }
+  "summon": { "cost": 10, "perWave": 3, "beforeFirstWave": 4, "overLimitMult": [2, 3, 4] },
+  "sell": { "refund": 0.5 }
 }

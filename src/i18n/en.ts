@@ -45,6 +45,7 @@ export const en: Record<StringKey, string> = {
   'summon.button': 'Summon',
   'summon.left': '{left} of {limit} left',
   'summon.over': 'Over limit ×{mult}',
+  'sell.hint': 'Sell: +{gold}',
 
   'meteor.button': 'Meteor',
   'meteor.ready': 'ready',

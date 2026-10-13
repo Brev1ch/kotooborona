@@ -23,6 +23,15 @@ export const DRAG_FEEL = {
   highlightLineWidth: 2.5,
 };
 
+/** Корзина: тусклая, пока в руке никого нет; ярче, когда кота взяли; крупнее, когда он над ней. */
+export const TRASH_FEEL = {
+  idleAlpha: 0.5,
+  activeAlpha: 1,
+  hoverScale: 1.18,
+  tweenMs: 110,
+  ease: 'Quad.easeOut',
+};
+
 export const MERGE_FEEL = {
   /** Сколько коты стягиваются в точку; после этого появляются новый кот и кольцо. */
   absorbMs: 130,

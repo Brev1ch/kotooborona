@@ -6,7 +6,7 @@ import { noBonuses } from './Loadout';
 
 // Числа зафиксированы здесь, чтобы тесты не зависели от правок баланса в JSON.
 const level: LevelConfig = { ...levels.levels[0], startGold: 25, startCrystals: 2, startLives: 10 };
-const config: EconomyConfig = { summon: { cost: 10, perWave: 2, beforeFirstWave: 3, overLimitMult: [2, 3, 4] } };
+const config: EconomyConfig = { summon: { cost: 10, perWave: 2, beforeFirstWave: 3, overLimitMult: [2, 3, 4] }, sell: { refund: 0.5 } };
 
 describe('Economy', () => {
   it('берёт стартовые монеты, кристаллы и жизни из уровня', () => {
@@ -139,6 +139,37 @@ describe('Economy', () => {
     economy.loseLives(5);
 
     expect(economy.lives).toBe(0);
+  });
+});
+
+describe('Economy: продажа', () => {
+  it('возвращает долю вложенного', () => {
+    const economy = new Economy(level, config);
+
+    expect(economy.sell(40)).toBe(20);
+    expect(economy.gold).toBe(45);
+  });
+
+  it('округляет вниз: за кота со скидкой лишнего не вернут', () => {
+    const economy = new Economy(level, config);
+
+    expect(economy.sellValue(15)).toBe(7);
+    expect(economy.sellValue(0)).toBe(0);
+  });
+
+  it('цена продажи известна заранее и ничего не меняет', () => {
+    const economy = new Economy(level, config);
+
+    expect(economy.sellValue(30)).toBe(15);
+    expect(economy.gold).toBe(25);
+  });
+
+  it('продажа не возвращает призыв волны', () => {
+    const economy = new Economy(level, config);
+    economy.paySummon();
+    economy.sell(10);
+
+    expect(economy.summonsLeft).toBe(2);
   });
 });
 

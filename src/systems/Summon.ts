@@ -45,10 +45,10 @@ export class Summon {
     return free[Math.min(Math.floor(this.rng() * free.length), free.length - 1)];
   }
 
-  /** Кот 1-го уровня для случайной свободной клетки; поле не меняет. */
-  summon(board: readonly (Cat | null)[]): SummonResult | null {
+  /** Кот 1-го уровня для случайной свободной клетки; поле не меняет. `price` — сколько за него заплачено. */
+  summon(board: readonly (Cat | null)[], price: number): SummonResult | null {
     const slot = this.pickFreeSlot(board);
     if (slot === null) return null;
-    return { slot, cat: { element: this.rollElement(), level: 1, cooldown: 0, ritual: 0 } };
+    return { slot, cat: { element: this.rollElement(), level: 1, cooldown: 0, ritual: 0, invested: price } };
   }
 }

@@ -35,6 +35,8 @@ export interface SimResult {
   merges: number;
   hybrids: number;
   meteors: number;
+  /** Сколько котов продано через корзину. */
+  sales: number;
   /** Самый высокий уровень кота за бой. */
   topCatLevel: number;
 }
@@ -59,7 +61,7 @@ export class Simulation {
   private readonly merger: Merge;
   private readonly summoner: Summon;
   private outcome: boolean | null = null;
-  private counts = { summons: 0, merges: 0, hybrids: 0, meteors: 0, topCatLevel: 0 };
+  private counts = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0, topCatLevel: 0 };
 
   /** `rng` возвращает число в [0, 1); `bonuses` — снаряжение игрока, по умолчанию стартовое первого уровня. */
   constructor(
@@ -117,7 +119,7 @@ export class Simulation {
   /** Призыв кота в случайную свободную клетку. Возвращает false, если не хватило монет или места. */
   summon(): boolean {
     if (this.finished || !this.economy.canAffordSummon()) return false;
-    const result = this.summoner.summon(this.board);
+    const result = this.summoner.summon(this.board, this.economy.summonCost);
     if (!result) return false;
     this.economy.paySummon();
     this.board[result.slot] = result.cat;
@@ -155,6 +157,16 @@ export class Simulation {
       default:
         return false;
     }
+  }
+
+  /** Продажа кота из клетки через корзину. Возвращает false, если клетка пуста или кот проводит ритуал. */
+  sell(slot: number): boolean {
+    const cat = this.board[slot];
+    if (this.finished || !cat || cat.ritual > 0) return false;
+    this.economy.sell(cat.invested);
+    this.board[slot] = null;
+    this.counts.sales++;
+    return true;
   }
 
   /** Удар метеора в точку поля. Возвращает false, если умение не готово. */

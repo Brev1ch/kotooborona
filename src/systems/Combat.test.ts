@@ -89,7 +89,7 @@ function enemy(type: EnemyTypeId = 'mouse', distance = 0, overrides: Partial<Ene
 
 /** По умолчанию ветряной: бьёт без побочных эффектов. */
 function cat(element: ElementId = 'air', level = 1, overrides: Partial<Cat> = {}): Cat {
-  return { element, level, cooldown: 0, ritual: 0, ...overrides };
+  return { element, level, cooldown: 0, ritual: 0, invested: 0, ...overrides };
 }
 
 function create(list: Enemy[], roll = 0.99): Combat {

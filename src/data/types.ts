@@ -83,6 +83,8 @@ export interface LevelConfig {
   /** Левый верхний угол каждой клетки. */
   slots: Point[];
   hero: Point;
+  /** Центр корзины, куда перетаскивают котов на продажу. */
+  trash: Point;
   waves: number;
   bossWaves: number[];
   /** Волна, на которой вместе с обычными врагами выходит Крысиный король. */
@@ -197,6 +199,8 @@ export interface EconomyConfig {
     /** Во сколько раз дороже первый, второй и следующие призывы сверх лимита; дальше действует последний множитель. */
     overLimitMult: number[];
   };
+  /** Продажа через корзину: какая доля вложенных монет возвращается. */
+  sell: { refund: number };
 }
 
 export interface AdsConfig {

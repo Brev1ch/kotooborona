@@ -43,6 +43,7 @@ export const ru = {
   'summon.button': 'Призвать',
   'summon.left': 'Осталось {left} из {limit}',
   'summon.over': 'Сверх лимита ×{mult}',
+  'sell.hint': 'Продать: +{gold}',
 
   'meteor.button': 'Метеор',
   'meteor.ready': 'готов',

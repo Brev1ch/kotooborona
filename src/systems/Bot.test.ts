@@ -38,8 +38,8 @@ describe('Bot: стратегия', () => {
 
   it('сливает одинаковых котов', () => {
     const { sim, bot } = create({ startGold: 0, startCrystals: 0 });
-    sim.board[0] = { element: 'fire', level: 1, cooldown: 0, ritual: 0 };
-    sim.board[5] = { element: 'fire', level: 1, cooldown: 0, ritual: 0 };
+    sim.board[0] = { element: 'fire', level: 1, cooldown: 0, ritual: 0, invested: 0 };
+    sim.board[5] = { element: 'fire', level: 1, cooldown: 0, ritual: 0, invested: 0 };
     bot.update(DT);
 
     expect(sim.board.filter((cat) => cat !== null)).toEqual([expect.objectContaining({ element: 'fire', level: 2 })]);
@@ -47,7 +47,7 @@ describe('Bot: стратегия', () => {
 
   it('из двух пар сливает ту, что даст кота уровнем выше', () => {
     const { sim, bot } = create({ startGold: 0, startCrystals: 0 });
-    const cat = (element: 'fire' | 'water', level: number) => ({ element, level, cooldown: 0, ritual: 0 });
+    const cat = (element: 'fire' | 'water', level: number) => ({ element, level, cooldown: 0, ritual: 0, invested: 0 });
     sim.board[0] = cat('fire', 1);
     sim.board[1] = cat('fire', 1);
     sim.board[2] = cat('water', 3);
@@ -59,8 +59,8 @@ describe('Bot: стратегия', () => {
 
   it('делает гибрида за кристалл, пока на поле нет врагов', () => {
     const { sim, bot } = create({ startGold: 0, startCrystals: 1 });
-    sim.board[0] = { element: 'fire', level: 1, cooldown: 0, ritual: 0 };
-    sim.board[1] = { element: 'water', level: 1, cooldown: 0, ritual: 0 };
+    sim.board[0] = { element: 'fire', level: 1, cooldown: 0, ritual: 0, invested: 0 };
+    sim.board[1] = { element: 'water', level: 1, cooldown: 0, ritual: 0, invested: 0 };
     bot.update(DT);
 
     expect(sim.result().hybrids).toBe(1);
@@ -71,8 +71,8 @@ describe('Bot: стратегия', () => {
     const { sim, bot } = create({ startGold: 0, startCrystals: 1 });
     // Дожидаемся врагов без бота, потом даём ему пару для гибрида.
     while (sim.combat.enemies.length === 0) sim.step(DT);
-    sim.board[0] = { element: 'fire', level: 1, cooldown: 0, ritual: 0 };
-    sim.board[1] = { element: 'water', level: 1, cooldown: 0, ritual: 0 };
+    sim.board[0] = { element: 'fire', level: 1, cooldown: 0, ritual: 0, invested: 0 };
+    sim.board[1] = { element: 'water', level: 1, cooldown: 0, ritual: 0, invested: 0 };
     bot.update(DT);
 
     expect(sim.result().hybrids).toBe(0);
@@ -93,7 +93,7 @@ describe('Bot: стратегия', () => {
       startGold: 0,
     };
     const { sim, bot } = create(level);
-    sim.board[1] = { element: 'fire', level: 1, cooldown: 0, ritual: 0 };
+    sim.board[1] = { element: 'fire', level: 1, cooldown: 0, ritual: 0, invested: 0 };
     bot.update(DT);
 
     expect(sim.board[0]).toMatchObject({ element: 'fire' });

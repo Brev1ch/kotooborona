@@ -192,6 +192,9 @@ export function resultButtonCenter(side: 'left' | 'right'): [number, number] {
   return [GAME_W / 2 + (side === 'left' ? -offset : offset), RESULT_Y + RESULT.buttonsY];
 }
 
+/** Корзина на поле: сторона квадрата, в который нужно попасть котом, и скругление углов. */
+export const TRASH = { size: 48, radius: 12 };
+
 export const ROAD = { outerWidth: 38, innerWidth: 30, dash: 6, gap: 10 };
 export const SLOT_RADIUS = 14;
 

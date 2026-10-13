@@ -615,6 +615,28 @@ test('новый игрок: закрытое снаряжение → побе�
   });
 });
 
+/**
+ * Касание в логических координатах: нажать, провести, отпустить — как палец, который тащит кота.
+ * `beforeRelease` вызывается, пока палец ещё держит кота над целью.
+ */
+async function drag(page: Page, from: [number, number], to: [number, number], beforeRelease?: () => Promise<void>): Promise<void> {
+  const box = await page.locator('canvas').boundingBox();
+  if (!box) throw new Error('На странице нет canvas');
+  const point = ([x, y]: [number, number]) => ({ x: box.x + (x / GAME_W) * box.width, y: box.y + (y / GAME_H) * box.height });
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type: string, at?: { x: number; y: number }) =>
+    cdp.send('Input.dispatchTouchEvent', { type: type as 'touchStart', touchPoints: at ? [{ ...at, id: 1 }] : [] });
+  const start = point(from);
+  const end = point(to);
+  await touch('touchStart', start);
+  for (let step = 1; step <= 5; step++) {
+    await touch('touchMove', { x: start.x + ((end.x - start.x) * step) / 5, y: start.y + ((end.y - start.y) * step) / 5 });
+    await page.waitForTimeout(30);
+  }
+  await beforeRelease?.();
+  await touch('touchEnd');
+}
+
 test('все уровни главы запускаются; на последнем выходит король', async ({ page }) => {
   await page.goto('/?smoke');
   await waitFor(
@@ -637,6 +659,32 @@ test('все уровни главы запускаются; на последн
       );
       // Коты на поле показывают, где клетки, а первая волна — где дорога.
       for (let n = 0; n < CATS; n++) await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
+      await waitFor(
+        page,
+        SUMMON_TIMEOUT,
+        (s) => s.cats === CATS,
+        (s) => `На уровне ${id} котов ${s?.cats ?? 0}, ожидалось ${CATS}`,
+      );
+
+      // Одного кота — в корзину: до неё можно дотянуться на каждом уровне, возвращается половина цены.
+      const gold = (await state(page))?.hud?.gold ?? 0;
+      const [slot] = (await page.evaluate(() => window.__smoke?.catSlots())) ?? [];
+      const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
+      const trash = await page.evaluate(() => window.__smoke?.trashCenter());
+      if (!trash) throw new Error(`На уровне ${id} нет корзины`);
+      await drag(page, centers[slot], trash, async () => {
+        await page.waitForTimeout(PRESS_SETTLE_MS);
+        await page.screenshot({ path: `${SHOTS}/level-${String(index + 1).padStart(2, '0')}-sell.png` });
+        const issues = (await page.evaluate(() => window.__smoke?.textIssues())) ?? [];
+        if (issues.length > 0) throw new Error(`Уровень ${id}, кот над корзиной: ${issues.join('; ')}`);
+      });
+      await waitFor(
+        page,
+        SUMMON_TIMEOUT,
+        (s) => s.cats === CATS - 1 && (s.hud?.gold ?? 0) >= gold + 5,
+        (s) => `На уровне ${id} кот не продан: котов ${s?.cats ?? 0}, монет ${s?.hud?.gold ?? '?'} (было ${gold})`,
+      );
+
       await waitFor(
         page,
         WAVE_TIMEOUT,
@@ -709,24 +757,6 @@ test('обучение: призыв → слияние → гибрид → м�
       (s) => `Уровень ${id ?? 'первый'} не запустился: ${scenesText(s)}`,
     );
   };
-  /** Касание в логических координатах: нажать, провести, отпустить — как палец, который тащит кота. */
-  const drag = async (from: [number, number], to: [number, number]): Promise<void> => {
-    const box = await page.locator('canvas').boundingBox();
-    if (!box) throw new Error('На странице нет canvas');
-    const point = ([x, y]: [number, number]) => ({ x: box.x + (x / GAME_W) * box.width, y: box.y + (y / GAME_H) * box.height });
-    const cdp = await page.context().newCDPSession(page);
-    const touch = (type: string, at?: { x: number; y: number }) =>
-      cdp.send('Input.dispatchTouchEvent', { type: type as 'touchStart', touchPoints: at ? [{ ...at, id: 1 }] : [] });
-    const start = point(from);
-    const end = point(to);
-    await touch('touchStart', start);
-    for (let step = 1; step <= 5; step++) {
-      await touch('touchMove', { x: start.x + ((end.x - start.x) * step) / 5, y: start.y + ((end.y - start.y) * step) / 5 });
-      await page.waitForTimeout(30);
-    }
-    await touch('touchEnd');
-  };
-
   await page.goto('/?smoke');
   await waitFor(
     page,
@@ -767,7 +797,7 @@ test('обучение: призыв → слияние → гибрид → м�
 
     // Перетаскивание сквозь подсказку работает: коты сливаются, подсказка уходит.
     const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
-    await drag(centers[0], centers[1]);
+    await drag(page, centers[0], centers[1]);
     await waitFor(
       page,
       SUMMON_TIMEOUT,

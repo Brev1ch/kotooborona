@@ -7,9 +7,9 @@ import type { Enemy } from '../entities/Enemy';
 import type { Projectile } from '../entities/Projectile';
 import { EnemyView } from '../entities/EnemyView';
 import { HeroView } from '../entities/HeroView';
-import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, TOAST_FEEL } from '../feel';
+import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, TOAST_FEEL, TRASH_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
-import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
+import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS, TRASH } from '../layout';
 import { platform } from '../platform';
 import { progress } from '../progress';
 import { CoinAd, SecondChance } from '../systems/Ads';
@@ -34,7 +34,7 @@ import {
   type MeteorState,
   type RewardDrop,
 } from './keys';
-import { bakeTexture, CIRCLE_RADIUS, ensureTextures, Texture } from './textures';
+import { addBakedShape, bakeTexture, CIRCLE_RADIUS, ensureTextures, Texture } from './textures';
 import { fadeIn } from './transitions';
 import { addCrystalIcon } from './widgets';
 
@@ -66,6 +66,8 @@ interface Drag {
   view: CatView;
   /** Клетка под пальцем, кроме исходной. */
   hover: number | null;
+  /** Кот над корзиной: отпустить — значит продать. */
+  overTrash: boolean;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -80,6 +82,7 @@ export class GameScene extends Phaser.Scene {
   private drag: Drag | null = null;
   private highlights!: Phaser.GameObjects.Graphics;
   private rangeRing!: Phaser.GameObjects.Graphics;
+  private trash!: Phaser.GameObjects.Image;
   private toast: Phaser.GameObjects.Text | null = null;
   /** Подпись над клеткой под пальцем: кто получится при слиянии и сколько кристаллов это стоит. */
   private hint!: Phaser.GameObjects.Container;
@@ -109,7 +112,9 @@ export class GameScene extends Phaser.Scene {
   private coinAd!: CoinAd;
   private secondChance!: SecondChance;
   /** Что игрок уже сделал в этом бою; по этому обучение понимает, какие подсказки больше не нужны. */
-  private actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0 };
+  private actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0 };
+  /** Масштаб картинки корзины в покое: запечённая фигура крупнее экранной. */
+  private trashScale = 1;
   private hero!: HeroView;
   /** Подсветка поля, пока игрок выбирает точку удара. */
   private aimGlow!: Phaser.GameObjects.Graphics;
@@ -172,7 +177,7 @@ export class GameScene extends Phaser.Scene {
     this.enemyViews = new Map();
     this.projectileViews = new Map();
     this.shownWave = '';
-    this.actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0 };
+    this.actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0 };
     this.finished = false;
     this.board = this.level.slots.map(() => null);
     this.views = this.level.slots.map(() => null);
@@ -188,6 +193,12 @@ export class GameScene extends Phaser.Scene {
       .container(0, 0, [this.hintBg, this.hintLabel, this.hintIcon, this.hintCost])
       .setDepth(DEPTH.toast)
       .setVisible(false);
+
+    this.trash = addBakedShape(this, 'trash', TRASH.size, TRASH.size, drawTrash)
+      .setPosition(...this.level.trash)
+      .setDepth(DEPTH.highlight)
+      .setAlpha(TRASH_FEEL.idleAlpha);
+    this.trashScale = this.trash.scale;
 
     this.highlights = this.add.graphics().setDepth(DEPTH.highlight);
     this.rangeRing = this.add.graphics().setDepth(DEPTH.fx).setVisible(false);
@@ -406,6 +417,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Меняет экономику и картинку по событию боя. Возвращает true, если HUD пора обновить. */
+  /** Клетки, в которых стоят коты. */
+  catSlots(): number[] {
+    return this.board.flatMap((cat, slot) => (cat ? [slot] : []));
+  }
+
+  /** Центр корзины в координатах поля. */
+  get trashCenter(): Point {
+    return this.level.trash;
+  }
+
   private handleCombatEvent(event: CombatEvent): boolean {
     switch (event.kind) {
       case 'leaked':
@@ -791,7 +812,7 @@ export class GameScene extends Phaser.Scene {
 
   summon(): void {
     if (this.finished || !this.economy.canAffordSummon()) return;
-    const result = this.summoner.summon(this.board);
+    const result = this.summoner.summon(this.board, this.economy.summonCost);
     if (!result) return;
 
     this.economy.paySummon();
@@ -819,8 +840,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.drag = { pointerId: pointer.id, slot, view, hover: null };
+    this.drag = { pointerId: pointer.id, slot, view, hover: null, overTrash: false };
     view.lift();
+    this.trash.setAlpha(TRASH_FEEL.activeAlpha);
 
     const range = catRange(cats, cat);
     this.rangeRing.clear();
@@ -845,8 +867,11 @@ export class GameScene extends Phaser.Scene {
 
     const over = this.slotAt(pointer);
     const hover = over === this.drag.slot ? null : over;
-    if (hover !== this.drag.hover) {
+    const overTrash = this.overTrash(pointer);
+    if (hover !== this.drag.hover || overTrash !== this.drag.overTrash) {
       this.drag.hover = hover;
+      this.drag.overTrash = overTrash;
+      this.scaleTrash(overTrash);
       this.drawHighlights();
     }
   }
@@ -867,6 +892,12 @@ export class GameScene extends Phaser.Scene {
     this.highlights.clear();
     this.hint.setVisible(false);
     this.rangeRing.setVisible(false);
+    this.restTrash();
+
+    if (this.overTrash(pointer)) {
+      this.sell(from, view);
+      return;
+    }
 
     const result = this.merger.drop(this.board, from, to, this.economy.crystals);
     if (to === null || result.kind === 'stay' || result.kind === 'blocked' || result.kind === 'busy') {
@@ -931,6 +962,49 @@ export class GameScene extends Phaser.Scene {
     this.highlights.clear();
     this.hint.setVisible(false);
     this.rangeRing.setVisible(false);
+    this.restTrash();
+  }
+
+  /** Продаёт кота из клетки: он улетает в корзину, монеты — в счётчик. */
+  private sell(slot: number, view: CatView): void {
+    const cat = this.board[slot];
+    if (!cat) return;
+    const [x, y] = this.level.trash;
+    const gold = this.economy.sell(cat.invested);
+    this.board[slot] = null;
+    this.views[slot] = null;
+    view.absorb(x, y);
+    this.actions.sales++;
+    audio.play('coins');
+    if (gold > 0) {
+      this.showReward(x, y, gold, 0);
+      this.events.emit(GameEvent.Reward, { x, y, gold, crystals: 0 });
+    }
+    this.events.emit(GameEvent.Changed);
+  }
+
+  /** Указатель над корзиной. */
+  private overTrash(pointer: Phaser.Input.Pointer): boolean {
+    const { x, y } = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const [trashX, trashY] = this.level.trash;
+    const half = TRASH.size / 2;
+    return Math.abs(x - trashX) <= half && Math.abs(y - trashY) <= half;
+  }
+
+  private scaleTrash(hover: boolean): void {
+    this.tweens.killTweensOf(this.trash);
+    this.tweens.add({
+      targets: this.trash,
+      scale: (hover ? TRASH_FEEL.hoverScale : 1) * this.trashScale,
+      duration: TRASH_FEEL.tweenMs,
+      ease: TRASH_FEEL.ease,
+    });
+  }
+
+  /** Корзина без кота в руке: обычного размера и тусклая. */
+  private restTrash(): void {
+    this.scaleTrash(false);
+    this.trash.setAlpha(TRASH_FEEL.idleAlpha);
   }
 
   private followPointer(pointer: Phaser.Input.Pointer): void {
@@ -948,6 +1022,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.drag) return;
     const dragged = this.board[this.drag.slot];
     if (!dragged) return;
+    if (this.drag.overTrash) this.showSellHint(this.economy.sellValue(dragged.invested));
 
     const size = levels.slotSize;
     this.level.slots.forEach(([x, y], slot) => {
@@ -987,6 +1062,22 @@ export class GameScene extends Phaser.Scene {
     this.hintIcon.setPosition(left + iconX, -height / 2);
     this.hintCost.setPosition(left + costX, -height / 2);
     this.hint.setPosition(x + levels.slotSize / 2, y - HINT_FEEL.offsetY).setVisible(true);
+  }
+
+  /** Над корзиной: сколько монет вернёт продажа. У края поля подпись сдвигается, чтобы не обрезаться. */
+  private showSellHint(gold: number): void {
+    const [x, y] = this.level.trash;
+    const { padX, padY, offsetY } = HINT_FEEL;
+    this.hintLabel.setText(t('sell.hint', { gold })).setColor(TEXT_COLORS.brass);
+    this.hintIcon.setVisible(false);
+    this.hintCost.setVisible(false);
+
+    const width = this.hintLabel.width;
+    const height = this.hintLabel.height + padY * 2;
+    const half = width / 2 + padX;
+    this.hintBg.setSize(width + padX * 2, height);
+    this.hintLabel.setPosition(-width / 2, -height / 2);
+    this.hint.setPosition(Phaser.Math.Clamp(x, half, BOARD_W - half), y - TRASH.size / 2 - offsetY).setVisible(true);
   }
 
   private hintText(check: Exclude<MergeCheck, { kind: 'none' }>): string {
@@ -1129,4 +1220,25 @@ export class GameScene extends Phaser.Scene {
       g.strokeRoundedRect(x, y, size, size, SLOT_RADIUS);
     }
   }
+}
+
+/** Корзина: плашка и ведро с крышкой. Рисуется вокруг начала координат. */
+function drawTrash(g: Phaser.GameObjects.Graphics): void {
+  const half = TRASH.size / 2;
+  g.fillStyle(COLORS.panel);
+  g.fillRoundedRect(-half, -half, TRASH.size, TRASH.size, TRASH.radius);
+  g.lineStyle(1.5, COLORS.line);
+  g.strokeRoundedRect(-half + 1, -half + 1, TRASH.size - 2, TRASH.size - 2, TRASH.radius);
+
+  g.fillStyle(COLORS.range);
+  // Крышка с ручкой.
+  g.fillRoundedRect(-12, -12, 24, 4, 2);
+  g.fillRoundedRect(-4, -16, 8, 4, 2);
+  // Ведро сужается книзу.
+  g.fillPoints(
+    [new Phaser.Math.Vector2(-10, -6), new Phaser.Math.Vector2(10, -6), new Phaser.Math.Vector2(8, 15), new Phaser.Math.Vector2(-8, 15)],
+    true,
+  );
+  g.fillStyle(COLORS.panel);
+  for (const x of [-4.5, 0, 4.5]) g.fillRoundedRect(x - 1, -2, 2, 13, 1);
 }

@@ -35,6 +35,7 @@ export function stress(game: GameScene): void {
       level: STRESS_LEVELS[slot % STRESS_LEVELS.length],
       cooldown: 0,
       ritual: 0,
+      invested: 0,
     });
   }
 

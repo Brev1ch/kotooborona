@@ -84,6 +84,10 @@ export interface SmokeProbe {
   textIssues(): string[];
   /** Центры клеток идущего боя в координатах экрана. */
   slotCenters(): [number, number][];
+  /** Клетки идущего боя, в которых стоят коты. */
+  catSlots(): number[];
+  /** Центр корзины идущего боя в координатах экрана. */
+  trashCenter(): [number, number];
   /** Ставит кота в клетку идущего боя. */
   placeCat(slot: number, element: ElementId, level: number): void;
   /** id всех уровней по порядку. */
@@ -277,9 +281,16 @@ export function installSmokeProbe(game: Phaser.Game): void {
       const scene = game.scene.getScene(SceneKey.Game) as GameScene;
       return scene.slotCenters().map(([x, y]) => [x, y + BOARD_Y]);
     },
+    catSlots() {
+      return (game.scene.getScene(SceneKey.Game) as GameScene).catSlots();
+    },
+    trashCenter() {
+      const [x, y] = (game.scene.getScene(SceneKey.Game) as GameScene).trashCenter;
+      return [x, y + BOARD_Y];
+    },
     placeCat(slot, element, level) {
       const scene = game.scene.getScene(SceneKey.Game) as GameScene;
-      scene.placeCat(slot, { element, level, cooldown: 0, ritual: 0 });
+      scene.placeCat(slot, { element, level, cooldown: 0, ritual: 0, invested: 0 });
     },
     levelIds() {
       return levels.levels.map((level) => level.id);

@@ -137,7 +137,7 @@ describe('Tutorial: не мешает тому, кто уже разобралс
 
 describe('findMergePair', () => {
   const merger = new Merge(cats, { maxCatLevel: 3, ritualTime: 4, crystalCost: 1 });
-  const cat = (element: Cat['element'], level = 1, ritual = 0): Cat => ({ element, level, cooldown: 0, ritual });
+  const cat = (element: Cat['element'], level = 1, ritual = 0): Cat => ({ element, level, cooldown: 0, ritual, invested: 0 });
 
   it('находит двух одинаковых котов одного уровня', () => {
     const board = [cat('fire'), null, cat('water'), cat('fire', 2), cat('fire')];

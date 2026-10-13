@@ -64,7 +64,8 @@ export class Merge {
     if (crystals < crystalCost) return { kind: 'blocked', element, reason: 'noCrystal' };
 
     const ritual = mixed ? this.rules.ritualTime : 0;
-    return { kind: 'merge', cat: { element, level: a.level + 1, cooldown: 0, ritual }, crystalCost };
+    const invested = a.invested + b.invested;
+    return { kind: 'merge', cat: { element, level: a.level + 1, cooldown: 0, ritual, invested }, crystalCost };
   }
 
   /** Исход перетаскивания кота из клетки `from` в клетку `to` (null — мимо клеток); поле не меняет. */

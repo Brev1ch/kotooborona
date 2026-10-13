@@ -69,6 +69,44 @@ describe('Simulation: действия игрока', () => {
     expect(sim.economy.summonCost).toBe(cost);
   });
 
+  it('продажа убирает кота и возвращает половину вложенного', () => {
+    const sim = create();
+    sim.summon();
+    const slot = sim.board.findIndex((cat) => cat !== null);
+
+    expect(sim.sell(slot)).toBe(true);
+    expect(sim.board[slot]).toBeNull();
+    expect(sim.economy.gold).toBe(500 - economy.summon.cost + economy.summon.cost * economy.sell.refund);
+    expect(sim.result().sales).toBe(1);
+  });
+
+  it('за слитого кота возвращается доля всех призывов, включая штрафные', () => {
+    const sim = create();
+    const [from, to] = summonPair(sim, true);
+    const paid = 500 - sim.economy.gold;
+    sim.drop(from, to);
+    const before = sim.economy.gold;
+    // Остальных котов продаём первыми: их цена известна по отдельности.
+    const others = sim.board.reduce((sum, cat, slot) => (cat && slot !== to ? sum + cat.invested : sum), 0);
+
+    sim.sell(to);
+
+    expect(sim.economy.gold).toBe(before + Math.floor((paid - others) * economy.sell.refund));
+  });
+
+  it('пустую клетку и кота в ритуале продать нельзя', () => {
+    const sim = create();
+    expect(sim.sell(0)).toBe(false);
+
+    const [from, to] = summonPair(sim, false);
+    sim.drop(from, to);
+    const gold = sim.economy.gold;
+
+    expect(sim.board[to]?.ritual).toBeGreaterThan(0);
+    expect(sim.sell(to)).toBe(false);
+    expect(sim.economy.gold).toBe(gold);
+  });
+
   it('без монет и без свободных клеток призыва нет', () => {
     expect(create({ startGold: 5 }).summon()).toBe(false);
 
@@ -148,7 +186,7 @@ describe('Simulation: исход боя', () => {
 
   it('поле сильных котов выигрывает без потерь — три звезды', () => {
     const sim = create();
-    sim.board.fill({ element: 'storm', level: 5, cooldown: 0, ritual: 0 });
+    sim.board.fill({ element: 'storm', level: 5, cooldown: 0, ritual: 0, invested: 0 });
     // У каждой клетки свой кот: перезарядка хранится в нём.
     sim.board.forEach((cat, slot) => (sim.board[slot] = cat && { ...cat }));
     run(sim, 600);

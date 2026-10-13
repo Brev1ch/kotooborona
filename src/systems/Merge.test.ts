@@ -10,7 +10,7 @@ const rules: MergeRules = { maxCatLevel: 5, ritualTime: 4, crystalCost: 1 };
 const merge = new Merge(cats, rules);
 
 function cat(element: ElementId, level = 1, ritual = 0): Cat {
-  return { element, level, cooldown: 0.7, ritual };
+  return { element, level, cooldown: 0.7, ritual, invested: 10 };
 }
 
 const elementIds = Object.keys(cats.elements) as ElementId[];
@@ -28,7 +28,7 @@ describe('Merge.check: слияние одинаковых', () => {
   it('два одинаковых кота дают кота уровнем выше', () => {
     expect(merge.check(cat('fire', 2), cat('fire', 2), 0)).toEqual({
       kind: 'merge',
-      cat: { element: 'fire', level: 3, cooldown: 0, ritual: 0 },
+      cat: { element: 'fire', level: 3, cooldown: 0, ritual: 0, invested: 20 },
       crystalCost: 0,
     });
   });
@@ -62,11 +62,25 @@ describe('Merge.check: слияние одинаковых', () => {
   });
 });
 
+describe('Merge.check: вложенные монеты', () => {
+  it('у слитого кота вложено столько, сколько в обоих вместе', () => {
+    const check = merge.check({ ...cat('fire', 2), invested: 30 }, { ...cat('fire', 2), invested: 50 }, 0);
+
+    expect(check).toMatchObject({ kind: 'merge', cat: { invested: 80 } });
+  });
+
+  it('у гибрида тоже: кристалл в цену не входит', () => {
+    const check = merge.check({ ...cat('fire'), invested: 10 }, { ...cat('water'), invested: 40 }, 1);
+
+    expect(check).toMatchObject({ kind: 'merge', cat: { element: 'steam', invested: 50 } });
+  });
+});
+
 describe('Merge.check: гибриды и кристаллы', () => {
   it('разные базовые стихии дают гибрида за кристалл и запускают ритуал', () => {
     expect(merge.check(cat('fire', 2), cat('water', 2), 1)).toEqual({
       kind: 'merge',
-      cat: { element: 'steam', level: 3, cooldown: 0, ritual: 4 },
+      cat: { element: 'steam', level: 3, cooldown: 0, ritual: 4, invested: 20 },
       crystalCost: 1,
     });
   });
@@ -118,7 +132,7 @@ describe('Merge.check: гибриды и кристаллы', () => {
   it('одинаковые гибриды сливаются бесплатно и без ритуала', () => {
     expect(merge.check(cat('steam', 2), cat('steam', 2), 0)).toEqual({
       kind: 'merge',
-      cat: { element: 'steam', level: 3, cooldown: 0, ritual: 0 },
+      cat: { element: 'steam', level: 3, cooldown: 0, ritual: 0, invested: 20 },
       crystalCost: 0,
     });
   });
@@ -169,7 +183,7 @@ describe('Merge.drop', () => {
   it('подходящая пара сливается', () => {
     expect(merge.drop([cat('fire'), null, cat('fire')], 0, 2, 0)).toEqual({
       kind: 'merge',
-      cat: { element: 'fire', level: 2, cooldown: 0, ritual: 0 },
+      cat: { element: 'fire', level: 2, cooldown: 0, ritual: 0, invested: 20 },
       crystalCost: 0,
     });
   });
@@ -177,7 +191,7 @@ describe('Merge.drop', () => {
   it('смешение стихий стоит кристалл и запускает ритуал', () => {
     expect(merge.drop([cat('earth'), cat('air')], 0, 1, 1)).toEqual({
       kind: 'merge',
-      cat: { element: 'sand', level: 2, cooldown: 0, ritual: 4 },
+      cat: { element: 'sand', level: 2, cooldown: 0, ritual: 4, invested: 20 },
       crystalCost: 1,
     });
   });

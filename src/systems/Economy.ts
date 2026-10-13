@@ -75,6 +75,18 @@ export class Economy {
     this.summonsThisWave = 0;
   }
 
+  /** Сколько монет вернёт продажа того, во что вложено `invested`. */
+  sellValue(invested: number): number {
+    return Math.floor(invested * this.config.sell.refund);
+  }
+
+  /** Продажа через корзину: возвращает часть вложенного. Возвращает, сколько монет пришло. */
+  sell(invested: number): number {
+    const gold = this.sellValue(invested);
+    this.gold += gold;
+    return gold;
+  }
+
   /** Награда за убитого врага. */
   reward(gold: number, crystals: number): void {
     this.gold += gold;
