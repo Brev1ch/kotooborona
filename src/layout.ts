@@ -42,7 +42,7 @@ export function menuChestCenter(): [number, number] {
 }
 
 // Окно открытого сундука поверх меню: заголовок, предмет с редкостью и бонусами, рыбки, шансы редкостей, кнопка «Забрать».
-export const CHEST_POPUP = { y: 310, w: 316, h: 340, titleY: -140, itemY: -104, rarityY: -82, bonusY: -64, fishY: 40, chancesY: 76, buttonY: 132, buttonW: 200, buttonH: 50 };
+export const CHEST_POPUP = { y: 310, w: 316, h: 340, titleY: -140, itemY: -104, rarityY: -82, bonusY: -64, fishY: 34, chancesY: 62, buttonY: 132, buttonW: 200, buttonH: 50 };
 
 /** Центр кнопки «Забрать» в окне сундука. */
 export function chestTakeCenter(): [number, number] {
