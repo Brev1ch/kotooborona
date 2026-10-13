@@ -70,7 +70,8 @@
       "startCrystals": 1,
       "startLives": 20,
       "hpMult": 1.05,
-      "enemies": { "rat": 0.25 },
+      "enemies": { "rat": 0.25, "boots": 0.15 },
+      "intro": "boots",
       "fish": 28,
       "tutorial": { "steps": ["meteor"], "at": [282, 300], "width": 140 }
     },
@@ -85,8 +86,8 @@
       "startGold": 45,
       "startCrystals": 1,
       "startLives": 20,
-      "hpMult": 1.8,
-      "enemies": { "rat": 0.3 },
+      "hpMult": 2.0,
+      "enemies": { "rat": 0.3, "boots": 0.15 },
       "fish": 32,
       "buildings": ["shop", "mine", "altar"],
       "tutorial": { "steps": ["build"], "at": [180, 226], "width": 300 }
@@ -103,7 +104,7 @@
       "startCrystals": 1,
       "startLives": 20,
       "hpMult": 2.1,
-      "enemies": { "rat": 0.25, "shield": 0.15 },
+      "enemies": { "rat": 0.25, "shield": 0.15, "boots": 0.1 },
       "intro": "shield",
       "fish": 36,
       "buildings": ["shop", "mine", "altar"]
@@ -119,8 +120,9 @@
       "startGold": 45,
       "startCrystals": 1,
       "startLives": 20,
-      "hpMult": 1.25,
-      "enemies": { "rat": 0.3, "shield": 0.2 },
+      "hpMult": 1.3,
+      "enemies": { "rat": 0.3, "shield": 0.2, "boots": 0.05, "fire": 0.15 },
+      "intro": "fire",
       "fish": 40,
       "buildings": ["shop", "mine", "altar"]
     },
@@ -135,8 +137,8 @@
       "startGold": 50,
       "startCrystals": 2,
       "startLives": 20,
-      "hpMult": 2.65,
-      "enemies": { "rat": 0.3, "shield": 0.25 },
+      "hpMult": 2.6,
+      "enemies": { "rat": 0.3, "shield": 0.25, "boots": 0.1, "fire": 0.1 },
       "fish": 45,
       "buildings": ["shop", "mine", "altar"]
     },
@@ -151,8 +153,9 @@
       "startGold": 50,
       "startCrystals": 2,
       "startLives": 20,
-      "hpMult": 2.7,
-      "enemies": { "rat": 0.35, "shield": 0.25 },
+      "hpMult": 2.6,
+      "enemies": { "rat": 0.35, "shield": 0.25, "fire": 0.1, "shaman": 0.1 },
+      "intro": "shaman",
       "fish": 50,
       "buildings": ["shop", "mine", "altar"]
     },
@@ -167,8 +170,9 @@
       "startGold": 50,
       "startCrystals": 1,
       "startLives": 20,
-      "hpMult": 1.3,
-      "enemies": { "rat": 0.35, "shield": 0.3 },
+      "hpMult": 1.4,
+      "enemies": { "rat": 0.35, "shield": 0.3, "boots": 0.05, "shaman": 0.08, "ninja": 0.08 },
+      "intro": "ninja",
       "fish": 55,
       "buildings": ["shop", "mine", "altar"]
     },
@@ -185,8 +189,8 @@
       "startGold": 60,
       "startCrystals": 2,
       "startLives": 20,
-      "hpMult": 1.6,
-      "enemies": { "rat": 0.35, "shield": 0.3 },
+      "hpMult": 1.5,
+      "enemies": { "rat": 0.35, "shield": 0.3, "fire": 0.08, "shaman": 0.07, "ninja": 0.1 },
       "fish": 70,
       "buildings": ["shop", "mine", "altar"]
     }

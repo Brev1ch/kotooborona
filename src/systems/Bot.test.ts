@@ -441,6 +441,25 @@ describe('баланс главы 1 глазами бота', () => {
     }
   });
 
+  it('новые враги входят в главу по одному, каждые один-два уровня с третьего; крот и летучая мышь — в следующих главах', () => {
+    expect(levels.levels.map((level) => level.intro ?? null)).toEqual([
+      null,
+      null,
+      'boots',
+      null,
+      'shield',
+      'fire',
+      null,
+      'shaman',
+      'ninja',
+      'king',
+    ]);
+    for (const level of levels.levels) {
+      expect(level.enemies.mole, level.id).toBeUndefined();
+      expect(level.enemies.bat, level.id).toBeUndefined();
+    }
+  });
+
   it('щитоносцев нет в начале главы, король — только на последнем уровне', () => {
     expect(levels.levels.slice(0, 4).every((level) => level.enemies.shield === undefined)).toBe(true);
     expect(levels.levels.slice(4).every((level) => (level.enemies.shield ?? 0) > 0)).toBe(true);

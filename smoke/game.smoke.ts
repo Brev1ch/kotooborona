@@ -1208,6 +1208,8 @@ async function hurryIntoBattle(page: Page, step: string): Promise<void> {
 }
 
 /** Парад: сколько ждём, пока последний враг выйдет на видимую часть дороги, и сколько — пока крот дойдёт до подкопа под огнём котов. */
+/** Парад выходит 12 секунд игрового времени; на загруженной машине кадры длиннее, и по часам это дольше. */
+const PARADE_TIMEOUT = 40_000;
 const PARADE_SETTLE_MS = 1_000;
 const PARADE_BURROW_MS = 6_000;
 /** Через столько после появления врагов над обоими уже всплыло слово. */
@@ -1234,7 +1236,7 @@ test('парад врагов: все типы на дороге, признак
   await page.evaluate(() => window.__smoke?.parade());
   await waitFor(
     page,
-    WAVE_TIMEOUT,
+    PARADE_TIMEOUT,
     (s) => s.enemies >= 11,
     (s) => `На парад вышли не все: врагов ${s?.enemies ?? 0}`,
   );
