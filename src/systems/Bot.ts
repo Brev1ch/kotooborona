@@ -1,9 +1,11 @@
-import type { BuildingKind, LevelConfig, Point } from '../data/types';
+import type { BuildingKind, CatsConfig, ElementId, EnemiesConfig, EnemyTypeId, LevelConfig, Point } from '../data/types';
 import { isBuilding, isCat } from '../entities/Building';
 import type { Cat } from '../entities/Cat';
+import { isBurrowed } from './Combat';
 import { positionAt } from './Path';
 import { seededRandom } from './Random';
 import { Simulation, type BattleConfigs, type SimResult } from './Simulation';
+import { appearsOn } from './Story';
 
 /** Как играет бот. Числа подобраны под обычного игрока: не мгновенная реакция и метеор по понятным поводам. */
 export interface BotOptions {
@@ -30,6 +32,63 @@ export interface BotOptions {
   buildOverSummon: number;
   /** Какие строения бот ставит. Отчёт о балансе сравнивает игру без них и с каждым по отдельности. */
   kinds: readonly BuildingKind[];
+  /** Во сколько раз бот ценит кота меньше, когда его эффект на врага не ложится: замедление и заморозка — почти вся польза кота, огонь и яд — часть урона. */
+  controlImmune: number;
+  dotImmune: number;
+}
+
+/** Эффект, который накладывает стихия, и доля пользы кота, которая пропадает с иммунитетом к нему. */
+const STATUS_OF: Partial<Record<string, { status: 'slow' | 'freeze' | 'burn' | 'poison'; control: boolean }>> = {
+  slow: { status: 'slow', control: true },
+  splash_slow: { status: 'slow', control: true },
+  freeze: { status: 'freeze', control: true },
+  burn: { status: 'burn', control: false },
+  splash_burn: { status: 'burn', control: false },
+  poison: { status: 'poison', control: false },
+};
+/** Стихии, которые бьют не одним снарядом в цель: от них не уклониться. */
+const AREA_FX = ['splash_slow', 'splash_burn', 'chain', 'aura'];
+
+/**
+ * Польза кота стихии против одного типа врага, от 0 до 1: 1 — бьёт как обычную мышь, 0 — не может ранить вовсе.
+ * Учитывает сопротивление стихии, полёт, иммунитет к эффекту кота и уклонение от снарядов.
+ */
+export function elementVersus(
+  cats: CatsConfig,
+  enemies: EnemiesConfig,
+  element: ElementId,
+  type: EnemyTypeId,
+  options: Pick<BotOptions, 'controlImmune' | 'dotImmune'> = DEFAULT_BOT,
+): number {
+  const enemy = enemies.types[type];
+  const { fx } = cats.elements[element];
+  if (enemy.flying && !enemy.flying.hitBy.includes(element)) return 0;
+  let value = enemy.resist?.[element] ?? 1;
+  const effect = STATUS_OF[fx];
+  if (effect && enemy.immune?.includes(effect.status)) value *= effect.control ? options.controlImmune : options.dotImmune;
+  if (enemy.dodgeEvery && !AREA_FX.includes(fx)) value *= 1 - 1 / enemy.dodgeEvery;
+  return value;
+}
+
+/**
+ * Польза кота стихии на уровне: средняя по врагам обычных волн с их долями; остаток долей — мыши.
+ * Врагов, которые на уровне не выходят (доля есть, а их волна не наступит), не считает.
+ */
+export function elementValue(
+  cats: CatsConfig,
+  enemies: EnemiesConfig,
+  level: LevelConfig,
+  element: ElementId,
+  options: Pick<BotOptions, 'controlImmune' | 'dotImmune'> = DEFAULT_BOT,
+): number {
+  let value = 0;
+  let rest = 1;
+  for (const [type, share] of Object.entries(level.enemies) as [EnemyTypeId, number][]) {
+    if (!appearsOn(level, enemies, type)) continue;
+    value += share * elementVersus(cats, enemies, element, type, options);
+    rest -= share;
+  }
+  return value + Math.max(0, rest) * elementVersus(cats, enemies, element, 'mouse', options);
 }
 
 /** Шаг, с которым бот размечает дорогу точками, и сколько таких точек должна прибавить перестановка, чтобы её стоило делать. */
@@ -51,15 +110,19 @@ export const DEFAULT_BOT: BotOptions = {
   calmProgress: 0.75,
   buildOverSummon: 0.75,
   kinds: ['shop', 'mine', 'altar'],
+  controlImmune: 0.4,
+  dotImmune: 0.7,
 };
 
 /**
  * Бот с простой стратегией, по одному действию за раз, в порядке важности:
- * 1. метеор — по самому плотному скоплению врагов или по тому, кто уже у ворот;
+ * 1. метеор — по самому плотному скоплению врагов или по тому, кто уже у ворот; тех, кто под землёй, не считает;
  * 2. слияние одинаковых котов — сначала самых высоких уровней;
  * 3. гибрид — если есть кристалл, а на поле нет врагов (ритуал выключает обоих котов) или поле забито;
+ *    из гибридов одного уровня — тот, от которого больше пользы против врагов уровня;
  * 4. призыв по обычной цене — пока волна даёт призывы, хватает монет и есть свободная клетка;
- * 5. продажа — строений, от которых на последней волне уже нет толку, и кота без пары, когда поле забито;
+ * 5. продажа — строений, от которых на последней волне уже нет толку, и кота без пары, когда поле забито:
+ *    первым уходит тот, в кого вложено меньше и от кого против врагов уровня меньше пользы;
  * 6. лишние монеты — на строение или на призыв сверх лимита, смотря что выгоднее: шахта, когда кристаллы на исходе
  *    (на неё бот копит, если врагов держат далеко от ворот); лавка или алтарь — вместо призыва, подорожавшего до их цены;
  * 7. перестановка — кот из клетки, откуда видно мало дороги, переезжает в свободную клетку получше.
@@ -73,6 +136,7 @@ export class Bot {
   private reached = 0;
   private reachedBefore = 0;
   private seenWave = 0;
+  private readonly values = new Map<ElementId, number>();
 
   constructor(
     private readonly sim: Simulation,
@@ -125,8 +189,9 @@ export class Bot {
     if (!sim.meteor.ready) return false;
     const radius = sim.meteorRadius;
     const { width, height } = sim.bounds;
-    // Целимся в одного из врагов: круг с центром на нём накрывает скопление вокруг.
+    // Целимся в одного из врагов: круг с центром на нём накрывает скопление вокруг. Кого под землёй, метеор не достанет.
     const points = sim.combat.enemies
+      .filter((enemy) => !isBurrowed(sim.enemies, enemy, sim.path.length))
       .map((enemy) => ({ enemy, point: sim.position(enemy) }))
       .filter(({ point: [x, y] }) => x >= 0 && y >= 0 && x <= width && y <= height);
 
@@ -158,17 +223,22 @@ export class Bot {
       if (sim.combat.enemies.length > 0 && !full) return false;
     }
 
-    // Лучшая пара — та, что даёт кота уровнем выше; при равенстве новый кот встаёт в клетку, откуда видно больше дороги.
-    let pick: { from: number; to: number; level: number; view: number } | null = null;
+    // Лучшая пара — та, что даёт кота уровнем выше; при равенстве — того, от кого больше пользы против врагов уровня,
+    // затем того, кто встаёт в клетку, откуда видно больше дороги.
+    let pick: { from: number; to: number; level: number; value: number; view: number } | null = null;
     for (let from = 0; from < sim.board.length; from++) {
       for (let to = 0; to < sim.board.length; to++) {
         if (from === to || !sim.board[from] || !sim.board[to]) continue;
         const merged = sim.mergeResult(from, to);
         if (!merged || merged.crystalCost > 0 !== hybrid) continue;
         const view = this.view(to, merged.cat);
-        if (!pick || merged.cat.level > pick.level || (merged.cat.level === pick.level && view > pick.view)) {
-          pick = { from, to, level: merged.cat.level, view };
-        }
+        const value = this.value(merged.cat.element);
+        const { level } = merged.cat;
+        const better =
+          !pick ||
+          level > pick.level ||
+          (level === pick.level && (value > pick.value || (value === pick.value && view > pick.view)));
+        if (better) pick = { from, to, level, value, view };
       }
     }
     return pick !== null && sim.drop(pick.from, pick.to);
@@ -244,13 +314,15 @@ export class Bot {
     }
     if (board.includes(null) || !sim.economy.canAffordSummon()) return false;
 
-    let pick: { slot: number; invested: number } | null = null;
+    let pick: { slot: number; worth: number } | null = null;
     board.forEach((cat, slot) => {
       if (!isCat(cat) || cat.ritual > 0) return;
       // Есть кот того же уровня — пара ещё может сложиться (хотя бы гибридом, когда появится кристалл).
       const paired = board.some((other, at) => at !== slot && isCat(other) && other.level === cat.level);
       if (paired) return;
-      if (!pick || cat.invested < pick.invested) pick = { slot, invested: cat.invested };
+      // Кот, который врагов уровня почти не ранит, стоит меньше, чем в него вложено.
+      const worth = cat.invested * this.value(cat.element);
+      if (!pick || worth < pick.worth) pick = { slot, worth };
     });
     const sale = pick as { slot: number } | null;
     return sale !== null && sim.sell(sale.slot);
@@ -274,6 +346,16 @@ export class Bot {
     });
     const move = pick as { from: number; to: number } | null;
     return move !== null && sim.drop(move.from, move.to);
+  }
+
+  /** Польза стихии против врагов этого уровня; от боя не зависит — ответ запоминается. */
+  private value(element: ElementId): number {
+    let value = this.values.get(element);
+    if (value === undefined) {
+      value = elementValue(this.sim.cats, this.sim.enemies, this.sim.level, element, this.options);
+      this.values.set(element, value);
+    }
+    return value;
   }
 
   /** Сколько точек дороги достаёт кот из клетки. Дальность зависит только от уровня кота — ответ запоминается. */

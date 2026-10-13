@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { cats, economy, enemies, gear, levels } from '../data';
-import type { LevelConfig } from '../data';
-import { Bot, DEFAULT_BOT, playLevel, reportLevel } from './Bot';
+import type { ElementId, EnemiesConfig, EnemyTypeId, LevelConfig } from '../data';
+import type { Enemy } from '../entities/Enemy';
+import { Bot, DEFAULT_BOT, elementValue, elementVersus, playLevel, reportLevel } from './Bot';
 import { isBuilding } from '../entities/Building';
 import { noBonuses } from './Loadout';
 import { seededRandom } from './Random';
@@ -224,6 +225,145 @@ describe('Bot: строения и продажа', () => {
     act(bot, 3);
 
     expect(sim.result().sales).toBe(0);
+  });
+});
+
+describe('Bot: особенности врагов', () => {
+  const { controlImmune, dotImmune } = DEFAULT_BOT;
+  const versus = (element: ElementId, type: EnemyTypeId): number => elementVersus(cats, enemies, element, type);
+  const act = (bot: Bot, count: number): void => {
+    for (let i = 0; i < count; i++) bot.update(DEFAULT_BOT.reaction);
+  };
+  const cat = (element: ElementId, level = 1) => ({ element, level, cooldown: 0, ritual: 0, invested: 10 });
+  /** Враг, уже прошедший долю дороги `progress`. */
+  const enemyAt = (sim: Simulation, type: EnemyTypeId, progress: number): Enemy => ({
+    type,
+    distance: sim.path.length * progress,
+    hp: 1000,
+    maxHp: 1000,
+    speed: 0,
+    gold: 0,
+    shield: 0,
+    slowFactor: 1,
+    slowTime: 0,
+    burnDps: 0,
+    burnTime: 0,
+    poisonDps: 0,
+    poisonTime: 0,
+  });
+
+  it('обычную мышь любой кот бьёт в полную силу', () => {
+    for (const element of Object.keys(cats.elements) as ElementId[]) expect(versus(element, 'mouse'), element).toBe(1);
+  });
+
+  it('сопротивление стихии и иммунитет к её огню снижают пользу кота', () => {
+    expect(versus('fire', 'fire')).toBe(0);
+    expect(versus('lava', 'fire')).toBeCloseTo(0.5 * dotImmune);
+    expect(versus('steam', 'fire')).toBe(1);
+    expect(versus('storm', 'fire')).toBe(1);
+    expect(versus('water', 'fire')).toBe(1);
+  });
+
+  it('иммунитет к замедлению и заморозке обесценивает котов контроля', () => {
+    expect(versus('water', 'boots')).toBe(controlImmune);
+    expect(versus('ice', 'boots')).toBe(controlImmune);
+    expect(versus('steam', 'boots')).toBe(controlImmune);
+    expect(versus('earth', 'boots')).toBe(1);
+    expect(versus('fire', 'boots')).toBe(1);
+  });
+
+  it('летающего достают только указанные стихии', () => {
+    expect(versus('air', 'bat')).toBe(1);
+    expect(versus('storm', 'bat')).toBe(1);
+    expect(versus('earth', 'bat')).toBe(0);
+    expect(versus('sand', 'bat')).toBe(0);
+  });
+
+  it('от снарядов ниндзя уклоняется, от урона по площади — нет', () => {
+    const hits = 1 - 1 / (enemies.types.ninja.dodgeEvery ?? 1);
+    expect(versus('air', 'ninja')).toBeCloseTo(hits);
+    expect(versus('earth', 'ninja')).toBeCloseTo(hits);
+    for (const element of ['steam', 'lava', 'storm', 'sand'] as const) expect(versus(element, 'ninja'), element).toBe(1);
+  });
+
+  it('польза на уровне — средняя по долям врагов, остаток — мыши', () => {
+    const level: LevelConfig = { ...first, enemies: { fire: 0.5, boots: 0.2 } };
+
+    expect(elementValue(cats, enemies, level, 'fire')).toBeCloseTo(0.5 * 0 + 0.2 * 1 + 0.3 * 1);
+    expect(elementValue(cats, enemies, level, 'water')).toBeCloseTo(0.5 * 1 + 0.2 * controlImmune + 0.3 * 1);
+    expect(elementValue(cats, enemies, level, 'earth')).toBe(1);
+  });
+
+  it('врага, чья волна на уровне не наступит, польза не учитывает', () => {
+    const late: EnemiesConfig = { ...enemies, types: { ...enemies.types, fire: { ...enemies.types.fire, fromWave: 99 } } };
+    const level: LevelConfig = { ...first, enemies: { fire: 0.5 } };
+
+    expect(elementValue(cats, late, level, 'fire')).toBe(1);
+  });
+
+  it('метеор бьёт по скоплению на поверхности', () => {
+    const { sim, bot } = create({ startGold: 0 });
+    for (let i = 0; i < DEFAULT_BOT.meteorTargets; i++) sim.combat.add(enemyAt(sim, 'mouse', 0.5));
+    bot.update(DT);
+
+    expect(sim.result().meteors).toBe(1);
+  });
+
+  it('на кротов под землёй метеор не тратит, даже когда их толпа', () => {
+    const { sim, bot } = create({ startGold: 0 });
+    for (let i = 0; i < DEFAULT_BOT.meteorTargets + 2; i++) sim.combat.add(enemyAt(sim, 'mole', 0.5));
+    act(bot, 3);
+
+    expect(sim.result().meteors).toBe(0);
+  });
+
+  it('кротов под землёй не считает в скоплении, а по вышедшим бьёт', () => {
+    const { sim, bot } = create({ startGold: 0 });
+    for (let i = 0; i < DEFAULT_BOT.meteorTargets - 1; i++) sim.combat.add(enemyAt(sim, 'mouse', 0.5));
+    sim.combat.add(enemyAt(sim, 'mole', 0.5));
+    act(bot, 2);
+    expect(sim.result().meteors).toBe(0);
+
+    // Тот же крот до подкопа — обычная цель.
+    const { sim: open, bot: other } = create({ startGold: 0 });
+    for (let i = 0; i < DEFAULT_BOT.meteorTargets - 1; i++) open.combat.add(enemyAt(open, 'mouse', 0.3));
+    open.combat.add(enemyAt(open, 'mole', 0.3));
+    other.update(DT);
+    expect(open.result().meteors).toBe(1);
+  });
+
+  it('из гибридов одного уровня делает того, от кого больше пользы против врагов уровня', () => {
+    // Против сапог пар и лёд почти бесполезны, гроза бьёт в полную силу.
+    const { sim, bot } = create({ startGold: 0, startCrystals: 1, enemies: { boots: 0.6 } });
+    sim.board[0] = cat('fire');
+    sim.board[1] = cat('water');
+    sim.board[2] = cat('air');
+    bot.update(DT);
+
+    expect(sim.board.filter((piece) => piece !== null).map((piece) => (piece as { element: string }).element).sort()).toEqual(['storm', 'water']);
+  });
+
+  it('на уровне без особых врагов выбор гибрида не меняется', () => {
+    const { sim, bot } = create({ startGold: 0, startCrystals: 1, enemies: {} });
+    sim.board[0] = cat('fire');
+    sim.board[1] = cat('water');
+    bot.update(DT);
+
+    expect(sim.result().hybrids).toBe(1);
+  });
+
+  it('из котов без пары продаёт того, от кого против врагов уровня меньше пользы', () => {
+    const cost = economy.summon.cost;
+    const { sim, bot } = create({ startGold: cost, startCrystals: 0, enemies: { boots: 0.6 } });
+    sim.board.fill(cat('storm', first.maxCatLevel));
+    // Вложено поровну; ветряной сапогам страшен, водный — почти нет.
+    sim.board[3] = cat('air', 1);
+    sim.board[5] = cat('water', 2);
+    act(bot, 1);
+
+    expect(sim.result().sales).toBe(1);
+    expect(sim.board[3]).toMatchObject({ element: 'air', level: 1 });
+    expect(sim.board[5]).toBeNull();
   });
 });
 

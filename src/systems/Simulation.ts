@@ -118,6 +118,15 @@ export class Simulation {
     return this.outcome !== null;
   }
 
+  /** Данные котов и врагов: по ним бот судит, кто кого может ранить. */
+  get cats(): CatsConfig {
+    return this.configs.cats;
+  }
+
+  get enemies(): EnemiesConfig {
+    return this.configs.enemies;
+  }
+
   get bounds(): { width: number; height: number } {
     return this.configs.board;
   }
