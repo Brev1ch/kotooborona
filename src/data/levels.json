@@ -104,6 +104,7 @@
       "startLives": 20,
       "hpMult": 2.1,
       "enemies": { "rat": 0.25, "shield": 0.15 },
+      "intro": "shield",
       "fish": 36,
       "buildings": ["shop", "mine", "altar"]
     },
@@ -179,6 +180,7 @@
       "waves": 9,
       "bossWaves": [3, 6],
       "kingWave": 9,
+      "intro": "king",
       "maxCatLevel": 8,
       "startGold": 60,
       "startCrystals": 2,

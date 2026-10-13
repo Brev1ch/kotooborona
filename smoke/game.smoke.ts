@@ -910,11 +910,21 @@ test('все уровни главы запускаются, кот продаё
       await page.screenshot({ path: `${SHOTS}/story-king-${line}.png` });
       await tap(page, GAME_W / 2, GAME_H / 2);
     }
+    // После сценки — карточка короля: он впервые выходит на этом уровне.
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Intro),
+      (s) => `После сценки не появилась карточка короля: ${scenesText(s)}`,
+    );
+    await page.screenshot({ path: `${SHOTS}/new-enemy-king.png` });
+    await checkTouchSizes(page, 'карточка короля');
+    await tap(page, ...enemyCardButtonCenter());
     await waitFor(
       page,
       SCREEN_TIMEOUT,
       (s) => s.scenes.includes(SceneKey.UI) && s.hud?.totalWaves === 9,
-      (s) => `После сценки не начался бой с королём: ${scenesText(s)}`,
+      (s) => `После карточки короля не начался бой: ${scenesText(s)}`,
     );
     checkConsole('сценка перед королём');
   });
@@ -1170,7 +1180,7 @@ async function winBattle(page: Page, step: string): Promise<void> {
   );
 }
 
-/** С экрана снаряжения — в бой; сценку, если она есть, пропускает. Всё — не дожидаясь проявления экранов. */
+/** С экрана снаряжения — в бой; сценку, если она есть, пропускает, карточку нового врага снимает и закрывает. Всё — не дожидаясь проявления экранов. */
 async function hurryIntoBattle(page: Page, step: string): Promise<void> {
   await waitFor(
     page,
@@ -1182,6 +1192,18 @@ async function hurryIntoBattle(page: Page, step: string): Promise<void> {
   await hurry(page, SceneKey.Gear, ...gearButtonCenter('start'), `${step}: «В бой»`);
   if ((await state(page))?.scenes.includes(SceneKey.Story)) {
     await hurry(page, SceneKey.Story, ...storySkipCenter(), `${step}: «Пропустить»`);
+  }
+  if ((await state(page))?.scenes.includes(SceneKey.Intro)) {
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Intro),
+      (s) => `${step}: карточка нового врага не проявилась, ${scenesText(s)}`,
+    );
+    const level = (await page.evaluate(() => window.__smoke?.introLevel())) ?? 'unknown';
+    await page.screenshot({ path: `${SHOTS}/new-enemy-${level}.png` });
+    await checkTouchSizes(page, `карточка нового врага перед уровнем ${level}`);
+    await hurry(page, SceneKey.Intro, ...enemyCardButtonCenter(), `${step}: «В бой» на карточке врага`);
   }
 }
 

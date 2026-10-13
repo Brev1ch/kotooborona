@@ -13,6 +13,12 @@ export function enemyBodySize(type: EnemyTypeId): [number, number] {
   return [r * 4.8, r * tall];
 }
 
+/** Щит перед носом врага: вытянутая пластина с центром в `x`. */
+function drawShieldPlate(g: Phaser.GameObjects.Graphics, x: number, r: number): void {
+  g.fillStyle(COLORS.shield);
+  g.fillEllipse(x, 0, r * 0.7, r * 1.8);
+}
+
 function fillShape(g: Phaser.GameObjects.Graphics, points: [number, number][]): void {
   g.fillPoints(points.map(([x, y]) => new Phaser.Math.Vector2(x, y)), true);
 }
@@ -137,7 +143,12 @@ export function addEnemyPortrait(
   known = true,
 ): Phaser.GameObjects.Image {
   const [width, height] = enemyBodySize(type);
-  const image = addBakedShape(scene, `enemy-${type}`, width, height, (g) => drawEnemyBody(g, type)).setPosition(x, y);
+  const { radius: r, shield } = enemies.types[type];
+  // На поле щит — отдельная картинка, которая пропадает, когда он сломан; на портрете он нарисован вместе с телом.
+  const image = addBakedShape(scene, shield > 0 ? `portrait-${type}` : `enemy-${type}`, width, height, (g) => {
+    drawEnemyBody(g, type);
+    if (shield > 0) drawShieldPlate(g, r * 1.3, r);
+  }).setPosition(x, y);
   image.setScale(image.scale * Math.min(size / width, size / height));
   return known ? image : image.setTintFill(COLORS.line);
 }
@@ -195,10 +206,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
     }
 
     if (enemy.shield > 0) {
-      const plate = addBakedShape(scene, `shield-${enemy.type}`, r, r * 2, (g) => {
-        g.fillStyle(COLORS.shield);
-        g.fillEllipse(0, 0, r * 0.7, r * 1.8);
-      });
+      const plate = addBakedShape(scene, `shield-${enemy.type}`, r, r * 2, (g) => drawShieldPlate(g, 0, r));
       // Сколько попаданий щит ещё выдержит.
       this.shieldCount = scene.add
         .text(0, 0, '', { fontFamily: FONTS.body, fontSize: '9px', color: TEXT_COLORS.dark })

@@ -5,6 +5,7 @@ import { BookScene } from './scenes/BookScene';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { GearScene } from './scenes/GearScene';
+import { IntroScene } from './scenes/IntroScene';
 import { MenuScene } from './scenes/MenuScene';
 import { StoryScene } from './scenes/StoryScene';
 import { UIScene } from './scenes/UIScene';
@@ -19,7 +20,7 @@ const game = new Phaser.Game({
     width: GAME_W,
     height: GAME_H,
   },
-  scene: [BootScene, MenuScene, BookScene, BestiaryScene, GearScene, StoryScene, GameScene, UIScene],
+  scene: [BootScene, MenuScene, BookScene, BestiaryScene, GearScene, StoryScene, IntroScene, GameScene, UIScene],
 });
 
 // Долгое касание и правая кнопка не должны открывать меню браузера поверх игры.

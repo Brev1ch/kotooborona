@@ -6,6 +6,7 @@ import { BOARD_Y, GAME_H, GAME_W } from './layout';
 import { debugEnemy, parade, stress } from './debug';
 import { progress } from './progress';
 import { FLOAT_NAME, type GameScene } from './scenes/GameScene';
+import type { IntroScene } from './scenes/IntroScene';
 import type { StoryScene } from './scenes/StoryScene';
 import type { UIScene } from './scenes/UIScene';
 import { GameEvent, SceneKey, type HudState, type LevelSceneData, type StorySceneData } from './scenes/keys';
@@ -114,6 +115,8 @@ export interface SmokeProbe {
   spawnEnemy(type: EnemyTypeId, distance: number): void;
   /** Открывает врага в бестиарии, как после победы над ним. */
   meetEnemy(type: EnemyTypeId): void;
+  /** id уровня, перед которым сейчас показана карточка нового врага; null — карточки нет. */
+  introLevel(): string | null;
   /** Парад из src/debug.ts: по одному врагу каждого типа друг за другом. */
   parade(): void;
   /** Вся игра остановлена площадкой: идёт реклама или игру свернули. */
@@ -355,6 +358,10 @@ export function installSmokeProbe(game: Phaser.Game): void {
     },
     meetEnemy(type) {
       progress.meetEnemy(type);
+    },
+    introLevel() {
+      const scene = game.scene.getScene(SceneKey.Intro) as IntroScene;
+      return scene.scene.isActive() ? scene.levelId : null;
     },
     parade() {
       parade(game.scene.getScene(SceneKey.Game) as GameScene);

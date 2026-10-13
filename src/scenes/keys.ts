@@ -10,6 +10,7 @@ export const SceneKey = {
   Book: 'Book',
   Bestiary: 'Bestiary',
   Story: 'Story',
+  Intro: 'Intro',
   Game: 'Game',
   UI: 'UI',
 } as const;

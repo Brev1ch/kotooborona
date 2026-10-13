@@ -175,6 +175,7 @@ export const en: Record<StringKey, string> = {
 
   'bestiary.title': 'Bestiary',
   'bestiary.locked': 'Defeat it to learn more',
+  'enemy.new': 'New enemy',
   'enemy.traitLabel': 'Trait',
   'enemy.tipLabel': 'How to beat',
   'enemy.cardClose': 'Got it',

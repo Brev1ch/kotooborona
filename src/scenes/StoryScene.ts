@@ -150,10 +150,11 @@ export class StoryScene extends Phaser.Scene {
     if (this.leaving) return;
     this.leaving = true;
     const data: LevelSceneData = { levelId: this.levelId };
+    // Дальше — карточка нового врага; если показывать некого, она сама сразу начнёт бой.
     if (!this.scenario) {
-      this.scene.start(SceneKey.Game, data);
+      this.scene.start(SceneKey.Intro, data);
       return;
     }
-    fadeOut(this, () => this.scene.start(SceneKey.Game, data));
+    fadeOut(this, () => this.scene.start(SceneKey.Intro, data));
   }
 }

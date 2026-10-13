@@ -173,6 +173,7 @@ export const ru = {
 
   'bestiary.title': 'Бестиарий',
   'bestiary.locked': 'Победи, чтобы узнать',
+  'enemy.new': 'Новый враг',
   'enemy.traitLabel': 'Особенность',
   'enemy.tipLabel': 'Чем бить',
   'enemy.cardClose': 'Понятно',

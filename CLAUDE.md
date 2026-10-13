@@ -18,7 +18,7 @@ src/
   adBreaks.ts        реклама для сцен: ролик с наградой и полноэкранная между уровнями (частоту держит `systems/Ads`)
   audio.ts           звуки поверх Phaser Sound: `audio.play(id)`, выключатель, паузы (скрытая вкладка, реклама)
   fonts.ts           загрузка веб-шрифтов до меню
-  scenes/            Boot, Menu, Book, Bestiary (враги: открытые после первой победы, по нажатию — карточка `EnemyCard.ts`), Gear, Story (сценки перед уровнями), Game, UI (HUD поверх Game)
+  scenes/            Boot, Menu, Book, Bestiary (враги: открытые после первой победы, по нажатию — карточка `EnemyCard.ts`), Gear, Story (сценки перед уровнями), Intro (карточка «Новый враг» перед уровнем, где враг впервые выходит: `levels.json` → `intro`), Game, UI (HUD поверх Game)
   systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy, Buildings (строения: постройка, улучшение, доход), Progress, Loadout, Gear, Chests, Campaign, Book, Bestiary, Story, Tutorial, Ads, Rewards, Simulation (бой без отрисовки), Bot (бот-игрок для подбора баланса: призывает, сливает, строит, продаёт)
   entities/          Cat, Building (строение в клетке поля), Enemy, Projectile, Hero; `*View.ts` — их картинки (у кота и строения общая основа `PieceView`)
   data/              JSON-конфиги: cats.json, enemies.json, levels.json, economy.json (цена и лимит призывов, продажа, строения), gear.json, ads.json, story.json
