@@ -9,6 +9,14 @@ export const BOARD_Y = HUD_H;
 export const CONTROLS_Y = BOARD_Y + BOARD_H;
 export const CONTROLS_H = GAME_H - CONTROLS_Y;
 
+/** Центр кнопки «Играть» в меню по вертикали. */
+export const MENU_PLAY_Y = GAME_H * 0.6;
+
+// Нижняя полоса: «Призвать» слева, «Метеор» справа.
+export const CONTROLS_PAD = 8;
+export const SUMMON_W = 204;
+export const SUMMON_X = CONTROLS_PAD + SUMMON_W / 2;
+
 export const ROAD = { outerWidth: 38, innerWidth: 30, dash: 6, gap: 10 };
 export const SLOT_RADIUS = 14;
 

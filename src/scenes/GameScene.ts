@@ -363,6 +363,14 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
+  /** Сколько котов и врагов на поле; читает смоук-проверка (src/smoke.ts). */
+  fieldCounts(): { cats: number; enemies: number } {
+    return {
+      cats: this.board.filter((cat) => cat !== null).length,
+      enemies: this.combat.enemies.length,
+    };
+  }
+
   meteorState(): MeteorState {
     const { ready, aiming, remaining, progress } = this.meteor;
     return { ready, aiming, remaining, progress };

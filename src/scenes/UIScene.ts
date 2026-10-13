@@ -2,7 +2,20 @@ import Phaser from 'phaser';
 import { cats, getLevel, type ElementId, type LevelConfig } from '../data';
 import { ANNOUNCE_FEEL, BANNER_FEEL, BUTTON_FEEL, METEOR_FEEL, RESULT_FEEL, STAT_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
-import { BOARD_H, BOARD_Y, COLORS, CONTROLS_H, CONTROLS_Y, FONTS, GAME_W, HUD_H, TEXT_COLORS } from '../layout';
+import {
+  BOARD_H,
+  BOARD_Y,
+  COLORS,
+  CONTROLS_H,
+  CONTROLS_PAD,
+  CONTROLS_Y,
+  FONTS,
+  GAME_W,
+  HUD_H,
+  SUMMON_W,
+  SUMMON_X,
+  TEXT_COLORS,
+} from '../layout';
 import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
 import { GameEvent, SceneKey, type LevelResult, type LevelSceneData } from './keys';
@@ -11,13 +24,9 @@ const STAT_PAD = 6;
 const STAT_GAP = 6;
 const STAT_COUNT = 4;
 
-// Нижняя полоса: «Призвать» слева, «Метеор» справа.
-const CONTROLS_PAD = 8;
 const CONTROLS_GAP = 8;
-const SUMMON_W = 204;
 const SUMMON_H = 44;
 const SUMMON_PAD = 16;
-const SUMMON_X = CONTROLS_PAD + SUMMON_W / 2;
 const METEOR_W = GAME_W - CONTROLS_PAD * 2 - CONTROLS_GAP - SUMMON_W;
 const METEOR_X = GAME_W - CONTROLS_PAD - METEOR_W / 2;
 const METEOR_LABEL_Y = -8;

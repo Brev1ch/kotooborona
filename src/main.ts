@@ -5,7 +5,7 @@ import { GameScene } from './scenes/GameScene';
 import { MenuScene } from './scenes/MenuScene';
 import { UIScene } from './scenes/UIScene';
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: COLORS.bg,
@@ -17,3 +17,8 @@ new Phaser.Game({
   },
   scene: [BootScene, MenuScene, GameScene, UIScene],
 });
+
+// Зонд для смоук-проверки (npm run smoke): отдельный чанк, у игроков не загружается.
+if (new URLSearchParams(location.search).has('smoke')) {
+  void import('./smoke').then(({ installSmokeProbe }) => installSmokeProbe(game));
+}

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { levels } from '../data';
 import { t, type StringKey } from '../i18n';
-import { COLORS, FONTS, GAME_H, GAME_W, TEXT_COLORS } from '../layout';
+import { COLORS, FONTS, GAME_H, GAME_W, MENU_PLAY_Y, TEXT_COLORS } from '../layout';
 import { SceneKey, type LevelSceneData } from './keys';
 
 const BUTTON_W = 200;
@@ -33,11 +33,11 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const button = this.add
-      .rectangle(cx, GAME_H * 0.6, BUTTON_W, BUTTON_H, COLORS.brass)
+      .rectangle(cx, MENU_PLAY_Y, BUTTON_W, BUTTON_H, COLORS.brass)
       .setInteractive({ useHandCursor: true });
 
     this.add
-      .text(cx, GAME_H * 0.6, t('menu.play'), {
+      .text(cx, MENU_PLAY_Y, t('menu.play'), {
         fontFamily: FONTS.display,
         fontSize: '20px',
         color: TEXT_COLORS.dark,
