@@ -5,13 +5,13 @@
     "maxPerKind": 2,
     "maxOf": { "altar": 1 },
     "kinds": {
-      "shop": [{ "cost": 30, "gold": 10 }, { "cost": 30, "gold": 18 }, { "cost": 40, "gold": 28 }],
+      "shop": [{ "cost": 25, "gold": 10 }, { "cost": 30, "gold": 18 }, { "cost": 40, "gold": 28 }],
       "mine": [
-        { "cost": 40, "crystals": 1, "everyWaves": 2 },
+        { "cost": 35, "crystals": 1, "everyWaves": 2 },
         { "cost": 40, "crystals": 2, "everyWaves": 3 },
         { "cost": 60, "crystals": 1, "everyWaves": 1 }
       ],
-      "altar": [{ "cost": 40, "summonLimit": 1 }, { "cost": 50, "summonLimit": 2 }, { "cost": 60, "summonLimit": 3 }]
+      "altar": [{ "cost": 35, "summonLimit": 1 }, { "cost": 50, "summonLimit": 2 }, { "cost": 60, "summonLimit": 3 }]
     }
   }
 }
