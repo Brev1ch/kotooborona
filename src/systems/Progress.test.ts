@@ -124,8 +124,11 @@ describe('parseSave: сохранение новее кода', () => {
 
     expect(data.version).toBe(4);
     expect(data.stars).toEqual({ opushka: 3, volcano: 2 });
-    // Мантии «cloak» в этой версии нет — в бою будет мантия по умолчанию.
-    expect(data.gear).toEqual({ staff: 'fire', mantle: 'thrift', amulet: 'purse' });
+  });
+
+  it('незнакомый предмет оставляет в слоте, мусор заменяет умолчанием', () => {
+    expect(parseSave(raw, rules).data.gear).toEqual({ staff: 'fire', mantle: 'cloak', amulet: 'purse' });
+    expect(parseSave({ version: 4, gear: { mantle: 7 } }, rules).data.gear).toEqual(defaults.gear);
   });
 
   it('незнакомые поля и незнакомых котов сохраняет', () => {
@@ -293,6 +296,36 @@ describe('Progress: запись', () => {
         chests: [{ id: 'wood' }],
       },
     ]);
+  });
+
+  describe('незнакомый предмет из сохранения новее кода', () => {
+    const saved = { version: 4, gear: { staff: 'fire', mantle: 'cloak', amulet: 'purse' } };
+
+    it('в бою заменяется предметом по умолчанию, а в сохранении остаётся', async () => {
+      const { storage, saves } = memoryStorage(saved);
+      const progress = new Progress(storage, rules, 1000);
+      await progress.load();
+      expect(progress.gear).toEqual({ staff: 'fire', mantle: 'thrift', amulet: 'purse' });
+
+      progress.selectGear('staff', 'none');
+      // Мантия по умолчанию и так показана надетой: её выбор — не смена предмета.
+      progress.selectGear('mantle', 'thrift');
+      progress.flush();
+
+      expect(saves).toEqual([{ ...defaults, version: 4, gear: { staff: 'none', mantle: 'cloak', amulet: 'purse' } }]);
+    });
+
+    it('пропадает из сохранения, когда игрок выбрал в слоте другой предмет', async () => {
+      const { storage, saves } = memoryStorage(saved);
+      const progress = new Progress(storage, rules, 1000);
+      await progress.load();
+
+      progress.selectGear('mantle', 'sorc');
+      progress.flush();
+
+      expect(progress.gear.mantle).toBe('sorc');
+      expect(saves).toEqual([{ ...defaults, version: 4, gear: { staff: 'fire', mantle: 'sorc', amulet: 'purse' } }]);
+    });
   });
 
   it('неудачная запись повторяется при следующем flush', async () => {

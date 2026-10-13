@@ -14,6 +14,7 @@ export interface SaveData {
   version: number;
   /** Лучший результат по id уровня; непройденных уровней здесь нет. */
   stars: Record<string, number>;
+  /** Предмет в каждом слоте. В сохранении новее кода здесь может быть незнакомый id. */
   gear: GearSelection;
   /** Открытые коты. В сохранении новее кода здесь могут быть и незнакомые стихии. */
   book: string[];
@@ -86,7 +87,9 @@ export function parseSave(raw: unknown, rules: SaveRules, migrations: readonly M
   if (isRecord(save.gear)) {
     for (const slot of GEAR_SLOTS) {
       const id = save.gear[slot];
-      if (rules.gear[slot].some((item) => item.id === id)) data.gear[slot] = id as string;
+      // Предмет из будущей версии остаётся в сохранении; в бою вместо него работает предмет по умолчанию.
+      const known = rules.gear[slot].some((item) => item.id === id);
+      if (known || (newer && typeof id === 'string')) data.gear[slot] = id as string;
     }
   }
 
@@ -138,13 +141,19 @@ export class Progress {
     this.touch();
   }
 
+  /** Надетые предметы; вместо предмета, незнакомого этой версии игры, — предмет по умолчанию. */
   get gear(): Readonly<GearSelection> {
-    return this.data.gear;
+    const { gear } = this.rules;
+    const worn = { ...this.data.gear };
+    for (const slot of GEAR_SLOTS) {
+      if (!gear[slot].some((item) => item.id === worn[slot])) worn[slot] = gear.defaults[slot];
+    }
+    return worn;
   }
 
-  /** Надевает предмет в слот; предмета не из этого слота не бывает. */
+  /** Надевает предмет в слот. Уже надетый и предмет не из этого слота сохранение не меняют. */
   selectGear(slot: GearSlot, id: string): void {
-    if (this.data.gear[slot] === id || !this.rules.gear[slot].some((item) => item.id === id)) return;
+    if (this.gear[slot] === id || !this.rules.gear[slot].some((item) => item.id === id)) return;
     this.data.gear[slot] = id;
     this.touch();
   }
