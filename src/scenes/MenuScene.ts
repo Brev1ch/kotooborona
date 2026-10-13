@@ -20,6 +20,7 @@ import {
 import { progress } from '../progress';
 import { campaignTiles, type CampaignTile } from '../systems/Campaign';
 import { chestState, rollChest, type ChestLoot } from '../systems/Chests';
+import { random } from '../systems/Random';
 import { findGear, gearAtLevel } from '../systems/Gear';
 import { MAX_STARS } from '../systems/Progress';
 import { describeGear, gearName } from './gearText';
@@ -115,7 +116,7 @@ export class MenuScene extends Phaser.Scene {
 
   /** Открывает сундук: добыча сразу уходит в сохранение, окно только показывает её. */
   private openChest(): void {
-    const loot = rollChest(gear, (slot, id) => progress.ownsGear(slot, id));
+    const loot = rollChest(gear, (slot, id) => progress.ownsGear(slot, id), random);
     progress.claimChest(loot);
     progress.flush();
     audio.play('hybrid');

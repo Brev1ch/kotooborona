@@ -38,6 +38,7 @@ import { Meteor } from '../systems/Meteor';
 import { Pool } from '../systems/Pool';
 import { levelFish } from '../systems/Rewards';
 import { buildPath, positionAt, type Path } from '../systems/Path';
+import { random, restartRandom } from '../systems/Random';
 import { Summon } from '../systems/Summon';
 import { densestPoint, findMergePair, findSellSlot, type TutorialState } from '../systems/Tutorial';
 import { mixAllEnemies, Waves } from '../systems/Waves';
@@ -188,10 +189,12 @@ export class GameScene extends Phaser.Scene {
     });
     this.add.image(0, 0, boardKey).setOrigin(0);
 
+    // При заданном зерне (смоук-проверка) каждый бой идёт по одной и той же случайной последовательности.
+    restartRandom();
     const worn = progress.gear;
     const bonuses = gearBonuses(gear, worn, (slot, id) => progress.gearLevel(slot, id));
     this.economy = new Economy(this.level, economy, bonuses);
-    this.summoner = new Summon(cats, bonuses.summonWeights);
+    this.summoner = new Summon(cats, bonuses.summonWeights, random);
     this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult);
     this.coinAd = new CoinAd(ads.coins);
     this.secondChance = new SecondChance(ads.secondChance);
@@ -203,13 +206,14 @@ export class GameScene extends Phaser.Scene {
       crystalCost: gear.ritual.crystalCost,
     });
     this.path = buildPath(this.level.path);
-    this.waves = new Waves(levels.waves, this.level, enemies);
+    this.waves = new Waves(levels.waves, this.level, enemies, random);
     this.combat = new Combat({
       cats,
       enemies,
       path: this.path,
       slots: this.level.slots.map((_, slot) => this.slotCenter(slot)),
       bounds: { width: BOARD_W, height: BOARD_H },
+      rng: random,
     });
     this.enemyViews = new Map();
     this.projectileViews = new Map();

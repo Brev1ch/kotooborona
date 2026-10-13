@@ -12,3 +12,25 @@ export function seededRandom(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+let seed: number | null = null;
+let source: () => number = Math.random;
+
+/**
+ * Случайность самой игры: стихия призванного кота, состав волны, кристалл с врага, предмет из сундука.
+ * Обычно это `Math.random`; смоук-проверка задаёт зерно, и тогда каждый бой идёт по одной и той же последовательности.
+ */
+export function random(): number {
+  return source();
+}
+
+/** Задаёт зерно случайности игры; `null` возвращает `Math.random`. */
+export function seedRandom(value: number | null): void {
+  seed = value;
+  restartRandom();
+}
+
+/** Начало боя: при заданном зерне последовательность начинается заново, так что бой не зависит от того, что было до него. */
+export function restartRandom(): void {
+  source = seed === null ? Math.random : seededRandom(seed);
+}

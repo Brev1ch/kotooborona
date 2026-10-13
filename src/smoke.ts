@@ -10,6 +10,7 @@ import type { StoryScene } from './scenes/StoryScene';
 import type { UIScene } from './scenes/UIScene';
 import { GameEvent, SceneKey, type HudState, type LevelSceneData, type StorySceneData } from './scenes/keys';
 import type { GearSelection } from './systems/Progress';
+import { seedRandom } from './systems/Random';
 
 // Зонд для смоук-проверки (smoke/game.smoke.ts). Игра — один canvas, поэтому тест
 // читает состояние отсюда. Модуль подключается только по параметру ?smoke (см. main.ts).
@@ -219,7 +220,11 @@ function collectTexts(
   }
 }
 
+/** Зерно случайности игры в проверке: призывы, состав волн и кристаллы в каждом прогоне одни и те же. */
+const SMOKE_SEED = 20241;
+
 export function installSmokeProbe(game: Phaser.Game): void {
+  seedRandom(SMOKE_SEED);
   const steps: number[] = [];
   let stepStart = 0;
   let enemiesPeak = 0;
