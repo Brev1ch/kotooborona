@@ -11,7 +11,7 @@ export default defineConfig({
   reporter: 'list',
   workers: 1,
   retries: 0,
-  timeout: 60_000,
+  timeout: 120_000,
   use: {
     browserName: 'chromium',
     headless: true,

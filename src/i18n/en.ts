@@ -14,6 +14,8 @@ export const en: Record<StringKey, string> = {
   'wave.start': 'Wave {wave}',
   'wave.boss': 'Rat Commander!',
   'wave.bossSoon': 'Rat Commander! Wave {wave} incoming',
+  'wave.king': 'The Rat King!',
+  'wave.kingSoon': 'The Rat King! Wave {wave} incoming',
 
   'reward.gold': '+{gold}',
 
@@ -71,6 +73,15 @@ export const en: Record<StringKey, string> = {
   'chest.take': 'Take',
 
   'level.opushka': 'Forest Edge',
+  'level.tropinka': 'Trail',
+  'level.ruchey': 'Brook',
+  'level.dub': 'Old Oak',
+  'level.polyana': 'Glade',
+  'level.ovrag': 'Ravine',
+  'level.burelom': 'Thicket',
+  'level.melnitsa': 'Mill',
+  'level.most': 'Bridge',
+  'level.lager': "King's Camp",
 
   'cat.fire': 'Fire',
   'cat.water': 'Water',

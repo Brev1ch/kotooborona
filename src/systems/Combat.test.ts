@@ -48,7 +48,8 @@ const enemies: EnemiesConfig = {
     mouse: { ...type, lifeDamage: 1 },
     rat: { ...type, lifeDamage: 2, crystalChance: 0.3, crystalDrop: 1 },
     shield: { ...type, lifeDamage: 1 },
-    boss: { ...type, lifeDamage: 5, crystalChance: 1, crystalDrop: 2 },
+    boss: { ...type, lifeDamage: 5, crystalChance: 1, crystalDrop: 2, slowResist: true },
+    king: { ...type, lifeDamage: 20, slowResist: true, summon: { type: 'mouse', count: 2, interval: 2, spread: 10 } },
   },
 };
 
@@ -739,5 +740,74 @@ describe('Combat: взрыв по площади (метеор)', () => {
 
     expect(ofKind(events, 'killed')).toEqual([{ kind: 'killed', enemy: weak, x: 50, y: 50, gold: 7, crystals: 0 }]);
     expect(combat.enemies).toEqual([strong]);
+  });
+});
+
+describe('Combat: подмога короля', () => {
+  function king(distance: number, overrides: Partial<Enemy> = {}): Enemy {
+    return enemy('king', distance, {
+      hp: 1000,
+      maxHp: 1000,
+      summon: { timer: 2, interval: 2, count: 2, spread: 10, minion: enemy('mouse', 0, { hp: 7, maxHp: 7, speed: 40, gold: 3 }) },
+      ...overrides,
+    });
+  }
+
+  it('когда таймер вышел, позади короля появляются враги, и о каждом приходит событие', () => {
+    const boss = king(MIDDLE);
+    const combat = create([boss]);
+    const events = ofKind(run(combat, [], 2), 'spawned');
+
+    expect(events).toHaveLength(2);
+    expect(combat.enemies).toHaveLength(3);
+    expect(events.map((event) => event.enemy.distance)).toEqual([MIDDLE - 10, MIDDLE - 20]);
+    expect(events[0].enemy).toMatchObject({ type: 'mouse', hp: 7, speed: 40, gold: 3 });
+  });
+
+  it('призванные — отдельные враги: урон одному не трогает другого', () => {
+    const combat = create([king(MIDDLE)]);
+    const [first, second] = ofKind(run(combat, [], 2), 'spawned').map((event) => event.enemy);
+    first.hp = 1;
+
+    expect(second.hp).toBe(7);
+  });
+
+  it('призывы повторяются через интервал', () => {
+    const combat = create([king(MIDDLE)]);
+
+    expect(ofKind(run(combat, [], 6.1), 'spawned')).toHaveLength(6);
+  });
+
+  it('за краем поля король подмогу не зовёт, а таймер ждёт', () => {
+    const boss = king(0);
+    const combat = create([boss]);
+
+    expect(ofKind(run(combat, [], 5), 'spawned')).toEqual([]);
+    expect(boss.summon?.timer).toBe(2);
+  });
+
+  it('у самого входа призванные не появляются раньше начала дороги', () => {
+    // Король только вышел на поле: в 15 от начала дороги (поле начинается с 20, запас видимости 5).
+    const combat = create([king(15)]);
+    const spawned = ofKind(run(combat, [], 2), 'spawned').map((event) => event.enemy.distance);
+
+    expect(spawned).toEqual([5, 0]);
+  });
+
+  it('убитый король больше никого не призывает', () => {
+    const boss = king(MIDDLE, { hp: 5, maxHp: 5 });
+    const combat = create([boss]);
+    const events = run(combat, [cat('air', 1)], 6);
+
+    expect(ofKind(events, 'killed').map((event) => event.enemy)).toContain(boss);
+    expect(ofKind(events, 'spawned')).toEqual([]);
+  });
+
+  it('король, как и командир, замедляется слабее', () => {
+    const boss = king(MIDDLE);
+    const combat = create([boss]);
+    run(combat, [cat('water', 1)], 1);
+
+    expect(boss.slowFactor).toBe(0.75);
   });
 });

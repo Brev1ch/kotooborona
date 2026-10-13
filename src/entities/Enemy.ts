@@ -17,4 +17,16 @@ export interface Enemy {
   burnTime: number;
   poisonDps: number;
   poisonTime: number;
+  /** Подмога, которую призывает этот враг; `timer` — секунды до следующего призыва. */
+  summon?: EnemySummon;
+}
+
+export interface EnemySummon {
+  timer: number;
+  interval: number;
+  count: number;
+  /** Расстояние между призванными вдоль дороги. */
+  spread: number;
+  /** Призванный враг в момент появления; для каждого делается копия. */
+  minion: Enemy;
 }

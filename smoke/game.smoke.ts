@@ -548,3 +548,49 @@ test('новый игрок: закрытое снаряжение → побе�
     checkConsole('прокачка');
   });
 });
+
+test('все уровни главы запускаются; на последнем выходит король', async ({ page }) => {
+  await page.goto('/?smoke');
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.Menu),
+    (s) => `Игра не дошла до меню: ${scenesText(s)}`,
+  );
+  const ids = (await page.evaluate(() => window.__smoke?.levelIds())) ?? [];
+  if (ids.length !== 10) throw new Error(`В главе должно быть 10 уровней, а описано ${ids.length}`);
+
+  for (const [index, id] of ids.entries()) {
+    await test.step(`уровень ${index + 1}: ${id}`, async () => {
+      await page.evaluate((levelId) => window.__smoke?.startLevel(levelId), id);
+      await waitFor(
+        page,
+        SCREEN_TIMEOUT,
+        (s) => s.scenes.includes(SceneKey.UI) && s.hud !== null,
+        (s) => `Уровень ${id} не запустился: ${scenesText(s)}`,
+      );
+      // Коты на поле показывают, где клетки, а первая волна — где дорога.
+      for (let n = 0; n < CATS; n++) await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
+      await waitFor(
+        page,
+        WAVE_TIMEOUT,
+        (s) => s.enemies >= 3,
+        (s) => `На уровне ${id} не вышла первая волна (врагов ${s?.enemies ?? 0})`,
+      );
+      await page.waitForTimeout(WAVE_SETTLE_MS);
+      if (index === ids.length - 1) {
+        const before = (await state(page))?.enemies ?? 0;
+        await page.evaluate(() => window.__smoke?.spawnKing());
+        await waitFor(
+          page,
+          SUMMON_TIMEOUT,
+          (s) => s.enemies >= before + 3,
+          (s) => `Король не призвал подмогу: врагов было ${before}, стало ${s?.enemies ?? '?'}`,
+        );
+        await page.waitForTimeout(SPAWN_SETTLE_MS);
+      }
+      await page.screenshot({ path: `${SHOTS}/level-${String(index + 1).padStart(2, '0')}-${id}.png` });
+      checkConsole(`уровень ${id}`);
+    });
+  }
+});

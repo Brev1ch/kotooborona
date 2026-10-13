@@ -50,6 +50,8 @@ export type CombatEvent =
   /** Щит принял попадание на себя. */
   | { kind: 'blocked'; enemy: Enemy; x: number; y: number }
   | { kind: 'killed'; enemy: Enemy; x: number; y: number; gold: number; crystals: number }
+  /** Враг призвал подмогу: `enemy` уже на поле. */
+  | { kind: 'spawned'; enemy: Enemy }
   /** Облако или взрыв: задело всех в радиусе. */
   | { kind: 'splash'; x: number; y: number; radius: number; element: ElementId }
   /** Молния перескочила с врага на врага. */
@@ -112,6 +114,7 @@ export class Combat {
 
   private moveEnemies(dt: number): void {
     const { enemies, path } = this.setup;
+    const summoned: Enemy[] = [];
     for (const enemy of this.alive) {
       const [x, y] = positionAt(path, enemy.distance);
       if (enemy.slowTime > 0) {
@@ -129,6 +132,22 @@ export class Combat {
         if (enemy.poisonTime <= 0) enemy.poisonDps = 0;
       }
       enemy.distance += enemy.speed * enemy.slowFactor * dt;
+
+      // Подмога появляется позади призвавшего, и только пока он на поле: за его краем игрок её бы не увидел.
+      const { summon } = enemy;
+      if (summon && enemy.hp > 0 && this.visible(enemy)) {
+        summon.timer -= dt;
+        if (summon.timer <= 0) {
+          summon.timer += summon.interval;
+          for (let i = 1; i <= summon.count; i++) {
+            summoned.push({ ...summon.minion, distance: Math.max(0, enemy.distance - i * summon.spread) });
+          }
+        }
+      }
+    }
+    for (const enemy of summoned) {
+      this.alive.push(enemy);
+      this.events.push({ kind: 'spawned', enemy });
     }
 
     this.alive = this.alive.filter((enemy) => {
@@ -285,9 +304,10 @@ export class Combat {
     }
   }
 
-  /** Замедления не складываются: действует сильнейшее. Командир замедляется слабее. */
+  /** Замедления не складываются: действует сильнейшее. Командиры и король замедляются слабее. */
   private slow(enemy: Enemy, factor: number, time: number): void {
-    const applied = enemy.type === 'boss' ? 1 - (1 - factor) * this.setup.enemies.bossSlowResist : factor;
+    const { bossSlowResist, types } = this.setup.enemies;
+    const applied = types[enemy.type].slowResist ? 1 - (1 - factor) * bossSlowResist : factor;
     enemy.slowFactor = Math.min(enemy.slowTime > 0 ? enemy.slowFactor : 1, applied);
     enemy.slowTime = Math.max(enemy.slowTime, time);
   }

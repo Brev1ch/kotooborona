@@ -12,6 +12,8 @@ export const ru = {
   'wave.start': 'Волна {wave}',
   'wave.boss': 'Крыса-командир!',
   'wave.bossSoon': 'Крыса-командир! Волна {wave} скоро',
+  'wave.king': 'Крысиный король!',
+  'wave.kingSoon': 'Крысиный король! Волна {wave} скоро',
 
   'reward.gold': '+{gold}',
 
@@ -69,6 +71,15 @@ export const ru = {
   'chest.take': 'Забрать',
 
   'level.opushka': 'Опушка',
+  'level.tropinka': 'Тропинка',
+  'level.ruchey': 'Ручей',
+  'level.dub': 'Старый дуб',
+  'level.polyana': 'Поляна',
+  'level.ovrag': 'Овраг',
+  'level.burelom': 'Бурелом',
+  'level.melnitsa': 'Мельница',
+  'level.most': 'Мост',
+  'level.lager': 'Лагерь',
 
   'cat.fire': 'Огненный',
   'cat.water': 'Водный',

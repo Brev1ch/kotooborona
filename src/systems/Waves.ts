@@ -5,6 +5,8 @@ import type { Enemy } from '../entities/Enemy';
 export interface UpcomingWave {
   wave: number;
   boss: boolean;
+  /** На этой волне выходит Крысиный король. */
+  king: boolean;
 }
 
 /** Расписание волн и появление врагов. */
@@ -12,6 +14,8 @@ export class Waves {
   /** Номер идущей волны; 0 — первая ещё не началась. */
   wave = 0;
   private spawnLeft = 0;
+  /** Король этой волны ещё не вышел. */
+  private kingLeft = false;
   private spawnTimer = 0;
   private pause: number;
   /** Поле пусто, идёт отсчёт до следующей волны. */
@@ -29,14 +33,14 @@ export class Waves {
 
   /** Последняя волна выпущена целиком: новых врагов больше не будет. */
   get finished(): boolean {
-    return this.wave >= this.level.waves && this.spawnLeft === 0;
+    return this.wave >= this.level.waves && this.spawnLeft === 0 && !this.kingLeft;
   }
 
   /** Следующая волна, пока идёт пауза перед ней; иначе null. */
   get upcoming(): UpcomingWave | null {
-    if (!this.waiting || this.spawnLeft > 0 || this.finished) return null;
+    if (!this.waiting || this.spawnLeft > 0 || this.kingLeft || this.finished) return null;
     const wave = this.wave + 1;
-    return { wave, boss: this.isBossWave(wave) };
+    return { wave, boss: this.isBossWave(wave), king: wave === this.level.kingWave };
   }
 
   /**
@@ -44,9 +48,15 @@ export class Waves {
    * Пауза перед следующей волной идёт, только пока на поле никого нет.
    */
   update(dt: number, fieldEmpty: boolean): Enemy[] {
-    if (this.spawnLeft > 0) {
+    if (this.spawnLeft > 0 || this.kingLeft) {
       this.spawnTimer -= dt;
       if (this.spawnTimer > 0) return [];
+      // Король выходит первым, его армия — следом.
+      if (this.kingLeft) {
+        this.kingLeft = false;
+        this.spawnTimer = this.config.bossSpawnInterval;
+        return [this.createEnemy('king')];
+      }
       this.spawnLeft--;
       const boss = this.isBossWave(this.wave);
       this.spawnTimer = boss ? this.config.bossSpawnInterval : this.config.spawnInterval;
@@ -68,6 +78,7 @@ export class Waves {
     this.wave++;
     this.waiting = false;
     this.spawnTimer = 0;
+    this.kingLeft = this.wave === this.level.kingWave;
     const { enemiesBase, enemiesPerWave, bossesBase, extraBossEveryWaves } = this.config;
     this.spawnLeft = this.isBossWave(this.wave)
       ? bossesBase + Math.floor(this.wave / extraBossEveryWaves)
@@ -91,7 +102,16 @@ export class Waves {
     const { baseHp, hpGrowthPerWave, speedPerWave, bonusGoldEveryWaves, types } = this.enemies;
     const config = types[type];
     const hp = baseHp * Math.pow(hpGrowthPerWave, this.wave - 1) * this.level.hpMult * config.hp;
+    // Подмога призывающего врага — обычные враги этой же волны.
+    const summon = config.summon && {
+      timer: config.summon.interval,
+      interval: config.summon.interval,
+      count: config.summon.count,
+      spread: config.summon.spread,
+      minion: this.createEnemy(config.summon.type),
+    };
     return {
+      ...(summon ? { summon } : {}),
       type,
       distance: 0,
       hp,

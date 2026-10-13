@@ -50,7 +50,7 @@ export interface CatsConfig {
   effects: Record<CatEffect, Record<string, number>>;
 }
 
-export type EnemyTypeId = 'mouse' | 'rat' | 'shield' | 'boss';
+export type EnemyTypeId = 'mouse' | 'rat' | 'shield' | 'boss' | 'king';
 
 export interface EnemyTypeConfig {
   color: string;
@@ -63,6 +63,10 @@ export interface EnemyTypeConfig {
   shield: number;
   crystalChance: number;
   crystalDrop: number;
+  /** Замедляется слабее остальных: командиры и король. */
+  slowResist?: boolean;
+  /** Призывает подмогу: каждые `interval` секунд рядом появляются `count` врагов типа `type` на расстоянии `spread` друг от друга. */
+  summon?: { type: EnemyTypeId; count: number; interval: number; spread: number };
 }
 
 export interface EnemiesConfig {
@@ -83,6 +87,8 @@ export interface LevelConfig {
   hero: Point;
   waves: number;
   bossWaves: number[];
+  /** Волна, на которой вместе с обычными врагами выходит Крысиный король. */
+  kingWave?: number;
   maxCatLevel: number;
   startGold: number;
   startCrystals: number;

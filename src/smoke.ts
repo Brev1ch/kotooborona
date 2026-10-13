@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import { audio } from './audio';
-import { levels } from './data';
+import { enemies, levels } from './data';
+import type { Enemy } from './entities/Enemy';
 import { stress } from './debug';
 import { progress } from './progress';
 import type { GameScene } from './scenes/GameScene';
@@ -66,6 +67,10 @@ export interface SmokeProbe {
   state(): SmokeState;
   /** Сразу запускает бой, минуя меню и снаряжение; без id — на первом уровне. */
   startLevel(levelId?: string): void;
+  /** id всех уровней по порядку. */
+  levelIds(): string[];
+  /** Выпускает на дорогу Крысиного короля, уже прошедшего часть пути. */
+  spawnKing(): void;
   /** Обнуляет жизни: бой заканчивается поражением. */
   lose(): void;
   /** Заканчивает бой победой с теми жизнями, что есть. */
@@ -85,6 +90,23 @@ declare global {
     __smoke?: SmokeProbe;
   }
 }
+
+/** Враг без эффектов и наград: основа для врагов, которых проверка ставит на поле сама. */
+const BLANK_ENEMY: Enemy = {
+  type: 'mouse',
+  distance: 0,
+  hp: 1,
+  maxHp: 1,
+  speed: 0,
+  gold: 0,
+  shield: 0,
+  slowFactor: 1,
+  slowTime: 0,
+  burnDps: 0,
+  burnTime: 0,
+  poisonDps: 0,
+  poisonTime: 0,
+};
 
 type Bounded = Phaser.GameObjects.GameObject & { getBounds?: () => Phaser.Geom.Rectangle };
 
@@ -130,9 +152,29 @@ export function installSmokeProbe(game: Phaser.Game): void {
       return { frames: sorted.length, median: at(0.5), p95: at(0.95), worst: at(1), enemiesPeak, objectsPeak };
     },
     startLevel(levelId = levels.levels[0].id) {
-      for (const scene of game.scene.getScenes(true)) scene.scene.stop();
+      // Идущий бой менеджер сцен перезапустит сам; остальные экраны останавливаем.
+      for (const scene of game.scene.getScenes(true)) {
+        if (scene.scene.key !== SceneKey.Game) scene.scene.stop();
+      }
       const data: LevelSceneData = { levelId };
       game.scene.start(SceneKey.Game, data);
+    },
+    levelIds() {
+      return levels.levels.map((level) => level.id);
+    },
+    spawnKing() {
+      const scene = game.scene.getScene(SceneKey.Game) as GameScene;
+      const type = enemies.types.king;
+      const minion = { ...BLANK_ENEMY, type: 'mouse' as const, hp: 20, maxHp: 20, speed: enemies.types.mouse.speed };
+      scene.addEnemy({
+        ...BLANK_ENEMY,
+        type: 'king',
+        distance: 260,
+        hp: 5000,
+        maxHp: 5000,
+        speed: type.speed,
+        summon: { timer: 0.5, interval: 2, count: 2, spread: 14, minion },
+      });
     },
     lose() {
       (game.scene.getScene(SceneKey.Game) as GameScene).economy.loseLives(Infinity);

@@ -37,6 +37,7 @@ const enemies: EnemiesConfig = {
     rat: { ...type, hp: 3, speed: 32, gold: 5, shield: 0 },
     shield: { ...type, hp: 1.5, speed: 38, gold: 4, shield: 3 },
     boss: { ...type, hp: 14, speed: 26, gold: 30, shield: 0 },
+    king: { ...type, hp: 50, speed: 20, gold: 80, shield: 0, summon: { type: 'mouse', count: 2, interval: 6, spread: 14 } },
   },
 };
 
@@ -136,7 +137,7 @@ describe('Waves: расписание', () => {
 
 describe('Waves: объявление следующей волны', () => {
   it('до первой волны объявляет первую', () => {
-    expect(create().upcoming).toEqual({ wave: 1, boss: false });
+    expect(create().upcoming).toEqual({ wave: 1, boss: false, king: false });
   });
 
   it('пока волна идёт, объявления нет', () => {
@@ -158,7 +159,7 @@ describe('Waves: объявление следующей волны', () => {
     const waves = create();
     skipWaves(waves, 3);
 
-    expect(waves.upcoming).toEqual({ wave: 4, boss: true });
+    expect(waves.upcoming).toEqual({ wave: 4, boss: true, king: false });
   });
 
   it('после последней волны объявлять нечего', () => {
@@ -250,5 +251,58 @@ describe('Waves: враги', () => {
     // HP: 10 × 2^3 × 2 × 14; монеты: 30 + ⌊4/2⌋.
     expect(bosses.map((enemy) => enemy.type)).toEqual(['boss', 'boss', 'boss']);
     expect(bosses[0]).toMatchObject({ hp: 2240, speed: 30, gold: 32 });
+  });
+});
+
+describe('Waves: Крысиный король', () => {
+  const kingLevel: LevelConfig = { ...level, waves: 3, bossWaves: [], kingWave: 3 };
+
+  function createKing(): Waves {
+    return new Waves(config, kingLevel, enemies, () => 0.9);
+  }
+
+  it('объявление волны говорит, что идёт король', () => {
+    const waves = createKing();
+    expect(waves.upcoming).toEqual({ wave: 1, boss: false, king: false });
+
+    skipWaves(waves, 2);
+    expect(waves.upcoming).toEqual({ wave: 3, boss: false, king: true });
+  });
+
+  it('король выходит первым, за ним — обычные враги волны', () => {
+    const waves = createKing();
+    skipWaves(waves, 2);
+    const spawned = nextWave(waves);
+
+    // Обычная третья волна — 2 + 3 врага, и король перед ними.
+    expect(spawned.map((enemy) => enemy.type)).toEqual(['king', 'mouse', 'mouse', 'mouse', 'mouse', 'mouse']);
+  });
+
+  it('у короля здоровье волны и подмога из врагов той же волны', () => {
+    const waves = createKing();
+    skipWaves(waves, 2);
+    const [king] = nextWave(waves);
+
+    // База 10 × рост 2² × живучесть уровня 2 = 80; у короля ×50, у мыши ×1.
+    expect(king.hp).toBe(4000);
+    expect(king.summon).toMatchObject({ timer: 6, interval: 6, count: 2, spread: 14 });
+    expect(king.summon?.minion).toMatchObject({ type: 'mouse', hp: 80, speed: 47, distance: 0 });
+    expect(king.summon?.minion.summon).toBeUndefined();
+  });
+
+  it('волна не закончена, пока король не вышел', () => {
+    const waves = createKing();
+    skipWaves(waves, 2);
+    // Пауза перед волной: волна началась, но первый враг ещё не появился.
+    while (waves.wave < 3) waves.update(DT, true);
+
+    expect(waves.finished).toBe(false);
+    run(waves, 20);
+    expect(waves.finished).toBe(true);
+  });
+
+  it('у обычных врагов подмоги нет', () => {
+    const waves = createKing();
+    expect(nextWave(waves).every((enemy) => enemy.summon === undefined)).toBe(true);
   });
 });

@@ -351,6 +351,10 @@ export class GameScene extends Phaser.Scene {
   /** Выпускает врага на дорогу. Открыт наружу для отладочных кнопок (src/debug.ts). */
   addEnemy(enemy: Enemy): void {
     this.combat.add(enemy);
+    this.addEnemyView(enemy);
+  }
+
+  private addEnemyView(enemy: Enemy): void {
     this.enemyViews.set(enemy, new EnemyView(this, ...positionAt(this.path, enemy.distance), enemy));
   }
 
@@ -432,6 +436,11 @@ export class GameScene extends Phaser.Scene {
 
       case 'blocked':
         this.enemyViews.get(event.enemy)?.playBlock();
+        break;
+
+      case 'spawned':
+        // Подмога короля уже в бою — ей нужна только картинка.
+        this.addEnemyView(event.enemy);
         break;
 
       case 'killed':

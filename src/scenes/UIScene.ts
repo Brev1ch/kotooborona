@@ -532,7 +532,8 @@ export class UIScene extends Phaser.Scene {
       this.waveBanner.destroy();
     }
 
-    const boss = this.level.bossWaves.includes(wave);
+    const king = this.level.kingWave === wave;
+    const boss = king || this.level.bossWaves.includes(wave);
     const accent = boss ? COLORS.danger : COLORS.brass;
     const bg = this.add.graphics();
     bg.fillStyle(COLORS.bg, WAVE_BANNER_FEEL.bgAlpha);
@@ -552,7 +553,7 @@ export class UIScene extends Phaser.Scene {
     if (boss) {
       parts.push(
         this.add
-          .text(0, WAVE_BANNER_SUBTITLE_Y, t('wave.boss'), { fontFamily: FONTS.body, fontSize: '13px', color: TEXT_COLORS.fg })
+          .text(0, WAVE_BANNER_SUBTITLE_Y, t(king ? 'wave.king' : 'wave.boss'), { fontFamily: FONTS.body, fontSize: '13px', color: TEXT_COLORS.fg })
           .setOrigin(0.5),
       );
     }
@@ -604,8 +605,8 @@ export class UIScene extends Phaser.Scene {
       return;
     }
     this.announce
-      .setText(t(upcoming.boss ? 'wave.bossSoon' : 'wave.soon', { wave }))
-      .setColor(upcoming.boss ? TEXT_COLORS.danger : TEXT_COLORS.fg)
+      .setText(t(upcoming.king ? 'wave.kingSoon' : upcoming.boss ? 'wave.bossSoon' : 'wave.soon', { wave }))
+      .setColor(upcoming.boss || upcoming.king ? TEXT_COLORS.danger : TEXT_COLORS.fg)
       .setBackgroundColor(ANNOUNCE_BG);
     this.tweens.add({ targets: this.announce, alpha: 1, duration: ANNOUNCE_FEEL.showMs });
   }

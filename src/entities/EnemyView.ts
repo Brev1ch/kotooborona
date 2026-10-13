@@ -22,6 +22,16 @@ function drawBody(g: Phaser.GameObjects.Graphics, type: EnemyTypeId): void {
     g.fillStyle(COLORS.brass);
     g.fillRect(-r * 0.3, -r * 0.35, r * 0.6, r * 0.7);
   }
+  if (type === 'king') {
+    // Корона, вид сверху: обруч с тремя зубцами в сторону носа и красный камень.
+    g.fillStyle(COLORS.brass);
+    g.fillRect(-r * 0.45, -r * 0.5, r * 0.4, r);
+    g.fillTriangle(-r * 0.05, -r * 0.5, -r * 0.05, -r * 0.18, r * 0.4, -r * 0.34);
+    g.fillTriangle(-r * 0.05, -r * 0.16, -r * 0.05, r * 0.16, r * 0.45, 0);
+    g.fillTriangle(-r * 0.05, r * 0.18, -r * 0.05, r * 0.5, r * 0.4, r * 0.34);
+    g.fillStyle(COLORS.danger);
+    g.fillCircle(-r * 0.25, 0, r * 0.13);
+  }
 }
 
 /**
