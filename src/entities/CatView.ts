@@ -2,10 +2,14 @@ import Phaser from 'phaser';
 import { cats, elementColor } from '../data';
 import { CAT_FEEL, MERGE_FEEL, RITUAL_FEEL, SHOT_FEEL } from '../feel';
 import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
+import { addBakedShape } from '../scenes/textures';
 import type { Cat } from './Cat';
 
 const BODY_RADIUS = 21;
 const BODY_Y = 3;
+/** Прямоугольник вокруг центра, в который помещается силуэт. */
+const SHAPE_W = 48;
+const SHAPE_H = 58;
 
 /** Силуэт кота: два уха и круглое тело. Рисуется вокруг начала координат `g`. */
 export function drawCatShape(g: Phaser.GameObjects.Graphics, earLeft: number, earRight: number, body: number): void {
@@ -19,17 +23,21 @@ export function drawCatShape(g: Phaser.GameObjects.Graphics, earLeft: number, ea
 
 /** Временный вид кота: круг цвета стихии, уши и цифра уровня. */
 export class CatView extends Phaser.GameObjects.Container {
-  private readonly shape: Phaser.GameObjects.Graphics;
+  private readonly shape: Phaser.GameObjects.Image;
+  /** Масштаб картинки силуэта в покое: текстура крупнее, чем кот на экране. */
+  private readonly shapeScale: number;
   private readonly label: Phaser.GameObjects.Text;
   private ritualRing: Phaser.GameObjects.Graphics | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number, cat: Cat) {
     super(scene, x, y);
 
-    const g = scene.add.graphics();
-    // У гибрида уши в цветах исходных стихий.
+    // У гибрида уши в цветах исходных стихий. Силуэт запечён в текстуру: по одной на стихию.
     const [earLeft, earRight] = cats.elements[cat.element].from ?? [cat.element, cat.element];
-    drawCatShape(g, elementColor(earLeft), elementColor(earRight), elementColor(cat.element));
+    const g = addBakedShape(scene, `cat-${cat.element}`, SHAPE_W, SHAPE_H, (shape) => {
+      drawCatShape(shape, elementColor(earLeft), elementColor(earRight), elementColor(cat.element));
+    });
+    const shapeScale = g.scale;
 
     const level = scene.add
       .text(0, BODY_Y, String(cat.level), {
@@ -40,6 +48,7 @@ export class CatView extends Phaser.GameObjects.Container {
       .setOrigin(0.5);
 
     this.shape = g;
+    this.shapeScale = shapeScale;
     this.label = level;
     this.add([g, level]);
     this.setDepth(DEPTH.cat);
@@ -60,8 +69,8 @@ export class CatView extends Phaser.GameObjects.Container {
   /** Отдача при выстреле: вздрагивает только фигура, чтобы не спорить с анимациями самого кота. */
   playShot(): void {
     this.scene.tweens.killTweensOf(this.shape);
-    this.shape.setScale(SHOT_FEEL.recoilScale);
-    this.scene.tweens.add({ targets: this.shape, scale: 1, duration: SHOT_FEEL.recoilMs });
+    this.shape.setScale(this.shapeScale * SHOT_FEEL.recoilScale);
+    this.scene.tweens.add({ targets: this.shape, scale: this.shapeScale, duration: SHOT_FEEL.recoilMs });
   }
 
   /** Кот проводит ритуал: полупрозрачный, вокруг — кольцо прогресса. */

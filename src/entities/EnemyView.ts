@@ -1,64 +1,80 @@
 import Phaser from 'phaser';
-import { elementColor, enemies, enemyColor } from '../data';
+import { elementColor, enemies, enemyColor, type EnemyTypeId } from '../data';
 import { ENEMY_FEEL, STATUS_FEEL } from '../feel';
 import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
+import { addBakedShape, ensureTextures, Texture } from '../scenes/textures';
 import type { Enemy } from './Enemy';
 
-/** Временный вид врага: мышь сверху, носом по ходу движения, с полоской здоровья. */
+/** Тело мыши вокруг начала координат, носом вправо. */
+function drawBody(g: Phaser.GameObjects.Graphics, type: EnemyTypeId): void {
+  const r = enemies.types[type].radius;
+  const color = enemyColor(type);
+  g.lineStyle(2, color);
+  g.lineBetween(-r, 0, -r * 1.6, r * 0.35);
+  g.lineBetween(-r * 1.6, r * 0.35, -r * 2.2, 0);
+  g.fillStyle(color);
+  g.fillEllipse(0, 0, r * 2.3, r * 1.7);
+  g.fillCircle(r * 0.3, -r * 0.7, r * 0.4);
+  g.fillCircle(r * 0.3, r * 0.7, r * 0.4);
+  g.fillStyle(COLORS.enemyNose);
+  g.fillCircle(r * 1.15, 0, r * 0.18);
+  if (type === 'boss') {
+    g.fillStyle(COLORS.brass);
+    g.fillRect(-r * 0.3, -r * 0.35, r * 0.6, r * 0.7);
+  }
+}
+
+/**
+ * Временный вид врага: мышь сверху, носом по ходу движения, с полоской здоровья.
+ * Тело, щит и метки эффектов — картинки из запечённых текстур: на поле десятки врагов, и рисовать каждого заново каждый кадр дорого.
+ */
 export class EnemyView extends Phaser.GameObjects.Container {
   private readonly radius: number;
   /** Поворачивается по ходу движения; полоска здоровья остаётся горизонтальной. */
   private readonly turning: Phaser.GameObjects.Container;
   /** Белый силуэт поверх тела: вспыхивает при попадании. */
-  private readonly flash: Phaser.GameObjects.Graphics;
-  private readonly shield: Phaser.GameObjects.Container;
-  private readonly shieldCount: Phaser.GameObjects.Text;
+  private readonly flash: Phaser.GameObjects.Image;
+  /** Щит и число на нём; только у врага, который пришёл со щитом. */
+  private readonly shield: Phaser.GameObjects.Container | null = null;
+  private readonly shieldCount: Phaser.GameObjects.Text | null = null;
   private readonly bar: Phaser.GameObjects.Graphics;
-  private readonly marks: Phaser.GameObjects.Graphics;
+  /** Кольцо замедления и точки огня и яда; создаются, когда эффект впервые наложен. */
+  private slowRing: Phaser.GameObjects.Image | null = null;
+  private burnDot: Phaser.GameObjects.Image | null = null;
+  private poisonDot: Phaser.GameObjects.Image | null = null;
   private shownHp = -1;
+  private shownShield = -1;
   private shownStatus = '';
 
   constructor(scene: Phaser.Scene, x: number, y: number, enemy: Enemy) {
     super(scene, x, y);
 
     const r = enemies.types[enemy.type].radius;
-    const color = enemyColor(enemy.type);
     this.radius = r;
+    ensureTextures(scene);
 
-    const g = scene.add.graphics();
-    g.lineStyle(2, color);
-    g.lineBetween(-r, 0, -r * 1.6, r * 0.35);
-    g.lineBetween(-r * 1.6, r * 0.35, -r * 2.2, 0);
-    g.fillStyle(color);
-    g.fillEllipse(0, 0, r * 2.3, r * 1.7);
-    g.fillCircle(r * 0.3, -r * 0.7, r * 0.4);
-    g.fillCircle(r * 0.3, r * 0.7, r * 0.4);
-    g.fillStyle(COLORS.enemyNose);
-    g.fillCircle(r * 1.15, 0, r * 0.18);
-    if (enemy.type === 'boss') {
-      g.fillStyle(COLORS.brass);
-      g.fillRect(-r * 0.3, -r * 0.35, r * 0.6, r * 0.7);
+    // Прямоугольник вокруг центра: хвост уходит назад на 2,2 радиуса, уши — в стороны на 1,1.
+    const key = `enemy-${enemy.type}`;
+    const draw = (g: Phaser.GameObjects.Graphics): void => drawBody(g, enemy.type);
+    const body = addBakedShape(scene, key, r * 4.8, r * 2.6, draw);
+    this.flash = addBakedShape(scene, key, r * 4.8, r * 2.6, draw).setTintFill(COLORS.flash).setAlpha(0);
+    this.turning = scene.add.container(0, 0, [body, this.flash]);
+
+    if (enemy.shield > 0) {
+      const plate = addBakedShape(scene, `shield-${enemy.type}`, r, r * 2, (g) => {
+        g.fillStyle(COLORS.shield);
+        g.fillEllipse(0, 0, r * 0.7, r * 1.8);
+      });
+      // Сколько попаданий щит ещё выдержит.
+      this.shieldCount = scene.add
+        .text(0, 0, '', { fontFamily: FONTS.body, fontSize: '9px', color: TEXT_COLORS.dark })
+        .setOrigin(0.5);
+      this.shield = scene.add.container(r * 1.3, 0, [plate, this.shieldCount]);
+      this.turning.add(this.shield);
     }
 
-    this.flash = scene.add.graphics().setAlpha(0);
-    this.flash.fillStyle(COLORS.flash);
-    this.flash.fillEllipse(0, 0, r * 2.3, r * 1.7);
-    this.flash.fillCircle(r * 0.3, -r * 0.7, r * 0.4);
-    this.flash.fillCircle(r * 0.3, r * 0.7, r * 0.4);
-
-    const plate = scene.add.graphics();
-    plate.fillStyle(COLORS.shield);
-    plate.fillEllipse(0, 0, r * 0.7, r * 1.8);
-    // Сколько попаданий щит ещё выдержит.
-    this.shieldCount = scene.add
-      .text(0, 0, '', { fontFamily: FONTS.body, fontSize: '9px', color: TEXT_COLORS.dark })
-      .setOrigin(0.5);
-    this.shield = scene.add.container(r * 1.3, 0, [plate, this.shieldCount]);
-
-    this.turning = scene.add.container(0, 0, [g, this.flash, this.shield]);
     this.bar = scene.add.graphics();
-    this.marks = scene.add.graphics();
-    this.add([this.turning, this.marks, this.bar]);
+    this.add([this.turning, this.bar]);
     this.setDepth(DEPTH.enemy);
     scene.add.existing(this);
 
@@ -69,8 +85,11 @@ export class EnemyView extends Phaser.GameObjects.Container {
   sync(enemy: Enemy, x: number, y: number, angle: number): void {
     this.setPosition(x, y);
     this.turning.setRotation(angle);
-    this.shield.setVisible(enemy.shield > 0);
-    this.shieldCount.setText(String(enemy.shield));
+    if (enemy.shield !== this.shownShield) {
+      this.shownShield = enemy.shield;
+      this.shield?.setVisible(enemy.shield > 0);
+      this.shieldCount?.setText(String(enemy.shield));
+    }
     this.syncStatus(enemy);
 
     if (enemy.hp === this.shownHp) return;
@@ -95,20 +114,22 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.shownStatus = status;
 
     const r = this.radius;
-    const g = this.marks;
-    g.clear();
     if (slowed) {
-      g.lineStyle(STATUS_FEEL.ringWidth, elementColor(frozen ? 'ice' : 'water'));
-      g.strokeCircle(0, 0, r + STATUS_FEEL.ringGap);
+      this.slowRing ??= this.addMark(Texture.ring, 0, 0, (r + STATUS_FEEL.ringGap) * 2);
+      this.slowRing.setTint(elementColor(frozen ? 'ice' : 'water'));
     }
-    if (burning) {
-      g.fillStyle(elementColor('fire'));
-      g.fillCircle(-r * 0.6, -r, STATUS_FEEL.dotRadius);
-    }
-    if (poisoned) {
-      g.fillStyle(elementColor('swamp'));
-      g.fillCircle(r * 0.6, -r, STATUS_FEEL.dotRadius);
-    }
+    this.slowRing?.setVisible(slowed);
+    if (burning) this.burnDot ??= this.addMark(Texture.dot, -r * 0.6, -r, STATUS_FEEL.dotRadius * 2).setTint(elementColor('fire'));
+    this.burnDot?.setVisible(burning);
+    if (poisoned) this.poisonDot ??= this.addMark(Texture.dot, r * 0.6, -r, STATUS_FEEL.dotRadius * 2).setTint(elementColor('swamp'));
+    this.poisonDot?.setVisible(poisoned);
+  }
+
+  /** Метка эффекта диаметром `size`; ложится под полоску здоровья. */
+  private addMark(texture: string, x: number, y: number, size: number): Phaser.GameObjects.Image {
+    const mark = this.scene.add.image(x, y, texture).setDisplaySize(size, size);
+    this.addAt(mark, this.getIndex(this.bar));
+    return mark;
   }
 
   /** Попадание прошло: враг вздрагивает и на миг белеет. */
@@ -121,13 +142,15 @@ export class EnemyView extends Phaser.GameObjects.Container {
 
   /** Щит принял попадание. */
   playBlock(): void {
-    this.pulse(this.shield, ENEMY_FEEL.blockScale, ENEMY_FEEL.blockMs);
+    if (this.shield) this.pulse(this.shield, ENEMY_FEEL.blockScale, ENEMY_FEEL.blockMs);
   }
 
   /** Враг убит: сжимается, гаснет и удаляется. */
   playDeath(): void {
     this.bar.setVisible(false);
-    this.marks.setVisible(false);
+    this.slowRing?.setVisible(false);
+    this.burnDot?.setVisible(false);
+    this.poisonDot?.setVisible(false);
     this.scene.tweens.killTweensOf([this.turning, this.flash]);
     this.scene.tweens.add({
       targets: this,

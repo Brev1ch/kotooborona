@@ -24,10 +24,12 @@ import {
   TEXT_COLORS,
 } from '../layout';
 import { progress } from '../progress';
+import { Pool } from '../systems/Pool';
 import { MAX_STARS } from '../systems/Progress';
 import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
 import { GameEvent, SceneKey, type LevelResult, type LevelSceneData, type RewardDrop } from './keys';
+import { bakeTexture } from './textures';
 import { fadeIn, fadeOut } from './transitions';
 import { addButton, addCoinIcon, addCrystalIcon, addPressFeel, addSoundToggle } from './widgets';
 
@@ -36,8 +38,16 @@ const STAT_COUNT = 4;
 /** Ширина одного показателя: полоса делится между ними и кнопкой паузы. */
 const STAT_W = (GAME_W - HUD_PAD * 2 - MIN_TOUCH - STAT_GAP * STAT_COUNT) / STAT_COUNT;
 const STAT_H = 40;
+const STAT_Y = (HUD_H - STAT_H) / 2;
 const STAT_LABEL_Y = 6;
 const STAT_VALUE_Y = 17;
+const HUD_TEXTURE = 'hud';
+
+/** Левый край показателя с номером `index`. */
+function statX(index: number): number {
+  return HUD_PAD + index * (STAT_W + STAT_GAP);
+}
+
 /** Значок паузы: две полоски. */
 const PAUSE_BAR = { width: 5, height: 16, gap: 6 };
 
@@ -103,6 +113,9 @@ export class UIScene extends Phaser.Scene {
   /** Волна, начало которой уже объявлено баннером. */
   private startedWave = 0;
   private waveBanner: Phaser.GameObjects.Container | null = null;
+  /** Летящие монеты и кристаллы берутся из пулов: за волну их сотни. */
+  private coinPool!: Pool<Phaser.GameObjects.Image>;
+  private crystalPool!: Pool<Phaser.GameObjects.Image>;
   /** Меню паузы, пока оно открыто. */
   private pauseMenu: Phaser.GameObjects.Container | null = null;
 
@@ -116,19 +129,28 @@ export class UIScene extends Phaser.Scene {
 
   create(): void {
     fadeIn(this);
-    const g = this.add.graphics();
-    g.fillStyle(COLORS.bg);
-    g.fillRect(0, 0, GAME_W, HUD_H);
-    g.fillRect(0, CONTROLS_Y, GAME_W, CONTROLS_H);
+    // Полосы и рамки показателей не меняются — запекаются в одну картинку.
+    bakeTexture(this, HUD_TEXTURE, GAME_W, GAME_H, (g) => {
+      g.fillStyle(COLORS.bg);
+      g.fillRect(0, 0, GAME_W, HUD_H);
+      g.fillRect(0, CONTROLS_Y, GAME_W, CONTROLS_H);
+      g.fillStyle(COLORS.panel);
+      g.lineStyle(1, COLORS.line);
+      for (let index = 0; index < STAT_COUNT; index++) {
+        g.fillRoundedRect(statX(index), STAT_Y, STAT_W, STAT_H, 8);
+        g.strokeRoundedRect(statX(index), STAT_Y, STAT_W, STAT_H, 8);
+      }
+    });
+    this.add.image(0, 0, HUD_TEXTURE).setOrigin(0);
 
     // Стартовые запасы берутся из боя, а не из уровня: снаряжение их меняет.
     this.gameScene = this.scene.get(SceneKey.Game) as GameScene;
     const { gold, crystals, lives, wave, totalWaves } = this.gameScene.hudState();
-    this.goldText = this.addStat(g, 0, 'hud.gold', String(gold), TEXT_COLORS.brass);
-    this.crystalsText = this.addStat(g, 1, 'hud.crystals', String(crystals), TEXT_COLORS.crystal);
+    this.goldText = this.addStat(0, 'hud.gold', String(gold), TEXT_COLORS.brass);
+    this.crystalsText = this.addStat(1, 'hud.crystals', String(crystals), TEXT_COLORS.crystal);
     const waveValue = t('hud.waveValue', { current: wave, total: totalWaves });
-    this.waveText = this.addStat(g, 2, 'hud.wave', waveValue, TEXT_COLORS.fg);
-    this.livesText = this.addStat(g, 3, 'hud.lives', String(lives), TEXT_COLORS.danger);
+    this.waveText = this.addStat(2, 'hud.wave', waveValue, TEXT_COLORS.fg);
+    this.livesText = this.addStat(3, 'hud.lives', String(lives), TEXT_COLORS.danger);
 
     this.announcedWave = 0;
     this.startedWave = wave;
@@ -142,6 +164,8 @@ export class UIScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setAlpha(0);
 
+    this.coinPool = new Pool(() => addCoinIcon(this, 0, 0, COIN_FEEL.size));
+    this.crystalPool = new Pool(() => addCrystalIcon(this, 0, 0, COIN_FEEL.crystalSize));
     this.addSummonButton();
     this.addMeteorButton();
     this.addPauseButton();
@@ -169,7 +193,10 @@ export class UIScene extends Phaser.Scene {
 
     // Ветка и сам модуль вырезаются из сборки для игроков.
     if (import.meta.env.DEV) {
-      void import('../debug').then(({ addDebugButtons }) => addDebugButtons(this, this.gameScene));
+      void import('../debug').then(({ addDebugButtons, addFpsCounter }) => {
+        addDebugButtons(this, this.gameScene);
+        addFpsCounter(this);
+      });
     }
   }
 
@@ -353,16 +380,25 @@ export class UIScene extends Phaser.Scene {
     const screenY = y + BOARD_Y;
     const coins = Math.min(COIN_FEEL.maxCoins, Math.ceil(gold / COIN_FEEL.goldPerCoin));
     for (let i = 0; i < coins; i++) {
-      this.flyIcon(addCoinIcon(this, x, screenY, COIN_FEEL.size), this.goldText, i, 'coins');
+      this.flyIcon(this.coinPool, COIN_FEEL.size, x, screenY, this.goldText, i, 'coins');
     }
     // Кристаллы летят следом за монетами.
     for (let i = 0; i < Math.min(COIN_FEEL.maxCoins, crystals); i++) {
-      this.flyIcon(addCrystalIcon(this, x, screenY, COIN_FEEL.crystalSize), this.crystalsText, coins + i);
+      this.flyIcon(this.crystalPool, COIN_FEEL.crystalSize, x, screenY, this.crystalsText, coins + i);
     }
   }
 
-  /** Значок отскакивает от врага в случайную сторону, затем летит в счётчик; `order` задаёт очерёдность вылета. */
-  private flyIcon(icon: Phaser.GameObjects.Image, counter: Phaser.GameObjects.Text, order: number, sound?: SoundId): void {
+  /** Значок из пула отскакивает от врага в случайную сторону, затем летит в счётчик; `order` задаёт очерёдность вылета. */
+  private flyIcon(
+    pool: Pool<Phaser.GameObjects.Image>,
+    size: number,
+    x: number,
+    y: number,
+    counter: Phaser.GameObjects.Text,
+    order: number,
+    sound?: SoundId,
+  ): void {
+    const icon = pool.acquire().setPosition(x, y).setDisplaySize(size, size).setVisible(true);
     const angle = Math.random() * Math.PI * 2;
     const distance = COIN_FEEL.scatter * (0.5 + Math.random() * 0.5);
     this.tweens.chain({
@@ -384,7 +420,8 @@ export class UIScene extends Phaser.Scene {
         },
       ],
       onComplete: () => {
-        icon.destroy();
+        icon.setVisible(false);
+        pool.release(icon);
         if (sound) audio.play(sound);
         this.pulseStat(counter);
       },
@@ -614,22 +651,9 @@ export class UIScene extends Phaser.Scene {
     });
   }
 
-  private addStat(
-    g: Phaser.GameObjects.Graphics,
-    index: number,
-    label: StringKey,
-    value: string,
-    valueColor: string,
-  ): Phaser.GameObjects.Text {
-    const w = STAT_W;
-    const h = STAT_H;
-    const x = HUD_PAD + index * (w + STAT_GAP);
-    const y = (HUD_H - h) / 2;
-
-    g.fillStyle(COLORS.panel);
-    g.lineStyle(1, COLORS.line);
-    g.fillRoundedRect(x, y, w, h, 8);
-    g.strokeRoundedRect(x, y, w, h, 8);
+  private addStat(index: number, label: StringKey, value: string, valueColor: string): Phaser.GameObjects.Text {
+    const x = statX(index);
+    const y = STAT_Y;
 
     this.add.text(x + 7, y + STAT_LABEL_Y, t(label).toUpperCase(), {
       fontFamily: FONTS.body,

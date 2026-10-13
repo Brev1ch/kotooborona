@@ -16,6 +16,7 @@ import { Economy, starsFor } from '../systems/Economy';
 import { gearBonuses } from '../systems/Loadout';
 import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
 import { Meteor } from '../systems/Meteor';
+import { Pool } from '../systems/Pool';
 import { buildPath, positionAt, type Path } from '../systems/Path';
 import { Summon } from '../systems/Summon';
 import { Waves } from '../systems/Waves';
@@ -28,7 +29,7 @@ import {
   type MeteorState,
   type RewardDrop,
 } from './keys';
-import { ensureTextures, Texture } from './textures';
+import { bakeTexture, CIRCLE_RADIUS, ensureTextures, Texture } from './textures';
 import { fadeIn } from './transitions';
 import { addCrystalIcon } from './widgets';
 
@@ -41,6 +42,18 @@ const BLOCK_TEXT: Record<MergeBlock, StringKey> = {
 const MAX_STEP = 0.05;
 /** На сколько вперёд по дороге смотрит враг, чтобы повернуться по ходу. */
 const LOOK_AHEAD = 2;
+
+/** Всплывающая награда над убитым врагом: монеты и, если выпали, кристаллы. */
+interface RewardLabel {
+  box: Phaser.GameObjects.Container;
+  gold: Phaser.GameObjects.Text;
+  icon: Phaser.GameObjects.Image;
+  count: Phaser.GameObjects.Text;
+  /** Цвет текста сейчас — как у награды с кристаллами. */
+  crystal: boolean;
+}
+
+const REWARD_STYLE = { fontFamily: FONTS.display, fontSize: '13px' };
 
 interface Drag {
   pointerId: number;
@@ -73,7 +86,16 @@ export class GameScene extends Phaser.Scene {
   private waves!: Waves;
   private combat!: Combat;
   private enemyViews = new Map<Enemy, EnemyView>();
-  private projectileViews = new Map<Projectile, Phaser.GameObjects.Arc>();
+  private projectileViews = new Map<Projectile, Phaser.GameObjects.Image>();
+  // Пулы: то, что в бою появляется и исчезает десятки раз в секунду, не создаётся заново, а берётся отсюда.
+  private shots!: Pool<Phaser.GameObjects.Image>;
+  /** Круги вспышек по площади. */
+  private discs!: Pool<Phaser.GameObjects.Image>;
+  /** Расходящиеся кольца: буря, слияние. */
+  private rings!: Pool<Phaser.GameObjects.Image>;
+  /** Холсты для молний и взрыва метеора. */
+  private canvases!: Pool<Phaser.GameObjects.Graphics>;
+  private rewards!: Pool<RewardLabel>;
   /** Номер волны и объявление, уже показанные в HUD. */
   private shownWave = '';
   /** Бой окончен: поле замирает, призыв и перетаскивание отключены. */
@@ -106,10 +128,14 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(COLORS.board);
     fadeIn(this);
 
-    const g = this.add.graphics();
-    this.drawRoad(g, this.level.path);
-    this.drawGate(g, this.level.path[this.level.path.length - 1]);
-    this.drawSlots(g, this.level.slots);
+    // Дорога, ворота и клетки не меняются — запекаются в одну картинку.
+    const boardKey = `board-${this.level.id}`;
+    bakeTexture(this, boardKey, BOARD_W, BOARD_H, (g) => {
+      this.drawRoad(g, this.level.path);
+      this.drawGate(g, this.level.path[this.level.path.length - 1]);
+      this.drawSlots(g, this.level.slots);
+    });
+    this.add.image(0, 0, boardKey).setOrigin(0);
 
     const worn = progress.gear;
     const bonuses = gearBonuses(gear, worn);
@@ -155,6 +181,7 @@ export class GameScene extends Phaser.Scene {
     this.rangeRing = this.add.graphics().setDepth(DEPTH.fx).setVisible(false);
     this.addAimLayers();
     this.addParticles();
+    this.addPools();
 
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.onPointerDown, this);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.onPointerMove, this);
@@ -237,10 +264,7 @@ export class GameScene extends Phaser.Scene {
   private updateBattle(dt: number): void {
     let changed = false;
 
-    for (const enemy of this.waves.update(dt, this.combat.enemies.length === 0)) {
-      this.combat.add(enemy);
-      this.enemyViews.set(enemy, new EnemyView(this, ...positionAt(this.path, enemy.distance), enemy));
-    }
+    for (const enemy of this.waves.update(dt, this.combat.enemies.length === 0)) this.addEnemy(enemy);
 
     for (const event of this.combat.update(dt, this.board)) {
       if (this.handleCombatEvent(event)) changed = true;
@@ -251,7 +275,8 @@ export class GameScene extends Phaser.Scene {
       if (flying.has(projectile)) {
         view.setPosition(projectile.x, projectile.y);
       } else {
-        view.destroy();
+        view.setVisible(false);
+        this.shots.release(view);
         this.projectileViews.delete(projectile);
       }
     }
@@ -268,6 +293,25 @@ export class GameScene extends Phaser.Scene {
       changed = true;
     }
     if (changed) this.events.emit(GameEvent.Changed);
+  }
+
+  /** Выпускает врага на дорогу. Открыт наружу для отладочных кнопок (src/debug.ts). */
+  addEnemy(enemy: Enemy): void {
+    this.combat.add(enemy);
+    this.enemyViews.set(enemy, new EnemyView(this, ...positionAt(this.path, enemy.distance), enemy));
+  }
+
+  /** Ставит кота в клетку, заменяя прежнего. Открыт наружу для отладочных кнопок (src/debug.ts). */
+  placeCat(slot: number, cat: Cat): CatView {
+    this.views[slot]?.destroy();
+    const view = new CatView(this, ...this.slotCenter(slot), cat);
+    this.board[slot] = cat;
+    this.views[slot] = view;
+    return view;
+  }
+
+  get slotCount(): number {
+    return this.level.slots.length;
   }
 
   /** Меняет экономику и картинку по событию боя. Возвращает true, если HUD пора обновить. */
@@ -294,11 +338,8 @@ export class GameScene extends Phaser.Scene {
 
       case 'splash': {
         const { x, y, radius } = event;
-        const color = elementColor(event.element);
-        this.playFx(FX_FEEL.splashMs, (g, k) => {
-          g.fillStyle(color, FX_FEEL.splashAlpha * (1 - k));
-          g.fillCircle(x, y, radius * (FX_FEEL.splashFrom + (1 - FX_FEEL.splashFrom) * k));
-        });
+        const { splashFrom, splashAlpha, splashMs } = FX_FEEL;
+        this.playCircle(this.discs, x, y, elementColor(event.element), radius * splashFrom, radius, splashAlpha, splashMs);
         break;
       }
 
@@ -306,13 +347,22 @@ export class GameScene extends Phaser.Scene {
         const [fromX, fromY] = event.from;
         const [toX, toY] = event.to;
         const color = elementColor(event.element);
-        this.playFx(FX_FEEL.boltMs, (g, k) => {
-          g.lineStyle(FX_FEEL.boltWidth, color, 1 - k);
-          g.beginPath();
-          g.moveTo(fromX, fromY);
-          g.lineTo((fromX + toX) / 2 + FX_FEEL.boltKink, (fromY + toY) / 2 - FX_FEEL.boltKink);
-          g.lineTo(toX, toY);
-          g.strokePath();
+        // Молния рисуется один раз и гаснет целиком.
+        const bolt = this.canvases.acquire().setAlpha(1).setVisible(true);
+        bolt.lineStyle(FX_FEEL.boltWidth, color);
+        bolt.beginPath();
+        bolt.moveTo(fromX, fromY);
+        bolt.lineTo((fromX + toX) / 2 + FX_FEEL.boltKink, (fromY + toY) / 2 - FX_FEEL.boltKink);
+        bolt.lineTo(toX, toY);
+        bolt.strokePath();
+        this.tweens.add({
+          targets: bolt,
+          alpha: 0,
+          duration: FX_FEEL.boltMs,
+          onComplete: () => {
+            bolt.clear().setAlpha(1).setVisible(false);
+            this.canvases.release(bolt);
+          },
         });
         break;
       }
@@ -320,13 +370,10 @@ export class GameScene extends Phaser.Scene {
       case 'aura': {
         const [x, y] = this.slotCenter(event.slot);
         const { radius } = event;
-        const color = elementColor(event.element);
+        const { auraFrom, auraAlpha, auraMs } = FX_FEEL;
         this.views[event.slot]?.playShot();
         audio.play('shot');
-        this.playFx(FX_FEEL.auraMs, (g, k) => {
-          g.lineStyle(FX_FEEL.auraWidth, color, FX_FEEL.auraAlpha * (1 - k));
-          g.strokeCircle(x, y, radius * (FX_FEEL.auraFrom + (1 - FX_FEEL.auraFrom) * k));
-        });
+        this.playCircle(this.rings, x, y, elementColor(event.element), radius * auraFrom, radius, auraAlpha, auraMs);
         break;
       }
 
@@ -357,15 +404,50 @@ export class GameScene extends Phaser.Scene {
 
   private addProjectileView(projectile: Projectile): void {
     const heavy = cats.elements[projectile.element].fx === 'heavy';
-    const view = this.add
-      .circle(projectile.x, projectile.y, heavy ? SHOT_FEEL.heavyRadius : SHOT_FEEL.radius, elementColor(projectile.element))
-      .setDepth(DEPTH.projectile);
+    const size = (heavy ? SHOT_FEEL.heavyRadius : SHOT_FEEL.radius) * 2;
+    const view = this.shots
+      .acquire()
+      .setPosition(projectile.x, projectile.y)
+      .setDisplaySize(size, size)
+      .setTint(elementColor(projectile.element))
+      .setVisible(true);
     this.projectileViews.set(projectile, view);
+  }
+
+  /**
+   * Круг или кольцо из пула растёт от радиуса `from` до `to` и гаснет от `alpha` до нуля.
+   * Картинка вместо Graphics: её не нужно перерисовывать каждый кадр.
+   */
+  private playCircle(
+    pool: Pool<Phaser.GameObjects.Image>,
+    x: number,
+    y: number,
+    color: number,
+    from: number,
+    to: number,
+    alpha: number,
+    duration: number,
+    ease = 'Linear',
+    delay = 0,
+  ): void {
+    const circle = pool.acquire().setPosition(x, y).setTint(color).setAlpha(0).setVisible(true);
+    this.tweens.add({
+      targets: circle,
+      scale: { from: from / CIRCLE_RADIUS, to: to / CIRCLE_RADIUS },
+      alpha: { from: alpha, to: 0 },
+      delay,
+      duration,
+      ease,
+      onComplete: () => {
+        circle.setVisible(false);
+        pool.release(circle);
+      },
+    });
   }
 
   /** Короткая вспышка эффекта: `draw` перерисовывает её, пока `k` идёт от 0 до 1. */
   private playFx(duration: number, draw: (g: Phaser.GameObjects.Graphics, k: number) => void): void {
-    const g = this.add.graphics().setDepth(DEPTH.fx);
+    const g = this.canvases.acquire().setVisible(true);
     this.tweens.addCounter({
       from: 0,
       to: 1,
@@ -374,36 +456,45 @@ export class GameScene extends Phaser.Scene {
         g.clear();
         draw(g, tween.getValue() ?? 0);
       },
-      onComplete: () => g.destroy(),
+      onComplete: () => {
+        g.clear().setVisible(false);
+        this.canvases.release(g);
+      },
     });
   }
 
   /** Всплывающая награда над убитым врагом. */
   private showReward(x: number, y: number, gold: number, crystals: number): void {
-    const style = {
-      fontFamily: FONTS.display,
-      fontSize: '13px',
-      color: crystals > 0 ? TEXT_COLORS.crystal : TEXT_COLORS.brass,
-    };
-    const goldText = this.add.text(0, 0, t('reward.gold', { gold }), style).setOrigin(0, 0.5);
-    const parts: Phaser.GameObjects.GameObject[] = [goldText];
-    let width = goldText.width;
-    if (crystals > 0) {
-      const { rewardIconSize: size, rewardIconGap: gap } = SHOT_FEEL;
-      const icon = addCrystalIcon(this, width + gap + size / 2, 0, size);
-      const count = this.add.text(icon.x + size / 2 + gap / 2, 0, String(crystals), style).setOrigin(0, 0.5);
-      parts.push(icon, count);
-      width = count.x + count.width;
+    const label = this.rewards.acquire();
+    const withCrystals = crystals > 0;
+    // Смена цвета перерисовывает текст — делаем это, только когда цвет и правда другой.
+    if (label.crystal !== withCrystals) {
+      label.crystal = withCrystals;
+      label.gold.setColor(withCrystals ? TEXT_COLORS.crystal : TEXT_COLORS.brass);
     }
-    const reward = this.add
-      .container(x - width / 2, y - SHOT_FEEL.rewardOffsetY - goldText.height / 2, parts)
-      .setDepth(DEPTH.fx);
+    label.gold.setText(t('reward.gold', { gold }));
+    label.icon.setVisible(withCrystals);
+    label.count.setVisible(withCrystals);
+
+    let width = label.gold.width;
+    if (withCrystals) {
+      const { rewardIconSize: size, rewardIconGap: gap } = SHOT_FEEL;
+      label.icon.setX(width + gap + size / 2);
+      label.count.setText(String(crystals)).setX(label.icon.x + size / 2 + gap / 2);
+      width = label.count.x + label.count.width;
+    }
+
+    const top = y - SHOT_FEEL.rewardOffsetY - label.gold.height / 2;
+    label.box.setPosition(x - width / 2, top).setAlpha(1).setVisible(true);
     this.tweens.add({
-      targets: reward,
-      y: reward.y - SHOT_FEEL.rewardRise,
+      targets: label.box,
+      y: top - SHOT_FEEL.rewardRise,
       alpha: 0,
       duration: SHOT_FEEL.rewardMs,
-      onComplete: () => reward.destroy(),
+      onComplete: () => {
+        label.box.setVisible(false);
+        this.rewards.release(label);
+      },
     });
   }
 
@@ -440,6 +531,22 @@ export class GameScene extends Phaser.Scene {
     // Пока идёт прицеливание, котов не таскают: взятый возвращается на место.
     if (this.meteor.toggleAim()) this.cancelDrag();
     this.syncAim();
+  }
+
+  /** Объекты пулов живут до конца сцены: отработавший прячется и ждёт следующего раза. */
+  private addPools(): void {
+    const image = (texture: string, depth: number) => () => this.add.image(0, 0, texture).setDepth(depth);
+    this.shots = new Pool(image(Texture.dot, DEPTH.projectile));
+    this.discs = new Pool(image(Texture.disc, DEPTH.fx));
+    this.rings = new Pool(image(Texture.ring, DEPTH.fx));
+    this.canvases = new Pool(() => this.add.graphics().setDepth(DEPTH.fx));
+    this.rewards = new Pool(() => {
+      const gold = this.add.text(0, 0, '', { ...REWARD_STYLE, color: TEXT_COLORS.brass }).setOrigin(0, 0.5);
+      const icon = addCrystalIcon(this, 0, 0, SHOT_FEEL.rewardIconSize);
+      const count = this.add.text(0, 0, '', { ...REWARD_STYLE, color: TEXT_COLORS.crystal }).setOrigin(0, 0.5);
+      const box = this.add.container(0, 0, [gold, icon, count]).setDepth(DEPTH.fx);
+      return { box, gold, icon, count, crystal: false };
+    });
   }
 
   private addParticles(): void {
@@ -588,12 +695,7 @@ export class GameScene extends Phaser.Scene {
     if (!result) return;
 
     this.economy.paySummon();
-    this.board[result.slot] = result.cat;
-
-    const [x, y] = this.slotCenter(result.slot);
-    const view = new CatView(this, x, y, result.cat);
-    view.playSpawn();
-    this.views[result.slot] = view;
+    this.placeCat(result.slot, result.cat).playSpawn();
     audio.play('summon');
 
     if (this.drag) this.drawHighlights();
@@ -811,21 +913,8 @@ export class GameScene extends Phaser.Scene {
       this.sparks.emitParticleAt(x, y, MERGE_FEEL.sparkCount);
     });
 
-    const ring = this.add.graphics().setDepth(DEPTH.fx);
-    this.tweens.addCounter({
-      from: 0,
-      to: 1,
-      delay,
-      duration: MERGE_FEEL.ringMs,
-      ease: MERGE_FEEL.ringEase,
-      onUpdate: (tween) => {
-        const k = tween.getValue() ?? 0;
-        ring.clear();
-        ring.lineStyle(MERGE_FEEL.ringLineWidth, color, 1 - k);
-        ring.strokeCircle(x, y, MERGE_FEEL.ringFrom + (MERGE_FEEL.ringTo - MERGE_FEEL.ringFrom) * k);
-      },
-      onComplete: () => ring.destroy(),
-    });
+    const { ringFrom, ringTo, ringMs, ringEase } = MERGE_FEEL;
+    this.playCircle(this.rings, x, y, color, ringFrom, ringTo, 1, ringMs, ringEase, delay);
   }
 
   /** Всплывающая надпись над клеткой: почему слияние или перетаскивание не состоялось. */
