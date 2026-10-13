@@ -10,7 +10,12 @@ export const CONTROLS_Y = BOARD_Y + BOARD_H;
 export const CONTROLS_H = GAME_H - CONTROLS_Y;
 
 // Меню: название игры и сетка уровней главы.
-export const MENU = { titleY: 84, gridY: 150, cols: 2, cardW: 160, cardH: 66, gap: 12 };
+export const MENU = { titleY: 84, gridY: 150, cols: 2, cardW: 160, cardH: 66, gap: 12, bookY: 590, bookW: 332, bookH: 50 };
+
+/** Центр кнопки «Книга котов» в меню. */
+export function menuBookCenter(): [number, number] {
+  return [GAME_W / 2, MENU.bookY];
+}
 
 /** Центр плитки уровня в меню; `index` — номер в главе с нуля. */
 export function menuCardCenter(index: number): [number, number] {
@@ -47,6 +52,24 @@ export const GEAR = {
 export function gearButtonCenter(button: 'back' | 'start'): [number, number] {
   const { pad, backW, startW, buttonGap, buttonY } = GEAR;
   return [button === 'back' ? pad + backW / 2 : pad + backW + buttonGap + startW / 2, buttonY];
+}
+
+// Книга котов: заголовок, счётчик, по строке на кота, кнопка «Назад».
+export const BOOK = {
+  titleY: 48,
+  countY: 78,
+  listY: 100,
+  rowH: 45,
+  iconX: 38,
+  iconScale: 0.7,
+  textX: 68,
+  backY: 592,
+  backW: 160,
+  backH: 50,
+};
+
+export function bookBackCenter(): [number, number] {
+  return [GAME_W / 2, BOOK.backY];
 }
 
 // Нижняя полоса: «Призвать» слева, «Метеор» справа.

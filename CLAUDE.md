@@ -15,8 +15,8 @@
 ```
 src/
   main.ts            точка входа, конфиг Phaser
-  scenes/            Boot, Preload, Menu, Gear, Game, UI (HUD поверх Game)
-  systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy
+  scenes/            Boot, Preload, Menu, Book, Gear, Game, UI (HUD поверх Game)
+  systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy, Progress, Loadout, Campaign, Book
   entities/          Cat, Enemy, Projectile, Hero
   data/              JSON-конфиги: cats.json, enemies.json, levels.json, gear.json
   platform/          обёртка над Yandex Games SDK (реклама, сохранения, язык)
@@ -46,7 +46,7 @@ docs/                GDD и прототип
 - `npm run build` — сборка в `dist/`
 - `npm run typecheck` — проверка типов
 - `npm test` — тесты систем (Vitest)
-- `npm run smoke` — смоук-проверка: сборка, `vite preview`, headless Chromium 360×640; меню → первый уровень → снаряжение (выбор предмета в каждом слоте нажатиями у углов плашек) → «В бой» → 3 кота → первая волна, скриншоты шагов в `screenshots/`. На каждом экране проверяет, что нажимаемые элементы не меньше 44×44. Падает при ошибке в консоли или если игра не дошла до экрана (тогда смотреть `screenshots/failure.png`)
+- `npm run smoke` — смоук-проверка: сборка, `vite preview`, headless Chromium 360×640; меню → книга котов и назад → первый уровень → снаряжение (выбор предмета в каждом слоте нажатиями у углов плашек) → «В бой» → 3 кота → первая волна, скриншоты шагов в `screenshots/`. На каждом экране проверяет, что нажимаемые элементы не меньше 44×44. Падает при ошибке в консоли или если игра не дошла до экрана (тогда смотреть `screenshots/failure.png`)
 
 ## Текущий этап
 

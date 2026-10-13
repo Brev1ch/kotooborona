@@ -1,5 +1,6 @@
 export const ru = {
   'game.title': 'Кото-оборона',
+  'nav.back': 'Назад',
 
   'hud.gold': 'Монеты',
   'hud.crystals': 'Кристаллы',
@@ -37,6 +38,11 @@ export const ru = {
   'merge.crystalCost': '{text} · ◆{cost}',
 
   'book.discovered': 'Открыт новый кот: {name}',
+  'book.title': 'Книга котов',
+  'book.count': 'Открыто {found} из {total}',
+  'book.catName': '{name} кот',
+  'book.unknown': '???',
+  'book.recipe': '{first} + {second}',
 
   'level.opushka': 'Опушка',
 
@@ -73,7 +79,6 @@ export const ru = {
   'gear.amulet.cry': 'Кристаллов',
   'gear.amulet.purse': 'Кошель',
   'gear.title': 'Снаряжение',
-  'gear.back': 'Назад',
   'gear.start': 'В бой',
   'gear.slot.staff': 'Посох',
   'gear.slot.mantle': 'Мантия',

@@ -2,6 +2,7 @@ import type { StringKey } from './ru';
 
 export const en: Record<StringKey, string> = {
   'game.title': 'Cat Defense',
+  'nav.back': 'Back',
 
   'hud.gold': 'Coins',
   'hud.crystals': 'Crystals',
@@ -39,6 +40,11 @@ export const en: Record<StringKey, string> = {
   'merge.crystalCost': '{text} · ◆{cost}',
 
   'book.discovered': 'New cat unlocked: {name}',
+  'book.title': 'Cat Book',
+  'book.count': '{found} of {total} found',
+  'book.catName': '{name} cat',
+  'book.unknown': '???',
+  'book.recipe': '{first} + {second}',
 
   'level.opushka': 'Forest Edge',
 
@@ -75,7 +81,6 @@ export const en: Record<StringKey, string> = {
   'gear.amulet.cry': 'Crystals',
   'gear.amulet.purse': 'Purse',
   'gear.title': 'Gear',
-  'gear.back': 'Back',
   'gear.start': 'To battle',
   'gear.slot.staff': 'Staff',
   'gear.slot.mantle': 'Mantle',

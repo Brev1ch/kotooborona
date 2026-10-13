@@ -1,5 +1,16 @@
 import { test, type Page } from '@playwright/test';
-import { CONTROLS_H, CONTROLS_Y, GAME_H, GAME_W, gearButtonCenter, menuCardCenter, MIN_TOUCH, SUMMON_X } from '../src/layout';
+import {
+  bookBackCenter,
+  CONTROLS_H,
+  CONTROLS_Y,
+  GAME_H,
+  GAME_W,
+  gearButtonCenter,
+  menuBookCenter,
+  menuCardCenter,
+  MIN_TOUCH,
+  SUMMON_X,
+} from '../src/layout';
 import { SceneKey } from '../src/scenes/keys';
 import type { SmokeState, SmokeTarget } from '../src/smoke';
 import { GEAR_SLOTS } from '../src/systems/Progress';
@@ -104,7 +115,7 @@ test.afterEach(async ({ page }, testInfo) => {
   }
 });
 
-test('меню → первый уровень → снаряжение → три кота → первая волна', async ({ page }) => {
+test('меню → книга котов → первый уровень → снаряжение → три кота → первая волна', async ({ page }) => {
   await test.step('меню', async () => {
     await page.goto('/?smoke');
     await waitFor(
@@ -116,6 +127,28 @@ test('меню → первый уровень → снаряжение → тр
     await page.screenshot({ path: `${SHOTS}/01-menu.png` });
     await checkTouchSizes(page, 'меню');
     checkConsole('меню');
+  });
+
+  await test.step('книга котов', async () => {
+    await tap(page, ...menuBookCenter());
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Book),
+      (s) => `После нажатия «Книга котов» игра не дошла до книги за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
+    );
+    await page.screenshot({ path: `${SHOTS}/02-book.png` });
+    await checkTouchSizes(page, 'книга котов');
+    checkConsole('книга котов');
+
+    await tap(page, ...bookBackCenter());
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Menu),
+      (s) => `После нажатия «Назад» в книге игра не вернулась в меню за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
+    );
+    checkConsole('возврат из книги');
   });
 
   await test.step('первый уровень', async () => {
@@ -167,7 +200,7 @@ test('меню → первый уровень → снаряжение → тр
   }
 
   await test.step('снаряжение выбрано', async () => {
-    await page.screenshot({ path: `${SHOTS}/02-gear.png` });
+    await page.screenshot({ path: `${SHOTS}/03-gear.png` });
     checkConsole('снаряжение выбрано');
   });
 
@@ -179,7 +212,7 @@ test('меню → первый уровень → снаряжение → тр
       (s) => s.scenes.includes(SceneKey.Game) && s.scenes.includes(SceneKey.UI),
       (s) => `После нажатия «В бой» игра не дошла до игрового поля за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
     );
-    await page.screenshot({ path: `${SHOTS}/03-game.png` });
+    await page.screenshot({ path: `${SHOTS}/04-game.png` });
     await checkTouchSizes(page, 'игровое поле');
     checkConsole('игровое поле');
   });
@@ -194,7 +227,7 @@ test('меню → первый уровень → снаряжение → тр
         (s) => `После нажатия «Призвать» котов на поле: ${s?.cats ?? 0}, ожидалось ${n} (монет: ${s?.hud?.gold ?? '?'})`,
       );
       await page.waitForTimeout(SPAWN_SETTLE_MS);
-      await page.screenshot({ path: `${SHOTS}/0${n + 3}-cat-${n}.png` });
+      await page.screenshot({ path: `${SHOTS}/0${n + 4}-cat-${n}.png` });
       checkConsole(`призыв кота ${n}`);
     });
   }
@@ -207,7 +240,7 @@ test('меню → первый уровень → снаряжение → тр
       (s) => `Волна не началась за ${WAVE_TIMEOUT / 1000} с (волна ${s?.hud?.wave ?? 0}, врагов ${s?.enemies ?? 0})`,
     );
     await page.waitForTimeout(WAVE_SETTLE_MS);
-    await page.screenshot({ path: `${SHOTS}/0${CATS + 4}-wave.png` });
+    await page.screenshot({ path: `${SHOTS}/0${CATS + 5}-wave.png` });
     checkConsole('первая волна');
   });
 });

@@ -47,7 +47,7 @@ export class GearScene extends Phaser.Scene {
     for (const slot of GEAR_SLOTS) y = this.addSlot(slot, y) + GEAR.blockGap;
 
     const data: LevelSceneData = { levelId: this.levelId };
-    addButton(this, ...gearButtonCenter('back'), GEAR.backW, GEAR.buttonH, t('gear.back'), false, () => {
+    addButton(this, ...gearButtonCenter('back'), GEAR.backW, GEAR.buttonH, t('nav.back'), false, () => {
       this.scene.start(SceneKey.Menu);
     });
     addButton(this, ...gearButtonCenter('start'), GEAR.startW, GEAR.buttonH, t('gear.start'), true, () => {

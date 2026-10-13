@@ -7,6 +7,16 @@ import type { Cat } from './Cat';
 const BODY_RADIUS = 21;
 const BODY_Y = 3;
 
+/** Силуэт кота: два уха и круглое тело. Рисуется вокруг начала координат `g`. */
+export function drawCatShape(g: Phaser.GameObjects.Graphics, earLeft: number, earRight: number, body: number): void {
+  g.fillStyle(earLeft);
+  g.fillTriangle(-20, -5, -17, -25, -4, -16);
+  g.fillStyle(earRight);
+  g.fillTriangle(20, -5, 17, -25, 4, -16);
+  g.fillStyle(body);
+  g.fillCircle(0, BODY_Y, BODY_RADIUS);
+}
+
 /** Временный вид кота: круг цвета стихии, уши и цифра уровня. */
 export class CatView extends Phaser.GameObjects.Container {
   private readonly shape: Phaser.GameObjects.Graphics;
@@ -19,12 +29,7 @@ export class CatView extends Phaser.GameObjects.Container {
     const g = scene.add.graphics();
     // У гибрида уши в цветах исходных стихий.
     const [earLeft, earRight] = cats.elements[cat.element].from ?? [cat.element, cat.element];
-    g.fillStyle(elementColor(earLeft));
-    g.fillTriangle(-20, -5, -17, -25, -4, -16);
-    g.fillStyle(elementColor(earRight));
-    g.fillTriangle(20, -5, 17, -25, 4, -16);
-    g.fillStyle(elementColor(cat.element));
-    g.fillCircle(0, BODY_Y, BODY_RADIUS);
+    drawCatShape(g, elementColor(earLeft), elementColor(earRight), elementColor(cat.element));
 
     const level = scene.add
       .text(0, BODY_Y, String(cat.level), {

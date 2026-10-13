@@ -2,11 +2,12 @@ import Phaser from 'phaser';
 import { levels } from '../data';
 import { BUTTON_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
-import { COLORS, FONTS, GAME_W, MENU, menuCardCenter, TEXT_COLORS } from '../layout';
+import { COLORS, FONTS, GAME_W, MENU, menuBookCenter, menuCardCenter, TEXT_COLORS } from '../layout';
 import { progress } from '../progress';
 import { campaignTiles, type CampaignTile } from '../systems/Campaign';
 import { MAX_STARS } from '../systems/Progress';
 import { SceneKey, type LevelSceneData } from './keys';
+import { addButton } from './widgets';
 
 const CARD_PAD = 14;
 const NUMBER_W = 26;
@@ -30,6 +31,10 @@ export class MenuScene extends Phaser.Scene {
     const levelIds = levels.levels.map((level) => level.id);
     const tiles = campaignTiles(levelIds, levels.chapterLevels, (id) => progress.stars(id));
     tiles.forEach((tile, index) => this.addCard(tile, ...menuCardCenter(index)));
+
+    addButton(this, ...menuBookCenter(), MENU.bookW, MENU.bookH, t('book.title'), false, () => {
+      this.scene.start(SceneKey.Book);
+    });
   }
 
   /** Плитка уровня: номер, название и звёзды; у закрытого — номер и замок. */
