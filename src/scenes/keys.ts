@@ -5,13 +5,19 @@ export const SceneKey = {
   Menu: 'Menu',
   Gear: 'Gear',
   Book: 'Book',
+  Story: 'Story',
   Game: 'Game',
   UI: 'UI',
 } as const;
 
-/** Данные, с которыми запускаются Gear, Game и UI. */
+/** Данные, с которыми запускаются Gear, Story, Game и UI. */
 export interface LevelSceneData {
   levelId: string;
+}
+
+/** Данные сценки: без `storyId` показывается та, что положена перед уровнем. */
+export interface StorySceneData extends LevelSceneData {
+  storyId?: string;
 }
 
 /** События GameScene, на которые подписывается HUD. */

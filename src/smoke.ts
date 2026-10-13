@@ -5,8 +5,9 @@ import type { Enemy } from './entities/Enemy';
 import { stress } from './debug';
 import { progress } from './progress';
 import type { GameScene } from './scenes/GameScene';
+import type { StoryScene } from './scenes/StoryScene';
 import type { UIScene } from './scenes/UIScene';
-import { SceneKey, type HudState, type LevelSceneData } from './scenes/keys';
+import { SceneKey, type HudState, type LevelSceneData, type StorySceneData } from './scenes/keys';
 import type { GearSelection } from './systems/Progress';
 
 // Зонд для смоук-проверки (smoke/game.smoke.ts). Игра — один canvas, поэтому тест
@@ -42,6 +43,8 @@ export interface SmokeState {
   paused: boolean;
   /** Открытый экран итога боя. */
   result: 'win' | 'lose' | null;
+  /** Сценка на экране: номер реплики и сколько их всего. */
+  story: { line: number; total: number } | null;
   /** Рыбки игрока. */
   fish: number;
   /** Уровни прокачки надетых предметов. */
@@ -67,6 +70,8 @@ export interface SmokeProbe {
   state(): SmokeState;
   /** Сразу запускает бой, минуя меню и снаряжение; без id — на первом уровне. */
   startLevel(levelId?: string): void;
+  /** Показывает сценку `storyId`, даже если она уже была; после неё начнётся бой на уровне `levelId`. */
+  startStory(levelId: string, storyId: string): void;
   /** id всех уровней по порядку. */
   levelIds(): string[];
   /** Выпускает на дорогу Крысиного короля, уже прошедшего часть пути. */
@@ -159,6 +164,11 @@ export function installSmokeProbe(game: Phaser.Game): void {
       const data: LevelSceneData = { levelId };
       game.scene.start(SceneKey.Game, data);
     },
+    startStory(levelId, storyId) {
+      for (const scene of game.scene.getScenes(true)) scene.scene.stop();
+      const data: StorySceneData = { levelId, storyId };
+      game.scene.start(SceneKey.Story, data);
+    },
     levelIds() {
       return levels.levels.map((level) => level.id);
     },
@@ -203,7 +213,10 @@ export function installSmokeProbe(game: Phaser.Game): void {
         mantle: progress.gearLevel('mantle', gear.mantle),
         amulet: progress.gearLevel('amulet', gear.amulet),
       };
-      const common = { scenes, fading, targets, sound: audio.on, gear, gearLevels, fish: progress.fish, chests: progress.chestsOpened };
+      const story = scenes.includes(SceneKey.Story)
+        ? (game.scene.getScene(SceneKey.Story) as StoryScene).progressState()
+        : null;
+      const common = { scenes, fading, targets, sound: audio.on, gear, gearLevels, story, fish: progress.fish, chests: progress.chestsOpened };
 
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);

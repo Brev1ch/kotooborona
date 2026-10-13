@@ -1,0 +1,159 @@
+import Phaser from 'phaser';
+import { audio } from '../audio';
+import { story, type StoryScene as StoryData, type StorySpeaker } from '../data';
+import { drawEnemyBody } from '../entities/EnemyView';
+import { HeroView } from '../entities/HeroView';
+import { STORY_FEEL } from '../feel';
+import { t, type StringKey } from '../i18n';
+import { COLORS, FONTS, GAME_H, GAME_W, STORY, storySkipCenter, TEXT_COLORS } from '../layout';
+import { progress } from '../progress';
+import { storyBefore } from '../systems/Story';
+import { SceneKey, type LevelSceneData, type StorySceneData } from './keys';
+import { fadeIn, fadeOut } from './transitions';
+import { addButton } from './widgets';
+
+/** Сценки, уже показанные за этот запуск игры. */
+const seen = new Set<string>();
+
+/** Сценка, которую нужно показать перед уровнем, или null: перед непройденным уровнем и не чаще раза за запуск игры. */
+export function storyForLevel(levelId: string): StoryData | null {
+  return storyBefore(story, levelId, progress.stars(levelId) > 0, seen);
+}
+
+const SPEAKER_COLOR: Record<StorySpeaker, string> = {
+  archmage: TEXT_COLORS.brass,
+  king: TEXT_COLORS.danger,
+  mouse: TEXT_COLORS.muted,
+};
+
+/** Сценка перед уровнем: портрет говорящего и реплика; касание листает, «Пропустить» сразу ведёт в бой. */
+export class StoryScene extends Phaser.Scene {
+  private levelId!: string;
+  private scenario: StoryData | null = null;
+  private line = 0;
+  private portrait: Phaser.GameObjects.GameObject | null = null;
+  private nameText!: Phaser.GameObjects.Text;
+  private lineText!: Phaser.GameObjects.Text;
+  private leaving = false;
+
+  constructor() {
+    super(SceneKey.Story);
+  }
+
+  init(data: StorySceneData): void {
+    this.levelId = data.levelId;
+    this.scenario = data.storyId
+      ? (story.scenes.find((scene) => scene.id === data.storyId) ?? null)
+      : storyForLevel(data.levelId);
+  }
+
+  create(): void {
+    this.leaving = false;
+    this.line = 0;
+    this.portrait = null;
+    if (!this.scenario) {
+      this.startBattle();
+      return;
+    }
+    seen.add(this.scenario.id);
+    fadeIn(this);
+
+    const { panelY, panelW, panelH, nameY, hintY, textPad } = STORY;
+    this.add.rectangle(GAME_W / 2, panelY, panelW, panelH, COLORS.panel).setStrokeStyle(1, COLORS.line);
+    this.nameText = this.add
+      .text(GAME_W / 2, nameY, '', { fontFamily: FONTS.display, fontSize: '20px' })
+      .setOrigin(0.5);
+    this.lineText = this.add
+      .text(GAME_W / 2, panelY, '', {
+        fontFamily: FONTS.body,
+        fontSize: '16px',
+        color: TEXT_COLORS.fg,
+        align: 'center',
+        lineSpacing: 4,
+        wordWrap: { width: panelW - textPad * 2 },
+      })
+      .setOrigin(0.5);
+    const hint = this.add
+      .text(GAME_W / 2, hintY, t('story.next'), { fontFamily: FONTS.body, fontSize: '13px', color: TEXT_COLORS.muted })
+      .setOrigin(0.5);
+    this.tweens.add({
+      targets: hint,
+      alpha: STORY_FEEL.hintAlpha,
+      duration: STORY_FEEL.hintPulseMs,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+    });
+
+    // Листает касание в любом месте экрана; кнопка «Пропустить» лежит поверх и забирает своё нажатие.
+    this.add
+      .zone(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H)
+      .setName('story')
+      .setInteractive()
+      .on('pointerup', () => this.next());
+    addButton(this, ...storySkipCenter(), STORY.skipW, STORY.skipH, t('story.skip'), false, () => this.startBattle());
+
+    this.showLine();
+  }
+
+  /** Номер реплики на экране и сколько их всего; читает смоук-проверка (src/smoke.ts). */
+  progressState(): { line: number; total: number } | null {
+    return this.scenario ? { line: this.line + 1, total: this.scenario.lines.length } : null;
+  }
+
+  private next(): void {
+    if (!this.scenario || this.leaving) return;
+    audio.play('click');
+    if (this.line >= this.scenario.lines.length - 1) {
+      this.startBattle();
+      return;
+    }
+    this.line++;
+    this.showLine();
+  }
+
+  private showLine(): void {
+    if (!this.scenario) return;
+    const { speaker, text } = this.scenario.lines[this.line];
+    this.portrait?.destroy();
+    const portrait = this.addPortrait(speaker);
+    this.portrait = portrait;
+    this.nameText.setText(t(`story.speaker.${speaker}`)).setColor(SPEAKER_COLOR[speaker]);
+    this.lineText.setText(t(text as StringKey));
+
+    const { lineMs, popFrom, popEase } = STORY_FEEL;
+    this.tweens.killTweensOf([this.nameText, this.lineText]);
+    this.tweens.add({ targets: [this.nameText, this.lineText], alpha: { from: 0, to: 1 }, duration: lineMs });
+    this.tweens.add({
+      targets: portrait,
+      scale: { from: portrait.scale * popFrom, to: portrait.scale },
+      duration: lineMs,
+      ease: popEase,
+    });
+  }
+
+  /** Портрет говорящего — та же фигура, что в бою, только крупно. */
+  private addPortrait(speaker: StorySpeaker): Phaser.GameObjects.Container | Phaser.GameObjects.Graphics {
+    const { portraitY } = STORY;
+    if (speaker === 'archmage') {
+      const hero = new HeroView(this, GAME_W / 2, portraitY, COLORS.meteor).setScale(STORY_FEEL.heroScale);
+      hero.setReady(true);
+      return hero;
+    }
+    // Мыши нарисованы видом сверху, носом вправо.
+    const g = this.add.graphics({ x: GAME_W / 2, y: portraitY });
+    drawEnemyBody(g, speaker === 'king' ? 'king' : 'mouse');
+    return g.setScale(speaker === 'king' ? STORY_FEEL.kingScale : STORY_FEEL.mouseScale);
+  }
+
+  private startBattle(): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    const data: LevelSceneData = { levelId: this.levelId };
+    if (!this.scenario) {
+      this.scene.start(SceneKey.Game, data);
+      return;
+    }
+    fadeOut(this, () => this.scene.start(SceneKey.Game, data));
+  }
+}

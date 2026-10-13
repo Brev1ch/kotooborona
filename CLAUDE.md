@@ -18,10 +18,10 @@ src/
   adBreaks.ts        реклама для сцен: ролик с наградой и полноэкранная между уровнями (частоту держит `systems/Ads`)
   audio.ts           звуки поверх Phaser Sound: `audio.play(id)`, выключатель, паузы (скрытая вкладка, реклама)
   fonts.ts           загрузка веб-шрифтов до меню
-  scenes/            Boot, Preload, Menu, Book, Gear, Game, UI (HUD поверх Game)
-  systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy, Progress, Loadout, Gear, Chests, Campaign, Book, Ads, Rewards, Simulation (бой без отрисовки), Bot (бот-игрок для подбора баланса)
+  scenes/            Boot, Menu, Book, Gear, Story (сценки перед уровнями), Game, UI (HUD поверх Game)
+  systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy, Progress, Loadout, Gear, Chests, Campaign, Book, Story, Ads, Rewards, Simulation (бой без отрисовки), Bot (бот-игрок для подбора баланса)
   entities/          Cat, Enemy, Projectile, Hero
-  data/              JSON-конфиги: cats.json, enemies.json, levels.json, gear.json, ads.json
+  data/              JSON-конфиги: cats.json, enemies.json, levels.json, gear.json, ads.json, story.json
   platform/          площадка за интерфейсом `Platform`: `YandexPlatform` (SDK Яндекс Игр: реклама, данные игрока, язык, разметка боя) и `DevPlatform` (заглушка); выбор — при запуске, по наличию `/sdk.js`
   i18n/              строки RU/EN
 public/assets/       спрайты, шрифты (`fonts/`), сжатые звуки (`sfx/`, собираются `npm run sfx`)

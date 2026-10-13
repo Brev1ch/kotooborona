@@ -184,3 +184,22 @@ export interface AdsConfig {
   /** Полноэкранная реклама между уровнями: наименьший промежуток между показами, секунды. */
   interstitial: { minInterval: number };
 }
+
+export type StorySpeaker = 'archmage' | 'king' | 'mouse';
+
+export interface StoryLine {
+  speaker: StorySpeaker;
+  /** Ключ строки в i18n. */
+  text: string;
+}
+
+/** Сценка из нескольких реплик перед уровнем `before`. */
+export interface StoryScene {
+  id: string;
+  before: string;
+  lines: StoryLine[];
+}
+
+export interface StoryConfig {
+  scenes: StoryScene[];
+}

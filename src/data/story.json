@@ -1,0 +1,22 @@
+{
+  "scenes": [
+    {
+      "id": "chapter1",
+      "before": "opushka",
+      "lines": [
+        { "speaker": "king", "text": "story.chapter1.1" },
+        { "speaker": "archmage", "text": "story.chapter1.2" },
+        { "speaker": "archmage", "text": "story.chapter1.3" }
+      ]
+    },
+    {
+      "id": "king",
+      "before": "lager",
+      "lines": [
+        { "speaker": "mouse", "text": "story.king.1" },
+        { "speaker": "king", "text": "story.king.2" },
+        { "speaker": "archmage", "text": "story.king.3" }
+      ]
+    }
+  ]
+}

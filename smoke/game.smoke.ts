@@ -16,6 +16,7 @@ import {
   pauseMenuButtonCenter,
   resultAdCenter,
   resultButtonCenter,
+  storySkipCenter,
   SUMMON_X,
 } from '../src/layout';
 import { SceneKey } from '../src/scenes/keys';
@@ -257,8 +258,32 @@ test('старое сохранение: меню → книга → снаря�
     checkConsole('снаряжение выбрано');
   });
 
-  await test.step('«В бой»', async () => {
+  await test.step('сценка перед главой', async () => {
     await tap(page, ...gearButtonCenter('start'));
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.story?.line === 1,
+      (s) => `Перед первым уровнем не появилась сценка: ${scenesText(s)}`,
+    );
+    await checkTouchSizes(page, 'сценка');
+    const total = (await state(page))?.story?.total ?? 0;
+    // Касание в любом месте листает реплики; после последней начинается бой.
+    for (let line = 1; line <= total; line++) {
+      await waitFor(
+        page,
+        SUMMON_TIMEOUT,
+        (s) => s.story?.line === line,
+        (s) => `Сценка не перешла к реплике ${line}: на экране ${s?.story?.line ?? 'нет сценки'}`,
+      );
+      await page.waitForTimeout(PRESS_SETTLE_MS);
+      await page.screenshot({ path: `${SHOTS}/${shot(`story-${line}`)}` });
+      await tap(page, GAME_W / 2, GAME_H / 2);
+    }
+    checkConsole('сценка перед главой');
+  });
+
+  await test.step('бой начался', async () => {
     await waitFor(
       page,
       SCREEN_TIMEOUT,
@@ -481,8 +506,16 @@ test('новый игрок: закрытое снаряжение → побе�
     await waitFor(
       page,
       SCREEN_TIMEOUT,
+      (s) => s.story !== null,
+      (s) => `Перед первым уровнем не появилась сценка: ${scenesText(s)}`,
+    );
+    // «Пропустить» сразу ведёт в бой.
+    await tap(page, ...storySkipCenter());
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
       (s) => s.scenes.includes(SceneKey.UI),
-      (s) => `Бой не начался: ${scenesText(s)}`,
+      (s) => `После «Пропустить» бой не начался: ${scenesText(s)}`,
     );
     await page.evaluate(() => window.__smoke?.win());
     await waitFor(
@@ -593,4 +626,34 @@ test('все уровни главы запускаются; на последн
       checkConsole(`уровень ${id}`);
     });
   }
+
+  await test.step('сценка перед королём', async () => {
+    const last = ids[ids.length - 1];
+    await page.evaluate((levelId) => window.__smoke?.startStory(levelId, 'king'), last);
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.story?.line === 1,
+      (s) => `Сценка перед королём не появилась: ${scenesText(s)}`,
+    );
+    const total = (await state(page))?.story?.total ?? 0;
+    for (let line = 1; line <= total; line++) {
+      await waitFor(
+        page,
+        SUMMON_TIMEOUT,
+        (s) => s.story?.line === line,
+        () => `Сценка не перешла к реплике ${line}`,
+      );
+      await page.waitForTimeout(PRESS_SETTLE_MS);
+      await page.screenshot({ path: `${SHOTS}/story-king-${line}.png` });
+      await tap(page, GAME_W / 2, GAME_H / 2);
+    }
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.UI) && s.hud?.totalWaves === 12,
+      (s) => `После сценки не начался бой с королём: ${scenesText(s)}`,
+    );
+    checkConsole('сценка перед королём');
+  });
 });

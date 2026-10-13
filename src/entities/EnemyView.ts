@@ -5,8 +5,8 @@ import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
 import { addBakedShape, ensureTextures, Texture } from '../scenes/textures';
 import type { Enemy } from './Enemy';
 
-/** Тело мыши вокруг начала координат, носом вправо. */
-function drawBody(g: Phaser.GameObjects.Graphics, type: EnemyTypeId): void {
+/** Тело мыши вокруг начала координат, носом вправо. Им же рисуются портреты в сценках. */
+export function drawEnemyBody(g: Phaser.GameObjects.Graphics, type: EnemyTypeId): void {
   const r = enemies.types[type].radius;
   const color = enemyColor(type);
   g.lineStyle(2, color);
@@ -65,7 +65,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
 
     // Прямоугольник вокруг центра: хвост уходит назад на 2,2 радиуса, уши — в стороны на 1,1.
     const key = `enemy-${enemy.type}`;
-    const draw = (g: Phaser.GameObjects.Graphics): void => drawBody(g, enemy.type);
+    const draw = (g: Phaser.GameObjects.Graphics): void => drawEnemyBody(g, enemy.type);
     const body = addBakedShape(scene, key, r * 4.8, r * 2.6, draw);
     this.flash = addBakedShape(scene, key, r * 4.8, r * 2.6, draw).setTintFill(COLORS.flash).setAlpha(0);
     this.turning = scene.add.container(0, 0, [body, this.flash]);

@@ -98,6 +98,25 @@ export function gearFishCenter(): [number, number] {
   return [GAME_W - GEAR.pad - 40, GEAR.subtitleY];
 }
 
+// Сценка: портрет говорящего, его имя, плашка с репликой, подсказка и кнопка «Пропустить» в углу.
+export const STORY = {
+  portraitY: 210,
+  nameY: 336,
+  panelY: 430,
+  panelW: 328,
+  panelH: 140,
+  textPad: 16,
+  hintY: 540,
+  skipW: 132,
+  skipH: MIN_TOUCH,
+  pad: 12,
+};
+
+/** Центр кнопки «Пропустить» в правом верхнем углу сценки. */
+export function storySkipCenter(): [number, number] {
+  return [GAME_W - STORY.pad - STORY.skipW / 2, STORY.pad + STORY.skipH / 2];
+}
+
 // Книга котов: заголовок, счётчик, по строке на кота, кнопка «Назад».
 export const BOOK = {
   titleY: 48,

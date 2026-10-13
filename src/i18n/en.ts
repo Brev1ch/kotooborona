@@ -63,6 +63,18 @@ export const en: Record<StringKey, string> = {
   'book.unknown': '???',
   'book.recipe': '{first} + {second}',
 
+  'story.speaker.archmage': 'Cat Archmage',
+  'story.speaker.king': 'The Rat King',
+  'story.speaker.mouse': 'Messenger Mouse',
+  'story.skip': 'Skip',
+  'story.next': 'Tap to continue',
+  'story.chapter1.1': 'The Crystal of Elements is mine! Tremble, you whiskered loafers!',
+  'story.chapter1.2': "He smashed the Crystal into four shards… and woke me before lunch. That I won't forgive.",
+  'story.chapter1.3': 'Cats, rise and shine! The first shard is in the Forest Valley. We get it back, then back to napping.',
+  'story.king.1': 'Y-your Majesty, the cats are at the camp! Maybe we give the shard back and call it even?',
+  'story.king.2': 'Silence! A king never retreats. A king sends you in first.',
+  'story.king.3': "Hear that? He's coming to us. Saves us the walk.",
+
   'chest.progress': 'Chest — stars: {have} of {need}',
   'chest.open': 'Open chest',
   'chest.allOpened': 'All chests opened',

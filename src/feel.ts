@@ -284,6 +284,20 @@ export const WAVE_BANNER_FEEL = {
   hideMs: 280,
 };
 
+/** Сценки перед уровнями. */
+export const STORY_FEEL = {
+  heroScale: 3,
+  kingScale: 4,
+  mouseScale: 6,
+  /** Смена реплики: текст проявляется, портрет выскакивает. */
+  lineMs: 180,
+  popFrom: 0.85,
+  popEase: 'Back.easeOut',
+  /** Подсказка «коснись» мерцает. */
+  hintAlpha: 0.4,
+  hintPulseMs: 700,
+};
+
 /** Экран снаряжения. */
 export const GEAR_FEEL = {
   lockScale: 0.55,

@@ -8,6 +8,7 @@ import { progress } from '../progress';
 import { gearAtLevel, GEAR_SLOTS, upgradeCost } from '../systems/Gear';
 import { describeGear } from './gearText';
 import { SceneKey, type LevelSceneData } from './keys';
+import { storyForLevel } from './StoryScene';
 import { fadeIn, fadeOut } from './transitions';
 import { addButton, addFishCounter, addFishIcon, addLockIcon, addPressFeel, type FishCounter } from './widgets';
 
@@ -65,7 +66,9 @@ export class GearScene extends Phaser.Scene {
     });
     addButton(this, ...gearButtonCenter('start'), GEAR.startW, GEAR.buttonH, t('gear.start'), true, () => {
       progress.flush();
-      fadeOut(this, () => this.scene.start(SceneKey.Game, data));
+      // Перед первым уровнем главы и перед королём — сценка, затем бой.
+      const next = storyForLevel(this.levelId) ? SceneKey.Story : SceneKey.Game;
+      fadeOut(this, () => this.scene.start(next, data));
     });
   }
 
