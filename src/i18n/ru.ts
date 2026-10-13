@@ -5,6 +5,7 @@ export const ru = {
   'hud.gold': 'Монеты',
   'hud.crystals': 'Кристаллы',
   'hud.wave': 'Волна',
+  'hud.speed': '×{speed}',
   'hud.lives': 'Жизни',
   'hud.waveValue': '{current}/{total}',
 

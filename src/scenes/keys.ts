@@ -101,6 +101,8 @@ export interface HudState {
   lives: number;
   wave: number;
   totalWaves: number;
+  /** Скорость боя: 1 — обычная, больше — ускорение. */
+  speed: number;
   /** Волна, до которой идёт пауза; null — волна уже идёт или волны кончились. */
   upcoming: UpcomingWave | null;
 }

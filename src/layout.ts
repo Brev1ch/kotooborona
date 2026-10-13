@@ -135,8 +135,14 @@ export function bookBackCenter(): [number, number] {
   return [GAME_W / 2, BOOK.backY];
 }
 
-// Верхняя полоса: четыре показателя и кнопка паузы справа.
+// Верхняя полоса: четыре показателя, справа — кнопки скорости боя и паузы.
 export const HUD_PAD = 6;
+export const HUD_GAP = 6;
+
+/** Центр кнопки скорости боя в HUD: слева от паузы. */
+export function speedButtonCenter(): [number, number] {
+  return [GAME_W - HUD_PAD - MIN_TOUCH - HUD_GAP - MIN_TOUCH / 2, HUD_H / 2];
+}
 
 /** Центр кнопки паузы в HUD. */
 export function pauseButtonCenter(): [number, number] {

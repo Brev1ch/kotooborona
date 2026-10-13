@@ -29,6 +29,7 @@ import {
   FONTS,
   GAME_H,
   GAME_W,
+  HUD_GAP,
   HUD_H,
   HUD_PAD,
   METEOR_W,
@@ -41,6 +42,7 @@ import {
   RESULT_Y,
   resultAdCenter,
   resultButtonCenter,
+  speedButtonCenter,
   SUMMON_W,
   SUMMON_X,
   TEXT_COLORS,
@@ -63,10 +65,17 @@ import { fadeIn, fadeOut } from './transitions';
 import { TutorialOverlay } from './TutorialOverlay';
 import { addAdButton, addButton, addCoinIcon, addCrystalIcon, addFishIcon, addPressFeel, addSoundToggle } from './widgets';
 
-const STAT_GAP = 6;
-const STAT_COUNT = 4;
-/** Ширина одного показателя: полоса делится между ними и кнопкой паузы. */
-const STAT_W = (GAME_W - HUD_PAD * 2 - MIN_TOUCH - STAT_GAP * STAT_COUNT) / STAT_COUNT;
+const STAT_GAP = HUD_GAP;
+/** Доли ширины показателей — монеты, кристаллы, волна, жизни: длинной подписи «Кристаллы» и числу волн «10/11» нужно больше места. */
+const STAT_SHARES = [54, 69, 59, 48];
+/** Что остаётся показателям: полоса без краёв, двух кнопок справа и промежутков. */
+const STATS_W = GAME_W - HUD_PAD * 2 - MIN_TOUCH * 2 - STAT_GAP * (STAT_SHARES.length + 1);
+const SHARES_SUM = STAT_SHARES.reduce((sum, share) => sum + share, 0);
+
+/** Ширина показателя с номером `index`. */
+function statW(index: number): number {
+  return (STATS_W * STAT_SHARES[index]) / SHARES_SUM;
+}
 const STAT_H = 40;
 const STAT_Y = (HUD_H - STAT_H) / 2;
 const STAT_LABEL_Y = 6;
@@ -75,7 +84,9 @@ const HUD_TEXTURE = 'hud';
 
 /** Левый край показателя с номером `index`. */
 function statX(index: number): number {
-  return HUD_PAD + index * (STAT_W + STAT_GAP);
+  let x = HUD_PAD;
+  for (let before = 0; before < index; before++) x += statW(before) + STAT_GAP;
+  return x;
 }
 
 /** Значок паузы: две полоски. */
@@ -140,6 +151,8 @@ export class UIScene extends Phaser.Scene {
   private summonLimit!: Phaser.GameObjects.Text;
   private summonCoin!: Phaser.GameObjects.Arc;
   private canSummon = false;
+  private speedBg!: Phaser.GameObjects.Rectangle;
+  private speedLabel!: Phaser.GameObjects.Text;
   private buildPanel: BuildPanel | null = null;
   /** Кнопки нижней полосы: прячутся, пока игрок держит кота или строение. */
   private controls: Phaser.GameObjects.Container[] = [];
@@ -198,9 +211,9 @@ export class UIScene extends Phaser.Scene {
       g.fillRect(0, CONTROLS_Y, GAME_W, CONTROLS_H);
       g.fillStyle(COLORS.panel);
       g.lineStyle(1, COLORS.line);
-      for (let index = 0; index < STAT_COUNT; index++) {
-        g.fillRoundedRect(statX(index), STAT_Y, STAT_W, STAT_H, 8);
-        g.strokeRoundedRect(statX(index), STAT_Y, STAT_W, STAT_H, 8);
+      for (let index = 0; index < STAT_SHARES.length; index++) {
+        g.fillRoundedRect(statX(index), STAT_Y, statW(index), STAT_H, 8);
+        g.strokeRoundedRect(statX(index), STAT_Y, statW(index), STAT_H, 8);
       }
     });
     this.add.image(0, 0, HUD_TEXTURE).setOrigin(0);
@@ -231,6 +244,7 @@ export class UIScene extends Phaser.Scene {
     this.buildPanel = new BuildPanel(this, this.gameScene);
     this.controls = [this.addSummonButton(), this.addBuildButton(), this.addMeteorButton(), this.addCoinAdButton()];
     this.addSellZone();
+    this.addSpeedButton();
     this.addPauseButton();
     this.pauseMenu = null;
     // Подсказки нужны, только пока уровень не пройден: вернувшийся за звёздами игрок уже всё умеет.
@@ -441,6 +455,23 @@ export class UIScene extends Phaser.Scene {
     return this.sellZone?.visible ? this.sellLabel.text : null;
   }
 
+  /** Кнопка скорости боя: показывает текущую скорость, в ускоренном бою — латунная. */
+  private addSpeedButton(): void {
+    this.speedBg = this.add
+      .rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel)
+      .setStrokeStyle(1, COLORS.line)
+      .setName('speed')
+      .setInteractive({ useHandCursor: true });
+    this.speedLabel = this.add
+      .text(0, 0, '', { fontFamily: FONTS.display, fontSize: '15px', color: TEXT_COLORS.fg })
+      .setOrigin(0.5);
+    const button = this.add.container(...speedButtonCenter(), [this.speedBg, this.speedLabel]);
+
+    addPressFeel(this, this.speedBg, button);
+    this.speedBg.on('pointerdown', () => audio.play('click'));
+    this.speedBg.on('pointerup', () => this.gameScene.toggleSpeed());
+  }
+
   private addPauseButton(): void {
     const bg = this.add
       .rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel)
@@ -638,8 +669,11 @@ export class UIScene extends Phaser.Scene {
   }
 
   private refresh(): void {
-    const { gold, crystals, summonCost, summonsLeft, summonLimit, overLimitMult, canSummon, lives, wave, totalWaves, upcoming } =
+    const { gold, crystals, summonCost, summonsLeft, summonLimit, overLimitMult, canSummon, lives, wave, totalWaves, speed, upcoming } =
       this.gameScene.hudState();
+    const fast = speed > 1;
+    this.speedBg.setFillStyle(fast ? COLORS.brass : COLORS.panel);
+    this.speedLabel.setText(t('hud.speed', { speed })).setColor(fast ? TEXT_COLORS.dark : TEXT_COLORS.fg);
     this.canSummon = canSummon;
 
     this.goldText.setText(String(gold));

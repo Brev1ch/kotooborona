@@ -23,7 +23,7 @@ import type { Projectile } from '../entities/Projectile';
 import { EnemyView } from '../entities/EnemyView';
 import { HeroView } from '../entities/HeroView';
 import type { PieceView } from '../entities/PieceView';
-import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, TOAST_FEEL } from '../feel';
+import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, SPEED_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, CONTROLS_H, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
 import { platform } from '../platform';
@@ -104,6 +104,8 @@ export class GameScene extends Phaser.Scene {
   /** Кот в каждой клетке, индексы совпадают с level.slots. */
   private board!: (Piece | null)[];
   private buildings!: Buildings;
+  /** Сколько шагов боя делается за кадр: 1 — обычная скорость. */
+  private speed = 1;
   private merger!: Merge;
   private views!: (PieceView | null)[];
   private drag: Drag | null = null;
@@ -204,6 +206,7 @@ export class GameScene extends Phaser.Scene {
     this.actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0, builds: 0 };
     this.finished = false;
     this.board = this.level.slots.map(() => null);
+    this.setSpeed(1);
     this.buildings = new Buildings(economy.buildings, this.level.buildings);
     this.views = this.level.slots.map(() => null);
     this.drag = null;
@@ -241,14 +244,32 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     if (this.finished) return;
     const dt = Math.min(MAX_STEP, delta / 1000);
-    this.meteor.update(dt);
+    // Пауза между роликами — в настоящих секундах: ускорение боя её не сокращает.
     this.coinAd.update(dt);
-    this.hero.setReady(this.meteor.ready);
-    this.updateRituals(dt);
-    this.updateBattle(dt);
+    // Ускоренный бой — несколько обычных шагов за кадр: шаг не растёт, и враги не проскакивают мимо котов.
+    for (let step = 0; step < this.speed && !this.finished; step++) {
+      this.meteor.update(dt);
+      this.updateRituals(dt);
+      this.updateBattle(dt);
 
-    if (this.economy.lives <= 0) this.finish(false);
-    else if (this.waves.finished && this.combat.enemies.length === 0) this.finish(true);
+      if (this.economy.lives <= 0) this.finish(false);
+      else if (this.waves.finished && this.combat.enemies.length === 0) this.finish(true);
+    }
+    this.hero.setReady(this.meteor.ready);
+  }
+
+  /** Переключает скорость боя: обычная или ускоренная. Выбор держится до конца боя; новый бой начинается с обычной. */
+  toggleSpeed(): void {
+    if (this.finished) return;
+    this.setSpeed(this.speed === 1 ? SPEED_FEEL.fast : 1);
+    this.events.emit(GameEvent.Changed);
+  }
+
+  /** Вместе с боем ускоряются анимации и таймеры поля: всё на экране идёт в одном темпе. */
+  private setSpeed(speed: number): void {
+    this.speed = speed;
+    this.time.timeScale = speed;
+    this.tweens.timeScale = speed;
   }
 
   /**
@@ -671,6 +692,7 @@ export class GameScene extends Phaser.Scene {
       lives: this.economy.lives,
       wave: this.waves.wave,
       totalWaves: this.level.waves,
+      speed: this.speed,
       upcoming: this.waves.upcoming,
     };
   }

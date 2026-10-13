@@ -20,6 +20,7 @@ import {
   pauseMenuButtonCenter,
   resultAdCenter,
   resultButtonCenter,
+  speedButtonCenter,
   storySkipCenter,
   SUMMON_X,
 } from '../src/layout';
@@ -406,9 +407,29 @@ test('старое сохранение: меню → книга → снаря�
     checkConsole(step);
   }
 
+  await test.step('ускорение боя', async () => {
+    const speed = async (): Promise<number> => (await state(page))?.hud?.speed ?? 0;
+    if ((await speed()) !== 1) throw new Error(`Бой начался не с обычной скорости: ×${await speed()}`);
+    // Туда и обратно: кнопка — переключатель.
+    for (const expected of [2, 1, 2]) {
+      await tap(page, ...speedButtonCenter());
+      await waitFor(
+        page,
+        SUMMON_TIMEOUT,
+        (s) => s.hud?.speed === expected,
+        (s) => `Кнопка скорости не переключила бой на ×${expected}: сейчас ×${s?.hud?.speed ?? '?'}`,
+      );
+    }
+    await page.screenshot({ path: `${SHOTS}/${shot('speed')}` });
+    await checkTouchSizes(page, 'ускоренный бой');
+    checkConsole('ускорение боя');
+  });
+
   await test.step('пауза', async () => {
     await tap(page, ...pauseButtonCenter());
+    // Бой ускорен: пауза должна останавливать его так же, а после неё скорость остаётся.
     await checkPausedAndResume('меню паузы', shot('pause'));
+    if ((await state(page))?.hud?.speed !== 2) throw new Error('После паузы скорость боя сбросилась');
   });
 
   await test.step('пауза после сворачивания', async () => {
@@ -441,6 +462,7 @@ test('старое сохранение: меню → книга → снаря�
       (s) => s.result === null && (s.hud?.lives ?? 0) > 0,
       (s) => `«Второй шанс» не вернул в бой: экран итога «${s?.result}», жизней ${s?.hud?.lives ?? '?'}`,
     );
+    if ((await state(page))?.hud?.speed !== 2) throw new Error('После «Второго шанса» скорость боя сбросилась: бой тот же');
     checkConsole('второй шанс');
 
     // Шанс один на уровень: после второго поражения кнопки нет, нажатие на её место ничего не даёт.
@@ -464,6 +486,8 @@ test('старое сохранение: меню → книга → снаря�
       (s) => s.result === null && s.scenes.includes(SceneKey.UI) && (s.hud?.wave ?? 1) === 0,
       (s) => `«Ещё раз» не перезапустило уровень: ${scenesText(s)}`,
     );
+    // Скорость держится до конца боя, новый бой идёт с обычной.
+    if ((await state(page))?.hud?.speed !== 1) throw new Error('Новый бой начался ускоренным');
     checkConsole('ещё раз');
   });
 

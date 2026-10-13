@@ -7,6 +7,7 @@ export const en: Record<StringKey, string> = {
   'hud.gold': 'Coins',
   'hud.crystals': 'Crystals',
   'hud.wave': 'Wave',
+  'hud.speed': '×{speed}',
   'hud.lives': 'Lives',
   'hud.waveValue': '{current}/{total}',
 

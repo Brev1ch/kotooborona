@@ -23,6 +23,9 @@ export const DRAG_FEEL = {
   highlightLineWidth: 2.5,
 };
 
+/** Ускорение боя кнопкой в HUD: во сколько раз быстрее идут бой и анимации поля. */
+export const SPEED_FEEL = { fast: 2 };
+
 /** Зона продажи на месте нижней полосы: спокойная, пока палец над полем, и яркая, когда он над ней. */
 export const SELL_FEEL = {
   overScale: 1.12,
