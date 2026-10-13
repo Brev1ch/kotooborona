@@ -20,6 +20,9 @@ const game = new Phaser.Game({
   scene: [BootScene, MenuScene, BookScene, GearScene, GameScene, UIScene],
 });
 
+// Долгое касание и правая кнопка не должны открывать меню браузера поверх игры.
+window.addEventListener('contextmenu', (event) => event.preventDefault());
+
 // Зонд для смоук-проверки (npm run smoke): отдельный чанк, у игроков не загружается.
 if (new URLSearchParams(location.search).has('smoke')) {
   void import('./smoke').then(({ installSmokeProbe }) => installSmokeProbe(game));

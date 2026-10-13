@@ -5,5 +5,8 @@ dist/
 screenshots/
 test-results/
 
+# Архив для консоли Яндекс Игр, см. npm run pack.
+pack/
+
 # Сырые паки звуков (Kenney, CC0). В сборку идут только сжатые файлы из public/assets/sfx, см. npm run sfx.
 assets-src/

@@ -57,6 +57,9 @@ export interface SmokeProbe {
   startLevel(levelId?: string): void;
   /** Стресс-проверка из src/debug.ts: поле гибридов и толпа врагов. */
   stress(): void;
+  /** Вся игра остановлена площадкой: идёт реклама или игру свернули. */
+  frozen(): boolean;
+  toggleSound(): void;
   /** Начинает запись стоимости кадров; `stopProfile` возвращает итог. */
   startProfile(): void;
   stopProfile(): FrameProfile;
@@ -115,6 +118,12 @@ export function installSmokeProbe(game: Phaser.Game): void {
       for (const scene of game.scene.getScenes(true)) scene.scene.stop();
       const data: LevelSceneData = { levelId };
       game.scene.start(SceneKey.Game, data);
+    },
+    frozen() {
+      return game.isPaused;
+    },
+    toggleSound() {
+      audio.toggle();
     },
     stress() {
       stress(game.scene.getScene(SceneKey.Game) as GameScene);

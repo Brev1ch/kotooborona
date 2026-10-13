@@ -10,6 +10,7 @@ import { HeroView } from '../entities/HeroView';
 import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
+import { platform } from '../platform';
 import { progress } from '../progress';
 import { catRange, Combat, type Blast, type CombatEvent } from '../systems/Combat';
 import { Economy, starsFor } from '../systems/Economy';
@@ -190,6 +191,10 @@ export class GameScene extends Phaser.Scene {
 
     const data: LevelSceneData = { levelId: this.level.id };
     this.scene.launch(SceneKey.UI, data);
+
+    // Площадке нужно знать, когда игрок играет: бой начался; пауза, конец боя и выход его останавливают.
+    platform.gameplayStart();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => platform.gameplayStop());
   }
 
   update(_time: number, delta: number): void {
@@ -215,15 +220,18 @@ export class GameScene extends Phaser.Scene {
     this.aimPointerId = null;
     this.reticle.setVisible(false);
     this.scene.pause();
+    platform.gameplayStop();
     return true;
   }
 
   resumeBattle(): void {
     this.scene.resume();
+    platform.gameplayStart();
   }
 
   private finish(won: boolean): void {
     this.finished = true;
+    platform.gameplayStop();
     this.cancelDrag();
     this.meteor.cancelAim();
     this.syncAim();

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "sfx": "node scripts/sfx.mjs",
     "smoke": "node -e \"fs.rmSync('screenshots', { recursive: true, force: true })\" && playwright test",
-    "perf": "playwright test -c playwright.perf.config.ts"
+    "perf": "playwright test -c playwright.perf.config.ts",
+    "pack": "vite build && node scripts/pack.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

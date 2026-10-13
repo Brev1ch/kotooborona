@@ -1,8 +1,11 @@
+import { pickLang } from './lang';
+import { browserStore } from './LocalStore';
 import type { Lang, Platform } from './Platform';
 
-const STORAGE_PREFIX = 'koto_';
-
-/** Заглушка для локальной разработки: сохранения в localStorage, реклама сразу отдаёт награду. */
+/**
+ * Заглушка для локальной разработки: сохранения в localStorage, реклама сразу отдаёт награду.
+ * Язык — из браузера; параметр адреса `?lang=en` или `?lang=ru` задаёт его вручную.
+ */
 export class DevPlatform implements Platform {
   private pause: () => void = () => {};
   private resume: () => void = () => {};
@@ -10,10 +13,14 @@ export class DevPlatform implements Platform {
   async init(): Promise<void> {}
 
   getLang(): Lang {
-    return navigator.language.toLowerCase().startsWith('en') ? 'en' : 'ru';
+    return pickLang(new URLSearchParams(location.search).get('lang') ?? navigator.language);
   }
 
   gameReady(): void {}
+
+  gameplayStart(): void {}
+
+  gameplayStop(): void {}
 
   onPause(pause: () => void, resume: () => void): void {
     this.pause = pause;
@@ -32,19 +39,10 @@ export class DevPlatform implements Platform {
   }
 
   async load<T>(key: string, fallback: T): Promise<T> {
-    try {
-      const raw = localStorage.getItem(STORAGE_PREFIX + key);
-      return raw ? (JSON.parse(raw) as T) : fallback;
-    } catch {
-      return fallback;
-    }
+    return browserStore.load(key, fallback);
   }
 
   async save<T>(key: string, value: T): Promise<void> {
-    try {
-      localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
-    } catch {
-      // Хранилище может быть недоступно (приватный режим) — игра продолжает без сохранений.
-    }
+    browserStore.save(key, value);
   }
 }

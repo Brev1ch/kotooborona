@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
 import { loadFonts } from '../fonts';
-import { setLang } from '../i18n';
+import { setLang, t } from '../i18n';
 import { platform } from '../platform';
 import { progress } from '../progress';
 import { SceneKey } from './keys';
@@ -19,6 +19,7 @@ export class BootScene extends Phaser.Scene {
     const saves = platform.init().then(() => progress.load());
     void Promise.all([saves, loadFonts()]).then(() => {
       setLang(platform.getLang());
+      document.title = t('game.title');
       audio.init(this.game);
       // Реклама: вся игра замирает (бой, анимации, таймеры), молчит и не принимает касаний.
       platform.onPause(
