@@ -32,7 +32,7 @@ export const en: Record<StringKey, string> = {
 
   'ad.coins': '+{gold}',
   'ad.watch': 'watch ad',
-  'ad.revive': 'Watch ad for a second chance',
+  'ad.revive': 'Second chance — watch ad',
   'ad.reviveHint': '+{lives} lives and a ready meteor',
   'ad.double': 'Watch ad to double',
 

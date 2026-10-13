@@ -5,5 +5,6 @@ import base from './playwright.config';
 export default defineConfig({
   ...base,
   testMatch: '*.perf.ts',
+  projects: [{ name: 'perf', use: { locale: 'ru-RU' } }],
   timeout: 180_000,
 });

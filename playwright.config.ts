@@ -20,9 +20,14 @@ export default defineConfig({
     deviceScaleFactor: 2,
     isMobile: true,
     hasTouch: true,
-    // Основная аудитория — русскоязычная: на скриншотах русские строки.
-    locale: 'ru-RU',
   },
+  // Игра берёт язык из браузера: вся проверка идёт дважды, на русском и на английском.
+  // Снимки английской — в screenshots/en. Одна локаль: npm run smoke -- --project=ru
+  projects: [
+    { name: 'ru', use: { locale: 'ru-RU' } },
+    // Проверка с поддельным SDK Яндекса от языка браузера не зависит: ей хватает одного прогона.
+    { name: 'en', use: { locale: 'en-US' }, testIgnore: 'yandex.smoke.ts' },
+  ],
   webServer: {
     command: `npm run build && npx vite preview --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,

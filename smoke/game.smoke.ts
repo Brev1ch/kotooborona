@@ -24,7 +24,8 @@ import { SceneKey } from '../src/scenes/keys';
 import type { SmokeState, SmokeTarget } from '../src/smoke';
 import { GEAR_SLOTS } from '../src/systems/Progress';
 
-const SHOTS = 'screenshots';
+/** Куда складываются снимки: у русской локали — в корень, у остальных — в свою папку. */
+let SHOTS = 'screenshots';
 const CATS = 3;
 
 const SCREEN_TIMEOUT = 10_000;
@@ -96,17 +97,26 @@ function targetText(target: SmokeTarget): string {
   return `«${name || 'без имени'}» ${Math.round(width)}×${Math.round(height)} в точке (${Math.round(x)}, ${Math.round(y)})`;
 }
 
-/** Все нажимаемые элементы экрана должны быть не меньше MIN_TOUCH по обеим сторонам. */
+/** Все нажимаемые элементы экрана должны быть не меньше MIN_TOUCH по обеим сторонам, а надписи — помещаться. */
 async function checkTouchSizes(page: Page, step: string): Promise<void> {
   await page.waitForTimeout(PRESS_SETTLE_MS);
   const targets = (await state(page))?.targets ?? [];
   if (targets.length === 0) throw new Error(`На экране «${step}» нет ни одного нажимаемого элемента`);
   // Полпикселя запаса на дробные координаты.
   const small = targets.filter((target) => Math.min(target.width, target.height) < MIN_TOUCH - 0.5);
-  if (small.length === 0) return;
-  throw new Error(
-    `Нажимаемые элементы меньше ${MIN_TOUCH}×${MIN_TOUCH} (${step}):\n${small.map((s) => `  • ${targetText(s)}`).join('\n')}`,
-  );
+  if (small.length > 0) {
+    throw new Error(
+      `Нажимаемые элементы меньше ${MIN_TOUCH}×${MIN_TOUCH} (${step}):\n${small.map((s) => `  • ${targetText(s)}`).join('\n')}`,
+    );
+  }
+  await checkTexts(page, step);
+}
+
+/** Надписи экрана помещаются в свои кнопки, не выходят за край и не наезжают друг на друга. */
+async function checkTexts(page: Page, step: string): Promise<void> {
+  const issues = (await page.evaluate(() => window.__smoke?.textIssues())) ?? [];
+  if (issues.length === 0) return;
+  throw new Error(`Текст не помещается (${step}):\n${[...new Set(issues)].map((issue) => `  • ${issue}`).join('\n')}`);
 }
 
 /** Точка у самого угла элемента; `right` и `bottom` выбирают угол. */
@@ -122,9 +132,11 @@ function scenesText(s: SmokeState | null): string {
   return `активные сцены: [${s.scenes.join(', ')}]`;
 }
 
-test.beforeEach(({ page }) => {
+test.beforeEach(({ page }, testInfo) => {
   errors.length = 0;
   shots = 0;
+  const locale = testInfo.project.name;
+  SHOTS = locale === 'ru' ? 'screenshots' : `screenshots/${locale}`;
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
     const { url } = msg.location();

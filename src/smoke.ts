@@ -2,7 +2,7 @@ import type Phaser from 'phaser';
 import { audio } from './audio';
 import { enemies, levels, type ElementId } from './data';
 import type { Enemy } from './entities/Enemy';
-import { BOARD_Y } from './layout';
+import { BOARD_Y, GAME_H, GAME_W } from './layout';
 import { stress } from './debug';
 import { progress } from './progress';
 import type { GameScene } from './scenes/GameScene';
@@ -75,6 +75,11 @@ export interface SmokeProbe {
   startLevel(levelId?: string): void;
   /** Показывает сценку `storyId`, даже если она уже была; после неё начнётся бой на уровне `levelId`. */
   startStory(levelId: string, storyId: string): void;
+  /**
+   * Проблемы с текстом на экране, по строке на каждую: надпись не помещается в свою кнопку,
+   * выходит за край экрана или наезжает на другую надпись. Пустой список — всё в порядке.
+   */
+  textIssues(): string[];
   /** Центры клеток идущего боя в координатах экрана. */
   slotCenters(): [number, number][];
   /** Ставит кота в клетку идущего боя. */
@@ -133,6 +138,68 @@ function collectTargets(objects: Phaser.GameObjects.GameObject[], out: SmokeTarg
   }
 }
 
+/** Запас на дробные координаты, пиксели. */
+const TEXT_TOLERANCE = 1;
+/** Надписи наезжают друг на друга, если пересеклись больше чем на столько пикселей по обеим осям: поля строк не в счёт. */
+const TEXT_OVERLAP = 4;
+
+type Listed = Phaser.GameObjects.GameObject & {
+  list?: Phaser.GameObjects.GameObject[];
+  visible?: boolean;
+  alpha?: number;
+};
+
+/**
+ * Собирает видимые надписи, заходя внутрь контейнеров, и попутно проверяет кнопки:
+ * надпись в контейнере с нажимаемой плашкой должна помещаться в эту плашку.
+ */
+function collectTexts(
+  objects: Phaser.GameObjects.GameObject[],
+  out: Phaser.GameObjects.Text[],
+  issues: string[],
+  /** Слой каждой надписи: сколько затемнений нарисовано до неё. */
+  layers: Map<Phaser.GameObjects.Text, number>,
+  depth: { layer: number },
+): void {
+  for (const object of objects as Listed[]) {
+    if (object.visible === false || object.alpha === 0) continue;
+    if (object.type === 'Text') {
+      const text = object as Phaser.GameObjects.Text;
+      if (text.text.trim() === '') continue;
+      out.push(text);
+      layers.set(text, depth.layer);
+      continue;
+    }
+    // Затемнение окна: нажимаемый прямоугольник во весь экран или во всё поле. Всё нарисованное после него — новый слой.
+    if (object.type === 'Rectangle' && object.input?.enabled) {
+      const { width, height } = (object as Phaser.GameObjects.Rectangle).getBounds();
+      if (width >= GAME_W && height >= GAME_H / 2) depth.layer++;
+    }
+    if (!object.list) continue;
+
+    const inside: Phaser.GameObjects.Text[] = [];
+    collectTexts(object.list, inside, issues, layers, depth);
+    out.push(...inside);
+    const hit = (object.list as Bounded[]).find((child) => child.input?.enabled && child.getBounds);
+    const frame = hit?.getBounds?.();
+    if (!hit || !frame) continue;
+    for (const text of inside) {
+      const { left, right, top, bottom } = text.getBounds();
+      const fits =
+        left >= frame.left - TEXT_TOLERANCE &&
+        right <= frame.right + TEXT_TOLERANCE &&
+        top >= frame.top - TEXT_TOLERANCE &&
+        bottom <= frame.bottom + TEXT_TOLERANCE;
+      if (!fits) {
+        issues.push(
+          `«${text.text}» (${Math.round(right - left)}×${Math.round(bottom - top)}) не помещается в кнопку ` +
+            `«${hit.name || 'без имени'}» (${Math.round(frame.width)}×${Math.round(frame.height)})`,
+        );
+      }
+    }
+  }
+}
+
 export function installSmokeProbe(game: Phaser.Game): void {
   const steps: number[] = [];
   let stepStart = 0;
@@ -175,6 +242,34 @@ export function installSmokeProbe(game: Phaser.Game): void {
       for (const scene of game.scene.getScenes(true)) scene.scene.stop();
       const data: StorySceneData = { levelId, storyId };
       game.scene.start(SceneKey.Story, data);
+    },
+    textIssues() {
+      const issues: string[] = [];
+      for (const scene of game.scene.getScenes(true)) {
+        const texts: Phaser.GameObjects.Text[] = [];
+        const layers = new Map<Phaser.GameObjects.Text, number>();
+        collectTexts(scene.children.list, texts, issues, layers, { layer: 0 });
+        for (const text of texts) {
+          const { left, right, top, bottom } = text.getBounds();
+          if (left < -TEXT_TOLERANCE || right > GAME_W + TEXT_TOLERANCE || top < -TEXT_TOLERANCE || bottom > GAME_H + TEXT_TOLERANCE) {
+            issues.push(`«${text.text}» выходит за край экрана (${scene.scene.key})`);
+          }
+        }
+        for (let i = 0; i < texts.length; i++) {
+          for (let j = i + 1; j < texts.length; j++) {
+            const a = texts[i].getBounds();
+            const b = texts[j].getBounds();
+            const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+            const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+            // Надпись под затемнением окна (пауза, итог боя, сундук) и надпись в самом окне друг другу не мешают.
+            if (layers.get(texts[i]) !== layers.get(texts[j])) continue;
+            if (overlapX > TEXT_OVERLAP && overlapY > TEXT_OVERLAP) {
+              issues.push(`«${texts[i].text}» наезжает на «${texts[j].text}» (${scene.scene.key})`);
+            }
+          }
+        }
+      }
+      return issues;
     },
     slotCenters() {
       const scene = game.scene.getScene(SceneKey.Game) as GameScene;
