@@ -4,7 +4,7 @@ import type { CatsConfig, ElementId, EnemiesConfig, EnemyTypeId } from '../data'
 import type { Building, Piece } from '../entities/Building';
 import type { Cat } from '../entities/Cat';
 import type { Enemy } from '../entities/Enemy';
-import { catDamage, catRate, Combat, type CombatEvent } from './Combat';
+import { catDamage, catRate, Combat, isBurrowed, type CombatEvent } from './Combat';
 import { buildPath } from './Path';
 
 // Числа зафиксированы здесь, чтобы тесты не зависели от правок баланса в JSON.
@@ -51,6 +51,11 @@ const enemies: EnemiesConfig = {
     shield: { ...type, lifeDamage: 1 },
     boots: { ...type, lifeDamage: 1, immune: ['slow', 'freeze'] },
     fire: { ...type, lifeDamage: 1, immune: ['burn'], resist: { fire: 0, lava: 0.5, steam: 1, storm: 1 } },
+    shaman: { ...type, lifeDamage: 1, heal: { radius: 20, part: 0.1, interval: 1 } },
+    // Дорога длиной 140: подкоп идёт от 56 до 84, точка под клеткой 0 — внутри него.
+    mole: { ...type, lifeDamage: 1, burrow: { from: 0.4, to: 0.6 } },
+    ninja: { ...type, lifeDamage: 1, dodgeEvery: 3 },
+    bat: { ...type, lifeDamage: 1, flying: { hitBy: ['air', 'storm'] } },
     boss: { ...type, lifeDamage: 5, crystalChance: 1, crystalDrop: 2, slowResist: true },
     king: { ...type, lifeDamage: 20, slowResist: true, summon: { type: 'mouse', count: 2, interval: 2, spread: 10 } },
   },
@@ -928,6 +933,271 @@ describe('Combat: сопротивление стихиям', () => {
     expect(enemiesJson.types.fire.immune).toEqual(['burn']);
     expect(enemiesJson.types.fire.resist).toEqual({ fire: 0, lava: 0.5, steam: 1, storm: 1 });
     expect(enemiesJson.types.boots.immune).toEqual(['slow', 'freeze']);
+  });
+});
+
+describe('Combat: шаман', () => {
+  it('раз в интервал лечит соседей в радиусе на долю их полного здоровья', () => {
+    const shaman = enemy('shaman', MIDDLE);
+    const near = enemy('mouse', MIDDLE - 20, { hp: 50, maxHp: 100 });
+    const far = enemy('mouse', MIDDLE - 21, { hp: 50, maxHp: 100 });
+    const combat = create([shaman, near, far]);
+
+    expect(ofKind(run(combat, [], 0.9), 'healed')).toEqual([]);
+    const events = run(combat, [], 0.2);
+
+    expect(near.hp).toBe(60);
+    expect(far.hp).toBe(50);
+    expect(ofKind(events, 'healed')).toEqual([{ kind: 'healed', enemy: shaman, x: 50, y: 50, radius: 20 }]);
+
+    run(combat, [], 1);
+    expect(near.hp).toBe(70);
+  });
+
+  it('не лечит выше полного здоровья', () => {
+    const near = enemy('mouse', MIDDLE - 5, { hp: 95, maxHp: 100 });
+    run(create([enemy('shaman', MIDDLE), near]), [], 1.1);
+
+    expect(near.hp).toBe(100);
+  });
+
+  it('себя не лечит', () => {
+    const shaman = enemy('shaman', MIDDLE, { hp: 5, maxHp: 20 });
+    const events = run(create([shaman]), [], 3);
+
+    expect(shaman.hp).toBe(5);
+    expect(ofKind(events, 'healed')).toEqual([]);
+  });
+
+  it('других шаманов не лечит: пара шаманов друг друга не вытягивает', () => {
+    const first = enemy('shaman', MIDDLE, { hp: 5, maxHp: 20 });
+    const second = enemy('shaman', MIDDLE - 5, { hp: 7, maxHp: 20 });
+    const events = run(create([first, second]), [], 10);
+
+    expect([first.hp, second.hp]).toEqual([5, 7]);
+    expect(ofKind(events, 'healed')).toEqual([]);
+  });
+
+  it('пара шаманов лечит мышь оба, но не друг друга', () => {
+    const first = enemy('shaman', MIDDLE, { hp: 5, maxHp: 20 });
+    const second = enemy('shaman', MIDDLE - 5, { hp: 5, maxHp: 20 });
+    const mouse = enemy('mouse', MIDDLE - 2, { hp: 10, maxHp: 100 });
+    run(create([first, second, mouse]), [], 1.1);
+
+    expect([first.hp, second.hp, mouse.hp]).toEqual([5, 5, 30]);
+  });
+
+  it('если лечить некого, события нет', () => {
+    const events = run(create([enemy('shaman', MIDDLE), enemy('mouse', MIDDLE - 5)]), [], 2.1);
+    expect(ofKind(events, 'healed')).toEqual([]);
+  });
+
+  it('убитый шаман больше не лечит', () => {
+    const shaman = enemy('shaman', MIDDLE, { hp: 1 });
+    const mouse = enemy('mouse', 10, { hp: 50, maxHp: 100 });
+    const combat = create([shaman, mouse]);
+    run(combat, [cat()], 0.5);
+    expect(combat.enemies).toEqual([mouse]);
+
+    mouse.distance = MIDDLE;
+    run(combat, [], 2);
+    expect(mouse.hp).toBe(50);
+  });
+});
+
+describe('Combat: крот', () => {
+  it('под землёй — только на участке подкопа', () => {
+    const length = path.length;
+    expect(isBurrowed(enemies, enemy('mole', 55), length)).toBe(false);
+    expect(isBurrowed(enemies, enemy('mole', 56), length)).toBe(true);
+    expect(isBurrowed(enemies, enemy('mole', 83), length)).toBe(true);
+    expect(isBurrowed(enemies, enemy('mole', 84), length)).toBe(false);
+    expect(isBurrowed(enemies, enemy('mouse', 70), length)).toBe(false);
+  });
+
+  it('под землёй коты по нему не стреляют', () => {
+    const mole = enemy('mole', MIDDLE, { hp: 100 });
+    const events = run(create([mole]), [cat()], 1);
+
+    expect(ofKind(events, 'shot')).toEqual([]);
+    expect(mole.hp).toBe(100);
+  });
+
+  it('до подкопа и после него получает урон как все', () => {
+    const before = enemy('mole', 50, { hp: 100 });
+    run(create([before]), [cat()], 0.3);
+    expect(before.hp).toBe(90);
+
+    const after = enemy('mole', 90, { hp: 100 });
+    run(create([after]), [cat()], 0.3);
+    expect(after.hp).toBe(90);
+  });
+
+  it('снаряд, не успевший долететь до ушедшего под землю, пропадает', () => {
+    // За шаг крот проходит 4: после первого шага он ещё на поверхности, после второго — уже под землёй.
+    const mole = enemy('mole', 50, { hp: 100, speed: 80 });
+    const combat = create([mole]);
+
+    combat.update(DT, [cat()]);
+    expect(combat.projectiles).toHaveLength(1);
+    combat.update(DT, []);
+
+    expect(combat.projectiles).toEqual([]);
+    expect(mole.hp).toBe(100);
+  });
+
+  it('под землёй не страшны ни буря, ни осколки, ни молния, ни метеор', () => {
+    const mole = enemy('mole', MIDDLE, { hp: 100 });
+    const mouse = enemy('mouse', 90, { hp: 1000 });
+    const combat = create([mole, mouse]);
+
+    run(combat, [cat('sand'), cat('lava')], 1);
+    run(combat, [cat('storm'), cat('steam')], 1);
+    const events = combat.strike(50, 50, { radius: 30, damage: 30, burnDps: 4, burnTime: 2 });
+
+    expect(mole).toMatchObject({ hp: 100, burnTime: 0, slowTime: 0 });
+    expect(ofKind(events, 'hit').map((event) => event.enemy)).toEqual([mouse]);
+  });
+
+  it('огонь и яд под землёй не жгут, а после подкопа продолжают', () => {
+    const mole = enemy('mole', MIDDLE, { hp: 100, burnDps: 10, burnTime: 5, poisonDps: 10, poisonTime: 5 });
+    const combat = create([mole]);
+
+    run(combat, [], 1);
+    expect(mole.hp).toBe(100);
+
+    mole.distance = 90;
+    run(combat, [], 1);
+    expect(mole.hp).toBeCloseTo(80);
+  });
+
+  it('шаман под землёй крота не лечит', () => {
+    const mole = enemy('mole', MIDDLE, { hp: 50, maxHp: 100 });
+    run(create([enemy('shaman', MIDDLE), mole]), [], 1.1);
+
+    expect(mole.hp).toBe(50);
+  });
+});
+
+describe('Combat: ниндзя', () => {
+  it('уклоняется от каждого третьего снаряда', () => {
+    const ninja = enemy('ninja', MIDDLE, { hp: 1000 });
+    const combat = create([ninja]);
+
+    // Ветряной кот 1-го уровня стреляет раз в 0.67 с: за 4.2 с вылетает и долетает шесть снарядов.
+    const events = run(combat, [cat()], 4.2);
+
+    expect(ofKind(events, 'shot')).toHaveLength(6);
+    expect(ofKind(events, 'hit')).toHaveLength(4);
+    expect(ofKind(events, 'dodged')).toEqual([
+      { kind: 'dodged', enemy: ninja, x: 50, y: 50 },
+      { kind: 'dodged', enemy: ninja, x: 50, y: 50 },
+    ]);
+    expect(ninja.hp).toBe(960);
+  });
+
+  it('промах не накладывает эффект и не даёт осколков', () => {
+    const ninja = enemy('ninja', MIDDLE, { hp: 1000, shotsTaken: 2 });
+    const mouse = enemy('mouse', MIDDLE - 10, { hp: 100 });
+    const combat = create([ninja, mouse]);
+
+    const events = [...combat.update(DT, [cat('lava')]), ...run(combat, [], 0.1)];
+
+    expect(ofKind(events, 'dodged')).toHaveLength(1);
+    expect(ofKind(events, 'splash')).toEqual([]);
+    expect(ninja).toMatchObject({ hp: 1000, burnTime: 0 });
+    expect(mouse.hp).toBe(100);
+  });
+
+  it('счёт у каждого ниндзя свой', () => {
+    const first = enemy('ninja', MIDDLE, { hp: 1000, shotsTaken: 2 });
+    const second = enemy('ninja', MIDDLE - 30, { hp: 1000 });
+    const combat = create([first, second]);
+
+    run(combat, [cat()], 0.3);
+    expect(first.shotsTaken).toBe(3);
+    expect(second.shotsTaken ?? 0).toBe(0);
+  });
+
+  it('от бури, осколков и перескока молнии не уклоняется', () => {
+    const stormed = enemy('ninja', MIDDLE, { hp: 1000 });
+    expect(ofKind(run(create([stormed]), [cat('sand')], 3.2), 'dodged')).toEqual([]);
+    expect(stormed.hp).toBe(1000 - 15 * 5);
+
+    const mouse = enemy('mouse', MIDDLE, { hp: 1000 });
+    const splashed = enemy('ninja', MIDDLE - 10, { hp: 1000, shotsTaken: 2 });
+    const combat = create([mouse, splashed]);
+    combat.update(DT, [cat('lava')]);
+    run(combat, [], 0.1);
+    expect(splashed.hp).toBe(992.5);
+
+    const chained = enemy('ninja', MIDDLE - 10, { hp: 1000, shotsTaken: 2 });
+    const chain = create([enemy('mouse', MIDDLE, { hp: 1000 }), chained]);
+    chain.update(DT, [cat('storm')]);
+    run(chain, [], 0.1);
+    expect(chained).toMatchObject({ hp: 992.5, shotsTaken: 2 });
+  });
+
+  it('от метеора не уклоняется', () => {
+    const ninja = enemy('ninja', MIDDLE, { hp: 100, shotsTaken: 2 });
+    create([ninja]).strike(50, 50, { radius: 20, damage: 30, burnDps: 4, burnTime: 2 });
+
+    expect(ninja.hp).toBe(70);
+  });
+});
+
+describe('Combat: летучая мышь', () => {
+  it.each(['air', 'storm'] as const)('%s по ней стреляет', (element) => {
+    const bat = enemy('bat', MIDDLE, { hp: 100 });
+    const events = run(create([bat]), [cat(element)], 0.3);
+
+    expect(ofKind(events, 'shot')).toHaveLength(1);
+    expect(bat.hp).toBeLessThan(100);
+  });
+
+  it.each(['fire', 'water', 'earth', 'steam', 'lava', 'ice', 'swamp', 'sand'] as const)('%s её не достаёт', (element) => {
+    const bat = enemy('bat', MIDDLE, { hp: 100 });
+    const events = run(create([bat]), [cat(element)], 2);
+
+    expect(ofKind(events, 'shot')).toEqual([]);
+    expect(ofKind(events, 'aura')).toEqual([]);
+    expect(bat.hp).toBe(100);
+  });
+
+  it('кот, которому она не по силам, стреляет по тому, кто идёт за ней', () => {
+    const bat = enemy('bat', MIDDLE + 10, { hp: 100 });
+    const mouse = enemy('mouse', MIDDLE, { hp: 100 });
+    const events = run(create([bat, mouse]), [cat('fire')], 0.3);
+
+    expect(ofKind(events, 'shot')[0].projectile.target).toBe(mouse);
+  });
+
+  it('осколки и облако с земли её не задевают', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 1000 });
+    const bat = enemy('bat', MIDDLE - 10, { hp: 100 });
+    const combat = create([mouse, bat]);
+
+    run(combat, [cat('lava'), cat('steam')], 1);
+
+    expect(bat).toMatchObject({ hp: 100, burnTime: 0, slowTime: 0 });
+  });
+
+  it('молния перескакивает на неё с наземного врага', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 1000 });
+    const bat = enemy('bat', MIDDLE - 10, { hp: 100 });
+    const combat = create([mouse, bat]);
+
+    combat.update(DT, [cat('storm')]);
+    run(combat, [], 0.1);
+
+    expect(bat.hp).toBe(92.5);
+  });
+
+  it('метеор падает сверху и бьёт её', () => {
+    const bat = enemy('bat', MIDDLE, { hp: 100 });
+    create([bat]).strike(50, 50, { radius: 20, damage: 30, burnDps: 4, burnTime: 2 });
+
+    expect(bat).toMatchObject({ hp: 70, burnTime: 2 });
   });
 });
 

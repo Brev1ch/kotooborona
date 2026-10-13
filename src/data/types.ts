@@ -50,7 +50,7 @@ export interface CatsConfig {
   effects: Record<CatEffect, Record<string, number>>;
 }
 
-export type EnemyTypeId = 'mouse' | 'rat' | 'shield' | 'boots' | 'fire' | 'boss' | 'king';
+export type EnemyTypeId = 'mouse' | 'rat' | 'shield' | 'boots' | 'fire' | 'shaman' | 'mole' | 'ninja' | 'bat' | 'boss' | 'king';
 
 /** Эффекты, которые коты накладывают на врага. Заморозка — отдельный от замедления эффект ледяного кота. */
 export type StatusId = 'slow' | 'freeze' | 'burn' | 'poison';
@@ -72,6 +72,14 @@ export interface EnemyTypeConfig {
   immune?: StatusId[];
   /** Множитель урона от стихии кота, включая её огонь и яд; 0 — урона нет вовсе. Стихий, которых здесь нет, это не касается. */
   resist?: Partial<Record<ElementId, number>>;
+  /** Лечит соседей: каждые `interval` секунд всем в радиусе `radius` возвращает долю `part` их полного здоровья. Себя и других лекарей не лечит. */
+  heal?: { radius: number; part: number; interval: number };
+  /** Подкоп: на участке пути между долями `from` и `to` враг под землёй — неуязвим и не виден котам. */
+  burrow?: { from: number; to: number };
+  /** Уклоняется от каждого N-го летящего в него снаряда. Урон по площади, перескок молнии и буря попадают всегда. */
+  dodgeEvery?: number;
+  /** Летает: достают только коты этих стихий. Метеор падает сверху и бьёт всегда. */
+  flying?: { hitBy: ElementId[] };
   /** Призывает подмогу: каждые `interval` секунд рядом появляются `count` врагов типа `type` на расстоянии `spread` друг от друга. */
   summon?: { type: EnemyTypeId; count: number; interval: number; spread: number };
 }

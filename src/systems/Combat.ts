@@ -21,6 +21,14 @@ export function catRate(config: CatsConfig, cat: Cat): number {
   return (config.baseRate + config.ratePerLevel * cat.level) * config.elements[cat.element].rate;
 }
 
+/** Враг сейчас под землёй: идёт по участку подкопа. */
+export function isBurrowed(enemies: EnemiesConfig, enemy: Enemy, pathLength: number): boolean {
+  const burrow = enemies.types[enemy.type].burrow;
+  if (!burrow) return false;
+  const progress = enemy.distance / pathLength;
+  return progress >= burrow.from && progress < burrow.to;
+}
+
 export interface CombatSetup {
   cats: CatsConfig;
   enemies: EnemiesConfig;
@@ -55,6 +63,10 @@ export type CombatEvent =
   | { kind: 'killed'; enemy: Enemy; x: number; y: number; gold: number; crystals: number }
   /** Враг призвал подмогу: `enemy` уже на поле. */
   | { kind: 'spawned'; enemy: Enemy }
+  /** Враг уклонился от снаряда. */
+  | { kind: 'dodged'; enemy: Enemy; x: number; y: number }
+  /** Лекарь подлечил соседей в радиусе. */
+  | { kind: 'healed'; enemy: Enemy; x: number; y: number; radius: number }
   /** Облако или взрыв: задело всех в радиусе. */
   | { kind: 'splash'; x: number; y: number; radius: number; element: ElementId }
   /** Молния перескочила с врага на врага. */
@@ -100,7 +112,7 @@ export class Combat {
   }
 
   /**
-   * Взрыв в точке: урон мимо щита и сопротивлений и поджог всем, кто сейчас в радиусе.
+   * Взрыв в точке: урон мимо щита и сопротивлений и поджог всем, кто сейчас в радиусе, — летающим тоже, но не тем, кто под землёй.
    * Возвращает события так же, как update().
    */
   strike(x: number, y: number, { radius, damage, burnDps, burnTime }: Blast): CombatEvent[] {
@@ -135,6 +147,7 @@ export class Combat {
         if (enemy.poisonTime <= 0) enemy.poisonDps = 0;
       }
       enemy.distance += enemy.speed * enemy.slowFactor * dt;
+      this.heal(enemy, dt);
 
       // Подмога появляется позади призвавшего, и только пока он на поле: за его краем игрок её бы не увидел.
       const { summon } = enemy;
@@ -172,7 +185,7 @@ export class Combat {
     const range = catRange(cats, cat);
 
     if (cats.elements[cat.element].fx === 'aura') {
-      const targets = this.near(x, y, range).filter((enemy) => this.visible(enemy));
+      const targets = this.near(x, y, range).filter((enemy) => this.visible(enemy) && this.reaches(cat.element, enemy));
       if (targets.length === 0) return;
       cat.cooldown = 1 / catRate(cats, cat);
       this.events.push({ kind: 'aura', slot, radius: range, element: cat.element });
@@ -180,7 +193,7 @@ export class Combat {
       return;
     }
 
-    const target = this.pickTarget(x, y, range);
+    const target = this.pickTarget(x, y, range, cat.element);
     if (!target) return;
 
     cat.cooldown = 1 / catRate(cats, cat);
@@ -189,23 +202,53 @@ export class Combat {
     this.events.push({ kind: 'shot', slot, projectile });
   }
 
-  /** Враг в радиусе, прошедший по дороге дальше всех. */
-  private pickTarget(x: number, y: number, range: number): Enemy | null {
+  /** Враг в радиусе, прошедший по дороге дальше всех, из тех, кого стихия достаёт. */
+  private pickTarget(x: number, y: number, range: number, element: ElementId): Enemy | null {
     let best: Enemy | null = null;
     for (const enemy of this.near(x, y, range)) {
-      if (!this.visible(enemy)) continue;
+      if (!this.visible(enemy) || !this.reaches(element, enemy)) continue;
       if (!best || enemy.distance > best.distance) best = enemy;
     }
     return best;
   }
 
-  /** Живые враги не дальше `radius` от точки, кроме `except`; в порядке появления. */
+  /** Живые враги на поверхности не дальше `radius` от точки, кроме `except`; в порядке появления. */
   private near(x: number, y: number, radius: number, except?: Enemy): Enemy[] {
     return this.alive.filter((enemy) => {
-      if (enemy.hp <= 0 || enemy === except) return false;
+      if (enemy.hp <= 0 || enemy === except || this.burrowed(enemy)) return false;
       const [ex, ey] = positionAt(this.setup.path, enemy.distance);
       return Math.hypot(ex - x, ey - y) <= radius;
     });
+  }
+
+  private burrowed(enemy: Enemy): boolean {
+    return isBurrowed(this.setup.enemies, enemy, this.setup.path.length);
+  }
+
+  /** Достаёт ли стихия врага: по летающим бьют только указанные у них. */
+  private reaches(element: ElementId, enemy: Enemy): boolean {
+    const flying = this.setup.enemies.types[enemy.type].flying;
+    return !flying || flying.hitBy.includes(element);
+  }
+
+  /** Лекарь раз в `interval` секунд лечит соседей; себя и других лекарей — нет, иначе двое лечили бы друг друга без конца. */
+  private heal(enemy: Enemy, dt: number): void {
+    const { types } = this.setup.enemies;
+    const heal = types[enemy.type].heal;
+    if (!heal || enemy.hp <= 0) return;
+    enemy.healTimer = (enemy.healTimer ?? heal.interval) - dt;
+    if (enemy.healTimer > 0) return;
+    enemy.healTimer += heal.interval;
+    if (this.burrowed(enemy)) return;
+
+    const [x, y] = positionAt(this.setup.path, enemy.distance);
+    let healed = false;
+    for (const other of this.near(x, y, heal.radius, enemy)) {
+      if (types[other.type].heal || other.hp >= other.maxHp) continue;
+      other.hp = Math.min(other.maxHp, other.hp + other.maxHp * heal.part);
+      healed = true;
+    }
+    if (healed) this.events.push({ kind: 'healed', enemy, x, y, radius: heal.radius });
   }
 
   /** Враг уже вышел на поле и ещё не ушёл с него. */
@@ -222,8 +265,8 @@ export class Combat {
 
     this.flying = this.flying.filter((projectile) => {
       const { target } = projectile;
-      // Цель убита или ушла в ворота — снаряд пропадает.
-      if (target.hp <= 0 || !this.alive.includes(target)) return false;
+      // Цель убита, ушла в ворота или под землю — снаряд пропадает.
+      if (target.hp <= 0 || !this.alive.includes(target) || this.burrowed(target)) return false;
 
       const [tx, ty] = positionAt(path, target.distance);
       const dx = tx - projectile.x;
@@ -246,6 +289,16 @@ export class Combat {
     const effect = cats.effects[fx];
     const [x, y] = positionAt(path, target.distance);
 
+    // Уклонение: снаряд пролетает мимо целиком, без урона, эффекта и осколков.
+    const dodgeEvery = this.setup.enemies.types[target.type].dodgeEvery;
+    if (dodgeEvery) {
+      target.shotsTaken = (target.shotsTaken ?? 0) + 1;
+      if (target.shotsTaken % dodgeEvery === 0) {
+        this.events.push({ kind: 'dodged', enemy: target, x, y });
+        return;
+      }
+    }
+
     this.hurt(target, damage, element);
     // Огонь и яд слабеют вместе с уроном стихии.
     const dealt = damage * this.resist(target, element);
@@ -263,6 +316,7 @@ export class Combat {
       case 'splash_slow':
         this.slow(target, 'slow', effect.slowFactor, effect.slowTime);
         for (const other of this.near(x, y, effect.splashRadius, target)) {
+          if (!this.reaches(element, other)) continue;
           this.graze(other, damage * effect.splashDamage, element);
           this.slow(other, 'slow', effect.slowFactor, effect.slowTime);
         }
@@ -272,6 +326,7 @@ export class Combat {
       case 'splash_burn':
         this.burn(target, dealt * effect.burnDps, effect.burnTime);
         for (const other of this.near(x, y, effect.splashRadius, target)) {
+          if (!this.reaches(element, other)) continue;
           this.graze(other, damage * effect.splashDamage, element);
           this.burn(other, damage * this.resist(other, element) * effect.splashBurnDps, effect.burnTime);
         }
@@ -282,7 +337,7 @@ export class Combat {
         const struck = new Set([target]);
         let from: Point = [x, y];
         for (let i = 0; i < effect.jumps; i++) {
-          const next = this.near(from[0], from[1], effect.jumpRadius).find((enemy) => !struck.has(enemy));
+          const next = this.near(from[0], from[1], effect.jumpRadius).find((enemy) => !struck.has(enemy) && this.reaches(element, enemy));
           if (!next) break;
           struck.add(next);
           const to = positionAt(path, next.distance);
@@ -375,7 +430,8 @@ export class Combat {
 
   /** Урон как есть, мимо щита и сопротивлений: метеор, огонь, яд. */
   private damage(enemy: Enemy, amount: number, x: number, y: number): void {
-    if (enemy.hp <= 0) return;
+    // Под землёй врага не достаёт ничто, даже уже горящий на нём огонь.
+    if (enemy.hp <= 0 || this.burrowed(enemy)) return;
     enemy.hp -= amount;
     if (enemy.hp > 0) return;
     const { crystalChance, crystalDrop } = this.setup.enemies.types[enemy.type];

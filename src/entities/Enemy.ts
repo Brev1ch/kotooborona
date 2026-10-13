@@ -17,6 +17,10 @@ export interface Enemy {
   burnTime: number;
   poisonDps: number;
   poisonTime: number;
+  /** Секунды до следующего лечения соседей; у лекаря появляется с первым шагом боя. */
+  healTimer?: number;
+  /** Сколько снарядов долетело до уклоняющегося врага. */
+  shotsTaken?: number;
   /** Подмога, которую призывает этот враг; `timer` — секунды до следующего призыва. */
   summon?: EnemySummon;
 }

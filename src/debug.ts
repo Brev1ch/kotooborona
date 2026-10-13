@@ -19,7 +19,7 @@ const STRESS_ELEMENTS: ElementId[] = ['steam', 'lava', 'storm', 'sand', 'ice', '
 const STRESS_LEVELS = [5, 6];
 const STRESS_ENEMIES: EnemyTypeId[] = ['mouse', 'rat', 'shield', 'mouse', 'rat'];
 const STRESS_ENEMY_COUNT = 40;
-const STRESS_ENEMY_HP: Record<EnemyTypeId, number> = { mouse: 40, rat: 3000, shield: 3000, boots: 3000, fire: 3000, boss: 3000, king: 3000 };
+const STRESS_ENEMY_HP: Record<EnemyTypeId, number> = { mouse: 40, rat: 3000, shield: 3000, boots: 3000, fire: 3000, shaman: 3000, mole: 3000, ninja: 3000, bat: 3000, boss: 3000, king: 3000 };
 const STRESS_SPAWN_MS = 350;
 const STRESS_LIVES = 999;
 
