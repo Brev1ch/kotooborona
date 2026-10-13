@@ -9,7 +9,7 @@ import { HeroView } from '../entities/HeroView';
 import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
-import { platform } from '../platform';
+import { progress } from '../progress';
 import { catRange, Combat, type Blast, type CombatEvent } from '../systems/Combat';
 import { Economy, starsFor } from '../systems/Economy';
 import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
@@ -27,9 +27,6 @@ const BLOCK_TEXT: Record<MergeBlock, StringKey> = {
   maxLevel: 'merge.maxLevel',
   noCrystal: 'merge.noCrystal',
 };
-
-/** Ключ сохранения: стихии гибридов, которых игрок уже получал. */
-const BOOK_KEY = 'book';
 
 /** Самый длинный шаг боя, секунды: после подвисания вкладки враги не перескакивают дорогу. */
 const MAX_STEP = 0.05;
@@ -59,7 +56,6 @@ export class GameScene extends Phaser.Scene {
   private toast: Phaser.GameObjects.Text | null = null;
   /** Подпись над клеткой под пальцем: кто получится при слиянии. */
   private hint!: Phaser.GameObjects.Text;
-  private discovered = new Set<ElementId>();
   private path!: Path;
   private waves!: Waves;
   private combat!: Combat;
@@ -125,11 +121,6 @@ export class GameScene extends Phaser.Scene {
     this.drag = null;
     this.toast = null;
 
-    this.discovered = new Set();
-    void platform.load<ElementId[]>(BOOK_KEY, []).then((saved) => {
-      for (const element of saved) this.discovered.add(element);
-    });
-
     this.hint = this.add
       .text(0, 0, '', {
         fontFamily: FONTS.body,
@@ -180,6 +171,10 @@ export class GameScene extends Phaser.Scene {
       wave: this.waves.wave,
       totalWaves: this.level.waves,
     };
+    if (won) {
+      progress.recordStars(this.level.id, result.stars);
+      progress.flush();
+    }
     this.events.emit(GameEvent.Changed);
     this.events.emit(GameEvent.Finished, result);
   }
@@ -692,7 +687,7 @@ export class GameScene extends Phaser.Scene {
 
     const { element, level } = check.cat;
     // Ещё не открытый гибрид остаётся загадкой до конца ритуала.
-    const known = !this.merger.isHybrid(element) || this.discovered.has(element);
+    const known = !this.merger.isHybrid(element) || progress.hasCat(element);
     const text = known ? t('merge.preview', { name: t(`cat.${element}`), level }) : t('merge.previewUnknown');
     return check.crystalCost > 0 ? t('merge.crystalCost', { text, cost: check.crystalCost }) : text;
   }
@@ -703,9 +698,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Запоминает гибрида, полученного впервые, и сообщает об этом HUD. */
   private discover(element: ElementId): void {
-    if (!this.merger.isHybrid(element) || this.discovered.has(element)) return;
-    this.discovered.add(element);
-    void platform.save(BOOK_KEY, [...this.discovered]);
+    if (!this.merger.isHybrid(element) || !progress.discover(element)) return;
     this.events.emit(GameEvent.Discovered, element);
   }
 

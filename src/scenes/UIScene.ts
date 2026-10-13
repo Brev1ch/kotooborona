@@ -16,6 +16,8 @@ import {
   SUMMON_X,
   TEXT_COLORS,
 } from '../layout';
+import { progress } from '../progress';
+import { MAX_STARS } from '../systems/Progress';
 import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
 import { GameEvent, SceneKey, type LevelResult, type LevelSceneData } from './keys';
@@ -43,7 +45,6 @@ const RESULT_BUTTON_W = 130;
 const RESULT_BUTTON_H = 46;
 const RESULT_BUTTON_GAP = 12;
 const STAR_STEP = 44;
-const MAX_STARS = 3;
 
 const ANNOUNCE_BG = `rgba(27, 34, 51, ${ANNOUNCE_FEEL.bgAlpha})`;
 
@@ -342,6 +343,7 @@ export class UIScene extends Phaser.Scene {
     const data: LevelSceneData = { levelId: this.level.id };
     const offset = (RESULT_BUTTON_W + RESULT_BUTTON_GAP) / 2;
     const menu = this.addResultButton(GAME_W / 2 - offset, 'result.menu', false, () => {
+      progress.flush();
       this.scene.stop(SceneKey.Game);
       this.scene.start(SceneKey.Menu);
     });

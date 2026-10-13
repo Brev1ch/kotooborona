@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { setLang } from '../i18n';
 import { platform } from '../platform';
+import { progress } from '../progress';
 import { SceneKey } from './keys';
 
 export class BootScene extends Phaser.Scene {
@@ -9,10 +10,13 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    void platform.init().then(() => {
-      setLang(platform.getLang());
-      platform.gameReady();
-      this.scene.start(SceneKey.Menu);
-    });
+    void platform
+      .init()
+      .then(() => progress.load())
+      .then(() => {
+        setLang(platform.getLang());
+        platform.gameReady();
+        this.scene.start(SceneKey.Menu);
+      });
   }
 }
