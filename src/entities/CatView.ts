@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { cats, elementColor } from '../data';
-import { CAT_FEEL, MERGE_FEEL, RITUAL_FEEL, SHOT_FEEL } from '../feel';
+import { RITUAL_FEEL, SHOT_FEEL } from '../feel';
 import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
 import { addBakedShape } from '../scenes/textures';
 import type { Cat } from './Cat';
+import { PieceView } from './PieceView';
 
 const BODY_RADIUS = 21;
 const BODY_Y = 3;
@@ -22,7 +23,7 @@ export function drawCatShape(g: Phaser.GameObjects.Graphics, earLeft: number, ea
 }
 
 /** Временный вид кота: круг цвета стихии, уши и цифра уровня. */
-export class CatView extends Phaser.GameObjects.Container {
+export class CatView extends PieceView {
   private readonly shape: Phaser.GameObjects.Image;
   /** Масштаб картинки силуэта в покое: текстура крупнее, чем кот на экране. */
   private readonly shapeScale: number;
@@ -53,17 +54,6 @@ export class CatView extends Phaser.GameObjects.Container {
     this.add([g, level]);
     this.setDepth(DEPTH.cat);
     scene.add.existing(this);
-  }
-
-  playSpawn(delay = 0): void {
-    this.setScale(0);
-    this.scene.tweens.add({
-      targets: this,
-      scale: 1,
-      delay,
-      duration: CAT_FEEL.spawnMs,
-      ease: CAT_FEEL.spawnEase,
-    });
   }
 
   /** Отдача при выстреле: вздрагивает только фигура, чтобы не спорить с анимациями самого кота. */
@@ -127,47 +117,6 @@ export class CatView extends Phaser.GameObjects.Container {
       scale: 1,
       duration: RITUAL_FEEL.popMs,
       ease: RITUAL_FEEL.popEase,
-    });
-  }
-
-  /** Кота взяли: поверх остальных и чуть крупнее. */
-  lift(): void {
-    this.scene.tweens.killTweensOf(this);
-    this.setDepth(DEPTH.dragged);
-    this.scene.tweens.add({
-      targets: this,
-      scale: CAT_FEEL.liftScale,
-      duration: CAT_FEEL.liftMs,
-      ease: CAT_FEEL.liftEase,
-    });
-  }
-
-  /** Плавно ставит кота в точку и возвращает обычный размер. */
-  settle(x: number, y: number, duration: number): void {
-    this.scene.tweens.killTweensOf(this);
-    this.scene.tweens.add({
-      targets: this,
-      x,
-      y,
-      scale: 1,
-      duration,
-      ease: CAT_FEEL.settleEase,
-      onComplete: () => this.setDepth(DEPTH.cat),
-    });
-  }
-
-  /** Стягивает кота в точку слияния и удаляет его. */
-  absorb(x: number, y: number): void {
-    this.scene.tweens.killTweensOf(this);
-    this.setDepth(DEPTH.dragged);
-    this.scene.tweens.add({
-      targets: this,
-      x,
-      y,
-      scale: MERGE_FEEL.absorbScale,
-      duration: MERGE_FEEL.absorbMs,
-      ease: MERGE_FEEL.absorbEase,
-      onComplete: () => this.destroy(),
     });
   }
 }

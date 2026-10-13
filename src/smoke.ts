@@ -8,7 +8,7 @@ import { progress } from './progress';
 import type { GameScene } from './scenes/GameScene';
 import type { StoryScene } from './scenes/StoryScene';
 import type { UIScene } from './scenes/UIScene';
-import { SceneKey, type HudState, type LevelSceneData, type StorySceneData } from './scenes/keys';
+import { GameEvent, SceneKey, type HudState, type LevelSceneData, type StorySceneData } from './scenes/keys';
 import type { GearSelection } from './systems/Progress';
 
 // Зонд для смоук-проверки (smoke/game.smoke.ts). Игра — один canvas, поэтому тест
@@ -39,6 +39,11 @@ export interface SmokeState {
   /** id уровня идущего боя. */
   level: string | null;
   cats: number;
+  buildings: number;
+  /** Сколько строк в открытом окне стройки или улучшения; 0 — окно закрыто. */
+  buildRows: number;
+  /** Надпись на зоне продажи, пока игрок держит кота или строение. */
+  sellZone: string | null;
   enemies: number;
   /** Сколько враги прошли в сумме: на паузе не растёт. */
   march: number;
@@ -86,8 +91,10 @@ export interface SmokeProbe {
   slotCenters(): [number, number][];
   /** Клетки идущего боя, в которых стоят коты. */
   catSlots(): number[];
-  /** Центр корзины идущего боя в координатах экрана. */
-  trashCenter(): [number, number];
+  /** Клетки идущего боя, в которых стоят строения. */
+  buildingSlots(): number[];
+  /** Добавляет монеты в идущий бой. */
+  addGold(gold: number): void;
   /** Ставит кота в клетку идущего боя. */
   placeCat(slot: number, element: ElementId, level: number): void;
   /** id всех уровней по порядку. */
@@ -284,9 +291,13 @@ export function installSmokeProbe(game: Phaser.Game): void {
     catSlots() {
       return (game.scene.getScene(SceneKey.Game) as GameScene).catSlots();
     },
-    trashCenter() {
-      const [x, y] = (game.scene.getScene(SceneKey.Game) as GameScene).trashCenter;
-      return [x, y + BOARD_Y];
+    buildingSlots() {
+      return (game.scene.getScene(SceneKey.Game) as GameScene).buildingSlots();
+    },
+    addGold(gold) {
+      const scene = game.scene.getScene(SceneKey.Game) as GameScene;
+      scene.economy.gold += gold;
+      scene.events.emit(GameEvent.Changed);
     },
     placeCat(slot, element, level) {
       const scene = game.scene.getScene(SceneKey.Game) as GameScene;
@@ -344,12 +355,12 @@ export function installSmokeProbe(game: Phaser.Game): void {
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);
       if (!paused && !scenes.includes(SceneKey.Game)) {
-        return { ...common, hud: null, level: null, cats: 0, enemies: 0, march: 0, paused: false, result: null, tutorial: null };
+        return { ...common, hud: null, level: null, cats: 0, buildings: 0, buildRows: 0, sellZone: null, enemies: 0, march: 0, paused: false, result: null, tutorial: null };
       }
       const gameScene = game.scene.getScene(SceneKey.Game) as GameScene;
       const ui = game.scene.getScene(SceneKey.UI) as UIScene;
       const hud = gameScene.hudState();
-      return { ...common, hud, level: gameScene.levelId, ...gameScene.fieldCounts(), paused, result: ui.resultShown(), tutorial: ui.tutorialStep() };
+      return { ...common, hud, level: gameScene.levelId, ...gameScene.fieldCounts(), buildRows: ui.buildPanelRows(), sellZone: ui.sellZoneText(), paused, result: ui.resultShown(), tutorial: ui.tutorialStep() };
     },
   };
 }

@@ -1,18 +1,35 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
-import { ads, cats, economy, elementColor, enemies, gear, getLevel, levels, type ElementId, type LevelConfig, type Point } from '../data';
+import {
+  ads,
+  cats,
+  economy,
+  elementColor,
+  enemies,
+  gear,
+  getLevel,
+  levels,
+  type BuildingKind,
+  type ElementId,
+  type LevelConfig,
+  type Point,
+} from '../data';
+import { isBuilding, isCat, type Piece } from '../entities/Building';
+import { BuildingView } from '../entities/BuildingView';
 import type { Cat } from '../entities/Cat';
 import { CatView } from '../entities/CatView';
 import type { Enemy } from '../entities/Enemy';
 import type { Projectile } from '../entities/Projectile';
 import { EnemyView } from '../entities/EnemyView';
 import { HeroView } from '../entities/HeroView';
-import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, TOAST_FEEL, TRASH_FEEL } from '../feel';
+import type { PieceView } from '../entities/PieceView';
+import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
-import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS, TRASH } from '../layout';
+import { BOARD_H, BOARD_W, BOARD_Y, COLORS, CONTROLS_H, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
 import { platform } from '../platform';
 import { progress } from '../progress';
 import { CoinAd, SecondChance } from '../systems/Ads';
+import { Buildings } from '../systems/Buildings';
 import { catRange, Combat, type Blast, type CombatEvent } from '../systems/Combat';
 import { Economy, starsFor } from '../systems/Economy';
 import { gearBonuses } from '../systems/Loadout';
@@ -33,8 +50,11 @@ import {
   type LevelSceneData,
   type MeteorState,
   type RewardDrop,
+  type SellOffer,
+  type UpgradeOffer,
+  type BuildOffer,
 } from './keys';
-import { addBakedShape, bakeTexture, CIRCLE_RADIUS, ensureTextures, Texture } from './textures';
+import { bakeTexture, CIRCLE_RADIUS, ensureTextures, Texture } from './textures';
 import { fadeIn } from './transitions';
 import { addCrystalIcon } from './widgets';
 
@@ -63,12 +83,18 @@ const REWARD_STYLE = { fontFamily: FONTS.display, fontSize: '13px' };
 interface Drag {
   pointerId: number;
   slot: number;
-  view: CatView;
+  view: PieceView;
   /** Клетка под пальцем, кроме исходной. */
   hover: number | null;
-  /** Кот над корзиной: отпустить — значит продать. */
-  overTrash: boolean;
+  /** Палец над зоной продажи: отпустить — значит продать. */
+  overSell: boolean;
+  /** Где палец коснулся экрана: если он почти не сдвинулся, это нажатие, а не перетаскивание. */
+  downX: number;
+  downY: number;
 }
+
+/** Палец, сдвинувшийся меньше чем на столько, считается нажатием. */
+const TAP_SLOP = 8;
 
 export class GameScene extends Phaser.Scene {
   private level!: LevelConfig;
@@ -76,13 +102,13 @@ export class GameScene extends Phaser.Scene {
   economy!: Economy;
   private summoner!: Summon;
   /** Кот в каждой клетке, индексы совпадают с level.slots. */
-  private board!: (Cat | null)[];
+  private board!: (Piece | null)[];
+  private buildings!: Buildings;
   private merger!: Merge;
-  private views!: (CatView | null)[];
+  private views!: (PieceView | null)[];
   private drag: Drag | null = null;
   private highlights!: Phaser.GameObjects.Graphics;
   private rangeRing!: Phaser.GameObjects.Graphics;
-  private trash!: Phaser.GameObjects.Image;
   private toast: Phaser.GameObjects.Text | null = null;
   /** Подпись над клеткой под пальцем: кто получится при слиянии и сколько кристаллов это стоит. */
   private hint!: Phaser.GameObjects.Container;
@@ -113,8 +139,6 @@ export class GameScene extends Phaser.Scene {
   private secondChance!: SecondChance;
   /** Что игрок уже сделал в этом бою; по этому обучение понимает, какие подсказки больше не нужны. */
   private actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0 };
-  /** Масштаб картинки корзины в покое: запечённая фигура крупнее экранной. */
-  private trashScale = 1;
   private hero!: HeroView;
   /** Подсветка поля, пока игрок выбирает точку удара. */
   private aimGlow!: Phaser.GameObjects.Graphics;
@@ -180,6 +204,7 @@ export class GameScene extends Phaser.Scene {
     this.actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0 };
     this.finished = false;
     this.board = this.level.slots.map(() => null);
+    this.buildings = new Buildings(economy.buildings, this.level.buildings);
     this.views = this.level.slots.map(() => null);
     this.drag = null;
     this.toast = null;
@@ -193,12 +218,6 @@ export class GameScene extends Phaser.Scene {
       .container(0, 0, [this.hintBg, this.hintLabel, this.hintIcon, this.hintCost])
       .setDepth(DEPTH.toast)
       .setVisible(false);
-
-    this.trash = addBakedShape(this, 'trash', TRASH.size, TRASH.size, drawTrash)
-      .setPosition(...this.level.trash)
-      .setDepth(DEPTH.highlight)
-      .setAlpha(TRASH_FEEL.idleAlpha);
-    this.trashScale = this.trash.scale;
 
     this.highlights = this.add.graphics().setDepth(DEPTH.highlight);
     this.rangeRing = this.add.graphics().setDepth(DEPTH.fx).setVisible(false);
@@ -333,8 +352,8 @@ export class GameScene extends Phaser.Scene {
 
   private updateRituals(dt: number): void {
     this.board.forEach((cat, slot) => {
-      if (!cat || cat.ritual <= 0) return;
-      const view = this.views[slot];
+      if (!isCat(cat) || cat.ritual <= 0) return;
+      const view = this.catView(slot);
       if (!this.merger.advanceRitual(cat, dt)) {
         view?.setRitualProgress(1 - cat.ritual / this.merger.ritualTime);
         return;
@@ -353,7 +372,10 @@ export class GameScene extends Phaser.Scene {
 
     const before = this.waves.wave;
     for (const enemy of this.waves.update(dt, this.combat.enemies.length === 0)) this.addEnemy(enemy);
-    if (this.waves.wave !== before) this.economy.startWave();
+    if (this.waves.wave !== before) {
+      this.economy.startWave();
+      this.collectIncome();
+    }
 
     for (const event of this.combat.update(dt, this.board)) {
       if (this.handleCombatEvent(event)) changed = true;
@@ -384,6 +406,18 @@ export class GameScene extends Phaser.Scene {
     if (changed) this.events.emit(GameEvent.Changed);
   }
 
+  /** Начало волны: строения выдают доход, награда всплывает над каждым и летит в счётчики. */
+  private collectIncome(): void {
+    const income = this.buildings.startWave(this.board);
+    this.economy.reward(income.gold, income.crystals);
+    for (const { slot, gold, crystals } of income.slots) {
+      const [x, y] = this.slotCenter(slot);
+      this.showReward(x, y, gold, crystals);
+      this.events.emit(GameEvent.Reward, { x, y, gold, crystals });
+    }
+    if (income.slots.length > 0) audio.play('coins');
+  }
+
   /** Выпускает врага на дорогу. Открыт наружу для отладочных кнопок (src/debug.ts). */
   addEnemy(enemy: Enemy): void {
     this.combat.add(enemy);
@@ -403,6 +437,17 @@ export class GameScene extends Phaser.Scene {
     return view;
   }
 
+  /** Клетки, в которых стоят строения. */
+  buildingSlots(): number[] {
+    return this.board.flatMap((piece, slot) => (isBuilding(piece) ? [slot] : []));
+  }
+
+  /** Картинка кота в клетке; у пустой клетки и строения её нет. */
+  private catView(slot: number): CatView | null {
+    const view = this.views[slot];
+    return view instanceof CatView ? view : null;
+  }
+
   get levelId(): string {
     return this.level.id;
   }
@@ -419,12 +464,7 @@ export class GameScene extends Phaser.Scene {
   /** Меняет экономику и картинку по событию боя. Возвращает true, если HUD пора обновить. */
   /** Клетки, в которых стоят коты. */
   catSlots(): number[] {
-    return this.board.flatMap((cat, slot) => (cat ? [slot] : []));
-  }
-
-  /** Центр корзины в координатах поля. */
-  get trashCenter(): Point {
-    return this.level.trash;
+    return this.board.flatMap((cat, slot) => (isCat(cat) ? [slot] : []));
   }
 
   private handleCombatEvent(event: CombatEvent): boolean {
@@ -438,7 +478,7 @@ export class GameScene extends Phaser.Scene {
         return true;
 
       case 'shot':
-        this.views[event.slot]?.playShot();
+        this.catView(event.slot)?.playShot();
         this.addProjectileView(event.projectile);
         audio.play('shot');
         break;
@@ -483,7 +523,7 @@ export class GameScene extends Phaser.Scene {
         const [x, y] = this.slotCenter(event.slot);
         const { radius } = event;
         const { auraFrom, auraAlpha, auraMs } = FX_FEEL;
-        this.views[event.slot]?.playShot();
+        this.catView(event.slot)?.playShot();
         audio.play('shot');
         this.playCircle(this.rings, x, y, elementColor(event.element), radius * auraFrom, radius, auraAlpha, auraMs);
         break;
@@ -632,9 +672,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Сколько котов и врагов на поле и сколько враги прошли в сумме; читает смоук-проверка (src/smoke.ts). */
-  fieldCounts(): { cats: number; enemies: number; march: number } {
+  fieldCounts(): { cats: number; buildings: number; enemies: number; march: number } {
     return {
-      cats: this.board.filter((cat) => cat !== null).length,
+      cats: this.board.filter(isCat).length,
+      buildings: this.board.filter(isBuilding).length,
       enemies: this.combat.enemies.length,
       march: this.combat.enemies.reduce((sum, enemy) => sum + enemy.distance, 0),
     };
@@ -832,28 +873,31 @@ export class GameScene extends Phaser.Scene {
     }
     const slot = this.slotAt(pointer);
     if (slot === null) return;
-    const cat = this.board[slot];
+    const piece = this.board[slot];
     const view = this.views[slot];
-    if (!cat || !view) return;
-    if (cat.ritual > 0) {
+    if (!piece || !view) return;
+    if (isCat(piece) && piece.ritual > 0) {
       this.showToast(slot, t('merge.ritual'));
       return;
     }
 
-    this.drag = { pointerId: pointer.id, slot, view, hover: null, overTrash: false };
+    this.drag = { pointerId: pointer.id, slot, view, hover: null, overSell: false, downX: pointer.x, downY: pointer.y };
     view.lift();
-    this.trash.setAlpha(TRASH_FEEL.activeAlpha);
 
-    const range = catRange(cats, cat);
-    this.rangeRing.clear();
-    this.rangeRing.fillStyle(COLORS.range, DRAG_FEEL.rangeFillAlpha);
-    this.rangeRing.fillCircle(0, 0, range);
-    this.rangeRing.lineStyle(DRAG_FEEL.rangeLineWidth, COLORS.range, DRAG_FEEL.rangeLineAlpha);
-    this.rangeRing.strokeCircle(0, 0, range);
-    this.rangeRing.setVisible(true);
+    // Круг дальности — только у кота: строение не стреляет.
+    if (isCat(piece)) {
+      const range = catRange(cats, piece);
+      this.rangeRing.clear();
+      this.rangeRing.fillStyle(COLORS.range, DRAG_FEEL.rangeFillAlpha);
+      this.rangeRing.fillCircle(0, 0, range);
+      this.rangeRing.lineStyle(DRAG_FEEL.rangeLineWidth, COLORS.range, DRAG_FEEL.rangeLineAlpha);
+      this.rangeRing.strokeCircle(0, 0, range);
+      this.rangeRing.setVisible(true);
+    }
 
     this.followPointer(pointer);
     this.drawHighlights();
+    this.emitSellOffer();
   }
 
   private onPointerMove(pointer: Phaser.Input.Pointer): void {
@@ -867,12 +911,12 @@ export class GameScene extends Phaser.Scene {
 
     const over = this.slotAt(pointer);
     const hover = over === this.drag.slot ? null : over;
-    const overTrash = this.overTrash(pointer);
-    if (hover !== this.drag.hover || overTrash !== this.drag.overTrash) {
+    const overSell = this.overSellZone(pointer);
+    if (hover !== this.drag.hover || overSell !== this.drag.overSell) {
       this.drag.hover = hover;
-      this.drag.overTrash = overTrash;
-      this.scaleTrash(overTrash);
+      this.drag.overSell = overSell;
       this.drawHighlights();
+      this.emitSellOffer();
     }
   }
 
@@ -886,16 +930,24 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     if (!this.drag || pointer.id !== this.drag.pointerId) return;
-    const { slot: from, view } = this.drag;
+    const { slot: from, view, downX, downY } = this.drag;
     const to = this.slotAt(pointer);
     this.drag = null;
     this.highlights.clear();
     this.hint.setVisible(false);
     this.rangeRing.setVisible(false);
-    this.restTrash();
+    this.emitSellOffer();
 
-    if (this.overTrash(pointer)) {
+    if (this.overSellZone(pointer)) {
       this.sell(from, view);
+      return;
+    }
+    // Нажатие на строение без перетаскивания открывает его улучшение.
+    const tapped = Math.hypot(pointer.x - downX, pointer.y - downY) < TAP_SLOP;
+    if (tapped && to === from && isBuilding(this.board[from])) {
+      view.settle(...this.slotCenter(from), CAT_FEEL.returnMs);
+      audio.play('click');
+      this.events.emit(GameEvent.BuildingTapped, from);
       return;
     }
 
@@ -954,7 +1006,7 @@ export class GameScene extends Phaser.Scene {
     this.events.emit(GameEvent.Changed);
   }
 
-  /** Возвращает взятого кота на место. */
+  /** Возвращает взятое на место. */
   private cancelDrag(): void {
     if (!this.drag) return;
     this.drag.view.settle(...this.slotCenter(this.drag.slot), CAT_FEEL.returnMs);
@@ -962,49 +1014,108 @@ export class GameScene extends Phaser.Scene {
     this.highlights.clear();
     this.hint.setVisible(false);
     this.rangeRing.setVisible(false);
-    this.restTrash();
+    this.emitSellOffer();
   }
 
-  /** Продаёт кота из клетки: он улетает в корзину, монеты — в счётчик. */
-  private sell(slot: number, view: CatView): void {
-    const cat = this.board[slot];
-    if (!cat) return;
-    const [x, y] = this.level.trash;
-    const gold = this.economy.sell(cat.invested);
+  /** Продаёт кота или строение из клетки: оно уходит вниз, в зону продажи, монеты — в счётчик. */
+  private sell(slot: number, view: PieceView): void {
+    const piece = this.board[slot];
+    if (!piece) return;
+    const gold = this.economy.sell(piece.invested);
     this.board[slot] = null;
     this.views[slot] = null;
-    view.absorb(x, y);
+    view.absorb(view.x, BOARD_H + CONTROLS_H / 2);
     this.actions.sales++;
+    this.syncLimit();
     audio.play('coins');
-    if (gold > 0) {
-      this.showReward(x, y, gold, 0);
-      this.events.emit(GameEvent.Reward, { x, y, gold, crystals: 0 });
-    }
+    // Монеты летят от нижнего края поля — оттуда, куда ушёл проданный.
+    if (gold > 0) this.events.emit(GameEvent.Reward, { x: view.x, y: BOARD_H, gold, crystals: 0 });
     this.events.emit(GameEvent.Changed);
   }
 
-  /** Указатель над корзиной. */
-  private overTrash(pointer: Phaser.Input.Pointer): boolean {
-    const { x, y } = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-    const [trashX, trashY] = this.level.trash;
-    const half = TRASH.size / 2;
-    return Math.abs(x - trashX) <= half && Math.abs(y - trashY) <= half;
+  /** Палец над нижней полосой: пока в руке кот или строение, вся она — зона продажи. */
+  private overSellZone(pointer: Phaser.Input.Pointer): boolean {
+    const { y } = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    return y > BOARD_H && y <= BOARD_H + CONTROLS_H;
   }
 
-  private scaleTrash(hover: boolean): void {
-    this.tweens.killTweensOf(this.trash);
-    this.tweens.add({
-      targets: this.trash,
-      scale: (hover ? TRASH_FEEL.hoverScale : 1) * this.trashScale,
-      duration: TRASH_FEEL.tweenMs,
-      ease: TRASH_FEEL.ease,
+  /** Сообщает HUD, что держит игрок: сколько вернёт продажа и над зоной ли палец; null — рука пуста. */
+  private emitSellOffer(): void {
+    const piece = this.drag ? this.board[this.drag.slot] : null;
+    const offer: SellOffer | null =
+      this.drag && piece ? { gold: this.economy.sellValue(piece.invested), over: this.drag.overSell } : null;
+    this.events.emit(GameEvent.SellOffer, offer);
+  }
+
+  /** Алтари на поле меняют лимит призывов сразу. */
+  private syncLimit(): void {
+    this.economy.limitBonus = this.buildings.summonLimitBonus(this.board);
+  }
+
+  /** Что можно построить: по записи на каждый открытый на уровне вид строения. */
+  buildOffers(): BuildOffer[] {
+    return this.buildings.available.map((kind) => {
+      const cost = this.buildings.cost(kind);
+      return {
+        kind,
+        cost,
+        stats: this.buildings.stats(kind, 1),
+        count: this.buildings.count(this.board, kind),
+        max: this.buildings.maxPerKind,
+        block: this.finished ? 'unavailable' : this.buildings.blocked(this.board, kind),
+        affordable: this.economy.gold >= cost,
+      };
     });
   }
 
-  /** Корзина без кота в руке: обычного размера и тусклая. */
-  private restTrash(): void {
-    this.scaleTrash(false);
-    this.trash.setAlpha(TRASH_FEEL.idleAlpha);
+  /** Ставит строение в случайную свободную клетку. Возвращает false, если строить нельзя или не хватило монет. */
+  build(kind: BuildingKind): boolean {
+    if (this.finished || this.buildings.blocked(this.board, kind)) return false;
+    const slot = this.summoner.pickFreeSlot(this.board);
+    if (slot === null || !this.economy.spend(this.buildings.cost(kind))) return false;
+    const building = this.buildings.create(kind);
+    this.board[slot] = building;
+    const view = new BuildingView(this, ...this.slotCenter(slot), building);
+    view.playSpawn();
+    this.views[slot] = view;
+    this.syncLimit();
+    audio.play('summon');
+    this.events.emit(GameEvent.Changed);
+    return true;
+  }
+
+  /** Улучшение строения в клетке: что оно даст и сколько стоит; null — в клетке не строение. */
+  upgradeOffer(slot: number): UpgradeOffer | null {
+    const building = this.board[slot];
+    if (!isBuilding(building)) return null;
+    const cost = this.buildings.upgradeCost(building);
+    return {
+      slot,
+      kind: building.kind,
+      level: building.level,
+      stats: this.buildings.stats(building.kind, building.level),
+      next: cost === null ? null : { cost, stats: this.buildings.stats(building.kind, building.level + 1) },
+      affordable: cost !== null && this.economy.gold >= cost,
+    };
+  }
+
+  /** Улучшает строение в клетке. Возвращает false, если улучшать некуда или не хватило монет. */
+  upgrade(slot: number): boolean {
+    const building = this.board[slot];
+    if (this.finished || !isBuilding(building) || this.drag?.slot === slot) return false;
+    const next = this.buildings.upgraded(building);
+    if (!next || !this.economy.spend(next.invested - building.invested)) return false;
+    this.board[slot] = next;
+    this.views[slot]?.destroy();
+    const [x, y] = this.slotCenter(slot);
+    const view = new BuildingView(this, x, y, next);
+    view.playSpawn();
+    this.views[slot] = view;
+    this.playRing(x, y, COLORS.brass);
+    this.syncLimit();
+    audio.play('merge');
+    this.events.emit(GameEvent.Changed);
+    return true;
   }
 
   private followPointer(pointer: Phaser.Input.Pointer): void {
@@ -1022,7 +1133,6 @@ export class GameScene extends Phaser.Scene {
     if (!this.drag) return;
     const dragged = this.board[this.drag.slot];
     if (!dragged) return;
-    if (this.drag.overTrash) this.showSellHint(this.economy.sellValue(dragged.invested));
 
     const size = levels.slotSize;
     this.level.slots.forEach(([x, y], slot) => {
@@ -1032,7 +1142,8 @@ export class GameScene extends Phaser.Scene {
         g.fillRoundedRect(x, y, size, size, SLOT_RADIUS);
       }
       const cat = this.board[slot];
-      if (!cat) return;
+      // Строение ни с кем не сливается: подсвечивается только клетка под пальцем.
+      if (!isCat(dragged) || !isCat(cat)) return;
       const check = this.merger.check(dragged, cat, this.economy.crystals);
       if (check.kind === 'none') return;
       g.lineStyle(DRAG_FEEL.highlightLineWidth, check.kind === 'merge' ? elementColor(check.cat.element) : COLORS.danger);
@@ -1062,22 +1173,6 @@ export class GameScene extends Phaser.Scene {
     this.hintIcon.setPosition(left + iconX, -height / 2);
     this.hintCost.setPosition(left + costX, -height / 2);
     this.hint.setPosition(x + levels.slotSize / 2, y - HINT_FEEL.offsetY).setVisible(true);
-  }
-
-  /** Над корзиной: сколько монет вернёт продажа. У края поля подпись сдвигается, чтобы не обрезаться. */
-  private showSellHint(gold: number): void {
-    const [x, y] = this.level.trash;
-    const { padX, padY, offsetY } = HINT_FEEL;
-    this.hintLabel.setText(t('sell.hint', { gold })).setColor(TEXT_COLORS.brass);
-    this.hintIcon.setVisible(false);
-    this.hintCost.setVisible(false);
-
-    const width = this.hintLabel.width;
-    const height = this.hintLabel.height + padY * 2;
-    const half = width / 2 + padX;
-    this.hintBg.setSize(width + padX * 2, height);
-    this.hintLabel.setPosition(-width / 2, -height / 2);
-    this.hint.setPosition(Phaser.Math.Clamp(x, half, BOARD_W - half), y - TRASH.size / 2 - offsetY).setVisible(true);
   }
 
   private hintText(check: Exclude<MergeCheck, { kind: 'none' }>): string {
@@ -1220,25 +1315,4 @@ export class GameScene extends Phaser.Scene {
       g.strokeRoundedRect(x, y, size, size, SLOT_RADIUS);
     }
   }
-}
-
-/** Корзина: плашка и ведро с крышкой. Рисуется вокруг начала координат. */
-function drawTrash(g: Phaser.GameObjects.Graphics): void {
-  const half = TRASH.size / 2;
-  g.fillStyle(COLORS.panel);
-  g.fillRoundedRect(-half, -half, TRASH.size, TRASH.size, TRASH.radius);
-  g.lineStyle(1.5, COLORS.line);
-  g.strokeRoundedRect(-half + 1, -half + 1, TRASH.size - 2, TRASH.size - 2, TRASH.radius);
-
-  g.fillStyle(COLORS.range);
-  // Крышка с ручкой.
-  g.fillRoundedRect(-12, -12, 24, 4, 2);
-  g.fillRoundedRect(-4, -16, 8, 4, 2);
-  // Ведро сужается книзу.
-  g.fillPoints(
-    [new Phaser.Math.Vector2(-10, -6), new Phaser.Math.Vector2(10, -6), new Phaser.Math.Vector2(8, 15), new Phaser.Math.Vector2(-8, 15)],
-    true,
-  );
-  g.fillStyle(COLORS.panel);
-  for (const x of [-4.5, 0, 4.5]) g.fillRoundedRect(x - 1, -2, 2, 13, 1);
 }

@@ -5,8 +5,11 @@ import {
   COIN_AD_X,
   CONTROLS_CENTER_Y,
   GAME_H,
+  BUILD_X,
+  buildRowCenter,
   GAME_W,
   gearButtonCenter,
+  HUD_H,
   menuBookCenter,
   menuCardCenter,
   menuChestCenter,
@@ -637,7 +640,80 @@ async function drag(page: Page, from: [number, number], to: [number, number], be
   await touch('touchEnd');
 }
 
-test('все уровни главы запускаются; на последнем выходит король', async ({ page }) => {
+/** Точка зоны продажи: середина нижней полосы. */
+const SELL_POINT: [number, number] = [GAME_W / 2, CONTROLS_CENTER_Y];
+/** Первый уровень, на котором открыты строения (номер с нуля). */
+const FIRST_BUILD_LEVEL = 3;
+const BUILD_KINDS = 3;
+
+/** Стройка на идущем уровне: окно, постройка лавки, два улучшения, продажа строения. */
+async function checkBuildings(page: Page, id: string): Promise<void> {
+  const rows = (expected: number, message: string): Promise<void> =>
+    waitFor(page, SUMMON_TIMEOUT, (s) => s.buildRows === expected, (s) => `${id}: ${message} (строк в окне: ${s?.buildRows ?? '?'})`);
+  const gold = async (): Promise<number> => (await state(page))?.hud?.gold ?? 0;
+
+  await page.evaluate(() => window.__smoke?.addGold(300));
+  await tap(page, BUILD_X, CONTROLS_CENTER_Y);
+  await rows(BUILD_KINDS, 'окно стройки не открылось');
+  await page.screenshot({ path: `${SHOTS}/build-1-panel.png` });
+  await checkTouchSizes(page, 'окно стройки');
+
+  const before = await gold();
+  await tap(page, ...buildRowCenter(0, BUILD_KINDS));
+  await waitFor(
+    page,
+    SUMMON_TIMEOUT,
+    (s) => s.buildings === 1 && s.buildRows === 0 && (s.hud?.gold ?? 0) < before,
+    (s) => `${id}: лавка не построена (строений ${s?.buildings ?? 0}, монет ${s?.hud?.gold ?? '?'}, было ${before})`,
+  );
+
+  const [slot] = (await page.evaluate(() => window.__smoke?.buildingSlots())) ?? [];
+  const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
+  await page.waitForTimeout(SPAWN_SETTLE_MS);
+  await tap(page, ...centers[slot]);
+  await rows(1, 'нажатие на строение не открыло улучшение');
+  await page.screenshot({ path: `${SHOTS}/build-2-upgrade.png` });
+  await checkTouchSizes(page, 'окно улучшения');
+
+  // Два улучшения подряд: окно остаётся открытым, после второго улучшать некуда.
+  for (let level = 2; level <= 3; level++) {
+    const had = await gold();
+    await tap(page, ...buildRowCenter(0, 1));
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => (s.hud?.gold ?? 0) < had && s.buildRows === 1,
+      (s) => `${id}: улучшение до уровня ${level} не куплено (монет ${s?.hud?.gold ?? '?'}, было ${had})`,
+    );
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+  }
+  const maxed = await gold();
+  await tap(page, ...buildRowCenter(0, 1));
+  await page.waitForTimeout(PRESS_SETTLE_MS);
+  if ((await gold()) < maxed) throw new Error(`${id}: строение последнего уровня улучшилось ещё раз`);
+  await page.screenshot({ path: `${SHOTS}/build-3-max.png` });
+  await checkTexts(page, 'строение последнего уровня');
+
+  // Нажатие мимо окна его закрывает.
+  await tap(page, GAME_W / 2, HUD_H + 20);
+  await rows(0, 'окно улучшения не закрылось нажатием мимо');
+
+  const sold = await gold();
+  await drag(page, centers[slot], SELL_POINT, async () => {
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    if (!(await state(page))?.sellZone) throw new Error(`${id}: строение над нижней полосой, а зоны продажи нет`);
+    await page.screenshot({ path: `${SHOTS}/build-4-sell.png` });
+    await checkTexts(page, 'строение над зоной продажи');
+  });
+  await waitFor(
+    page,
+    SUMMON_TIMEOUT,
+    (s) => s.buildings === 0 && (s.hud?.gold ?? 0) > sold && s.sellZone === null,
+    (s) => `${id}: строение не продано (строений ${s?.buildings ?? '?'}, монет ${s?.hud?.gold ?? '?'}, было ${sold})`,
+  );
+}
+
+test('все уровни главы запускаются, кот продаётся; на четвёртом — стройка, на последнем выходит король', async ({ page }) => {
   await page.goto('/?smoke');
   await waitFor(
     page,
@@ -666,23 +742,32 @@ test('все уровни главы запускаются; на последн
         (s) => `На уровне ${id} котов ${s?.cats ?? 0}, ожидалось ${CATS}`,
       );
 
-      // Одного кота — в корзину: до неё можно дотянуться на каждом уровне, возвращается половина цены.
+      // Одного кота — на продажу: пока он в руке, нижняя полоса целиком становится зоной продажи.
+      const number = String(index + 1).padStart(2, '0');
       const gold = (await state(page))?.hud?.gold ?? 0;
       const [slot] = (await page.evaluate(() => window.__smoke?.catSlots())) ?? [];
       const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
-      const trash = await page.evaluate(() => window.__smoke?.trashCenter());
-      if (!trash) throw new Error(`На уровне ${id} нет корзины`);
-      await drag(page, centers[slot], trash, async () => {
+      await drag(page, centers[slot], SELL_POINT, async () => {
         await page.waitForTimeout(PRESS_SETTLE_MS);
-        await page.screenshot({ path: `${SHOTS}/level-${String(index + 1).padStart(2, '0')}-sell.png` });
-        const issues = (await page.evaluate(() => window.__smoke?.textIssues())) ?? [];
-        if (issues.length > 0) throw new Error(`Уровень ${id}, кот над корзиной: ${issues.join('; ')}`);
+        const zone = (await state(page))?.sellZone;
+        if (!zone?.includes('5')) throw new Error(`Уровень ${id}: кот над нижней полосой, а на зоне продажи «${zone ?? 'ничего'}»`);
+        await page.screenshot({ path: `${SHOTS}/level-${number}-sell.png` });
+        await checkTexts(page, `уровень ${id}, кот над зоной продажи`);
       });
       await waitFor(
         page,
         SUMMON_TIMEOUT,
-        (s) => s.cats === CATS - 1 && (s.hud?.gold ?? 0) >= gold + 5,
-        (s) => `На уровне ${id} кот не продан: котов ${s?.cats ?? 0}, монет ${s?.hud?.gold ?? '?'} (было ${gold})`,
+        (s) => s.cats === CATS - 1 && (s.hud?.gold ?? 0) >= gold + 5 && s.sellZone === null,
+        (s) => `На уровне ${id} кот не продан: котов ${s?.cats ?? 0}, монет ${s?.hud?.gold ?? '?'} (было ${gold}), зона «${s?.sellZone ?? ''}»`,
+      );
+      // Кот, которого подняли и вернули в клетку, остаётся на поле, а кнопки возвращаются.
+      const [kept] = (await page.evaluate(() => window.__smoke?.catSlots())) ?? [];
+      await drag(page, centers[kept], [centers[kept][0], centers[kept][1] - 4]);
+      await waitFor(
+        page,
+        SUMMON_TIMEOUT,
+        (s) => s.cats === CATS - 1 && s.sellZone === null,
+        (s) => `На уровне ${id} кот, возвращённый в клетку, пропал или кнопки не вернулись (котов ${s?.cats ?? 0})`,
       );
 
       await waitFor(
@@ -703,7 +788,8 @@ test('все уровни главы запускаются; на последн
         );
         await page.waitForTimeout(SPAWN_SETTLE_MS);
       }
-      await page.screenshot({ path: `${SHOTS}/level-${String(index + 1).padStart(2, '0')}-${id}.png` });
+      await page.screenshot({ path: `${SHOTS}/level-${number}-${id}.png` });
+      if (index === FIRST_BUILD_LEVEL) await checkBuildings(page, id);
       checkConsole(`уровень ${id}`);
     });
   }

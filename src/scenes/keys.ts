@@ -1,3 +1,5 @@
+import type { BuildingKind, BuildingLevel } from '../data/types';
+import type { BuildBlock } from '../systems/Buildings';
 import type { UpcomingWave } from '../systems/Waves';
 
 export const SceneKey = {
@@ -29,7 +31,41 @@ export const GameEvent = {
   Finished: 'finished',
   /** Враг убит, награда уже в экономике; аргумент — RewardDrop. */
   Reward: 'reward',
+  /** Игрок взял кота или строение, навёл на зону продажи или отпустил; аргумент — SellOffer или null. */
+  SellOffer: 'sellOffer',
+  /** Игрок нажал на строение; аргумент — номер клетки. */
+  BuildingTapped: 'buildingTapped',
 } as const;
+
+/** Что держит игрок: сколько монет вернёт продажа и над зоной ли продажи палец. */
+export interface SellOffer {
+  gold: number;
+  over: boolean;
+}
+
+/** Строение, которое можно поставить. */
+export interface BuildOffer {
+  kind: BuildingKind;
+  cost: number;
+  stats: BuildingLevel;
+  /** Сколько таких уже стоит и сколько можно. */
+  count: number;
+  max: number;
+  /** Что мешает строить, кроме монет; null — ничего. */
+  block: BuildBlock | null;
+  affordable: boolean;
+}
+
+/** Улучшение строения в клетке `slot`. */
+export interface UpgradeOffer {
+  slot: number;
+  kind: BuildingKind;
+  level: number;
+  stats: BuildingLevel;
+  /** null — строение уже на последнем уровне. */
+  next: { cost: number; stats: BuildingLevel } | null;
+  affordable: boolean;
+}
 
 /** Награда за врага: откуда монеты и кристаллы летят в HUD. Точка — в координатах поля. */
 export interface RewardDrop {

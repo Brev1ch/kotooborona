@@ -23,11 +23,9 @@ export const DRAG_FEEL = {
   highlightLineWidth: 2.5,
 };
 
-/** Корзина: тусклая, пока в руке никого нет; ярче, когда кота взяли; крупнее, когда он над ней. */
-export const TRASH_FEEL = {
-  idleAlpha: 0.5,
-  activeAlpha: 1,
-  hoverScale: 1.18,
+/** Зона продажи на месте нижней полосы: спокойная, пока палец над полем, и яркая, когда он над ней. */
+export const SELL_FEEL = {
+  overScale: 1.12,
   tweenMs: 110,
   ease: 'Quad.easeOut',
 };

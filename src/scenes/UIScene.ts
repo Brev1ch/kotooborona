@@ -2,16 +2,29 @@ import Phaser from 'phaser';
 import { adBreaks } from '../adBreaks';
 import { audio } from '../audio';
 import { ads, cats, getLevel, levels, type ElementId, type LevelConfig } from '../data';
-import { ANNOUNCE_FEEL, BANNER_FEEL, COIN_FEEL, METEOR_FEEL, RESULT_FEEL, STAT_FEEL, WAVE_BANNER_FEEL, type SoundId } from '../feel';
+import {
+  ANNOUNCE_FEEL,
+  BANNER_FEEL,
+  COIN_FEEL,
+  METEOR_FEEL,
+  RESULT_FEEL,
+  SELL_FEEL,
+  STAT_FEEL,
+  WAVE_BANNER_FEEL,
+  type SoundId,
+} from '../feel';
 import { t, type StringKey } from '../i18n';
 import {
   BOARD_H,
   BOARD_Y,
+  BUILD_W,
+  BUILD_X,
   COIN_AD_W,
   COIN_AD_X,
   COLORS,
   CONTROLS_CENTER_Y,
   CONTROLS_H,
+  CONTROLS_PAD,
   CONTROLS_Y,
   FONTS,
   GAME_H,
@@ -39,8 +52,9 @@ import { MAX_STARS } from '../systems/Progress';
 import { Tutorial } from '../systems/Tutorial';
 import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
-import { GameEvent, SceneKey, type LevelResult, type LevelSceneData, type RewardDrop } from './keys';
-import { bakeTexture } from './textures';
+import { BuildPanel } from './BuildPanel';
+import { GameEvent, SceneKey, type LevelResult, type LevelSceneData, type RewardDrop, type SellOffer } from './keys';
+import { addBakedShape, bakeTexture } from './textures';
 import { fadeIn, fadeOut } from './transitions';
 import { TutorialOverlay } from './TutorialOverlay';
 import { addAdButton, addButton, addCoinIcon, addCrystalIcon, addFishIcon, addPressFeel, addSoundToggle } from './widgets';
@@ -64,13 +78,16 @@ function statX(index: number): number {
 const PAUSE_BAR = { width: 5, height: 16, gap: 6 };
 
 const SUMMON_H = 44;
-const SUMMON_PAD = 12;
-// Две строки кнопки призыва: название и остаток лимита под ним.
+const SUMMON_PAD = 10;
+// Две строки кнопки призыва: название, под ним — остаток лимита слева и цена справа.
 const SUMMON_LABEL_Y = -8;
 const SUMMON_LIMIT_Y = 11;
 const METEOR_LABEL_Y = -8;
 const METEOR_STATUS_Y = 11;
-const COIN_RADIUS = 5;
+const COIN_RADIUS = 4;
+/** Значок кнопки «Строить» и зона продажи на месте нижней полосы. */
+const BUILD_ICON = 28;
+const SELL_COIN = 14;
 
 const BANNER_W = 280;
 const BANNER_H = 46;
@@ -119,6 +136,13 @@ export class UIScene extends Phaser.Scene {
   private summonLimit!: Phaser.GameObjects.Text;
   private summonCoin!: Phaser.GameObjects.Arc;
   private canSummon = false;
+  private buildPanel: BuildPanel | null = null;
+  /** Кнопки нижней полосы: прячутся, пока игрок держит кота или строение. */
+  private controls: Phaser.GameObjects.Container[] = [];
+  private sellZone: Phaser.GameObjects.Container | null = null;
+  private sellBg!: Phaser.GameObjects.Rectangle;
+  private sellLabel!: Phaser.GameObjects.Text;
+  private sellCoin!: Phaser.GameObjects.Image;
   private meteorButton!: Phaser.GameObjects.Container;
   private meteorBg!: Phaser.GameObjects.Rectangle;
   /** Заполняется слева направо, пока идёт перезарядка. */
@@ -198,9 +222,9 @@ export class UIScene extends Phaser.Scene {
 
     this.coinPool = new Pool(() => addCoinIcon(this, 0, 0, COIN_FEEL.size));
     this.crystalPool = new Pool(() => addCrystalIcon(this, 0, 0, COIN_FEEL.crystalSize));
-    this.addSummonButton();
-    this.addMeteorButton();
-    this.addCoinAdButton();
+    this.buildPanel = new BuildPanel(this, this.gameScene);
+    this.controls = [this.addSummonButton(), this.addBuildButton(), this.addMeteorButton(), this.addCoinAdButton()];
+    this.addSellZone();
     this.addPauseButton();
     this.pauseMenu = null;
     // Подсказки нужны, только пока уровень не пройден: вернувшийся за звёздами игрок уже всё умеет.
@@ -215,6 +239,8 @@ export class UIScene extends Phaser.Scene {
     this.gameScene.events.on(GameEvent.Discovered, this.showDiscovered, this);
     this.gameScene.events.on(GameEvent.Finished, this.showResult, this);
     this.gameScene.events.on(GameEvent.Reward, this.flyReward, this);
+    this.gameScene.events.on(GameEvent.SellOffer, this.showSellOffer, this);
+    this.gameScene.events.on(GameEvent.BuildingTapped, this.openUpgrade, this);
     // Игрок свернул игру или ушёл на другую вкладку: вернётся он в меню паузы, а не в идущий бой.
     const onVisibility = (): void => {
       if (document.hidden) this.openPause();
@@ -226,6 +252,8 @@ export class UIScene extends Phaser.Scene {
       this.gameScene.events.off(GameEvent.Discovered, this.showDiscovered, this);
       this.gameScene.events.off(GameEvent.Finished, this.showResult, this);
       this.gameScene.events.off(GameEvent.Reward, this.flyReward, this);
+      this.gameScene.events.off(GameEvent.SellOffer, this.showSellOffer, this);
+      this.gameScene.events.off(GameEvent.BuildingTapped, this.openUpgrade, this);
     });
     this.banner = null;
     this.refresh();
@@ -245,7 +273,7 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
-  private addSummonButton(): void {
+  private addSummonButton(): Phaser.GameObjects.Container {
     this.summonBg = this.add
       .rectangle(0, 0, SUMMON_W, SUMMON_H, COLORS.brass)
       .setInteractive({ useHandCursor: true });
@@ -267,14 +295,14 @@ export class UIScene extends Phaser.Scene {
       .setOrigin(0, 0.5);
 
     this.summonCost = this.add
-      .text(SUMMON_W / 2 - SUMMON_PAD, 0, '', {
+      .text(SUMMON_W / 2 - SUMMON_PAD, SUMMON_LIMIT_Y, '', {
         fontFamily: FONTS.display,
-        fontSize: '16px',
+        fontSize: '13px',
         color: TEXT_COLORS.dark,
       })
       .setOrigin(1, 0.5);
 
-    this.summonCoin = this.add.circle(0, 0, COIN_RADIUS, COLORS.bg);
+    this.summonCoin = this.add.circle(0, SUMMON_LIMIT_Y, COIN_RADIUS, COLORS.bg);
 
     this.summonButton = this.add.container(SUMMON_X, CONTROLS_CENTER_Y, [
       this.summonBg,
@@ -289,6 +317,93 @@ export class UIScene extends Phaser.Scene {
     this.summonBg.on('pointerdown', () => {
       if (this.canSummon) this.gameScene.summon();
     });
+    return this.summonButton;
+  }
+
+  /** Кнопка «Строить»: открывает список строений. На уровнях, где строить нельзя, она тусклая и не нажимается. */
+  private addBuildButton(): Phaser.GameObjects.Container {
+    const open = (this.level.buildings ?? []).length > 0;
+    const bg = this.add
+      .rectangle(0, 0, BUILD_W, SUMMON_H, COLORS.panel)
+      .setStrokeStyle(1, open ? COLORS.brass : COLORS.line)
+      .setName('build');
+    // Молоток: рукоять и боёк.
+    const icon = addBakedShape(this, 'build-icon', BUILD_ICON, BUILD_ICON, (g) => {
+      g.fillStyle(COLORS.heroStaff);
+      g.fillPoints(
+        [new Phaser.Math.Vector2(-11, 9), new Phaser.Math.Vector2(-8, 12), new Phaser.Math.Vector2(5, -1), new Phaser.Math.Vector2(2, -4)],
+        true,
+      );
+      g.fillStyle(COLORS.range);
+      g.fillPoints(
+        [new Phaser.Math.Vector2(-3, -9), new Phaser.Math.Vector2(3, -13), new Phaser.Math.Vector2(12, -2), new Phaser.Math.Vector2(6, 2)],
+        true,
+      );
+    }).setAlpha(open ? 1 : 0.3);
+    const button = this.add.container(BUILD_X, CONTROLS_CENTER_Y, [bg, icon]);
+    if (!open) return button;
+
+    bg.setInteractive({ useHandCursor: true });
+    addPressFeel(this, bg, button);
+    bg.on('pointerdown', () => audio.play('click'));
+    bg.on('pointerup', () => this.buildPanel?.showBuild());
+    return button;
+  }
+
+  /** Зона продажи на месте кнопок: видна, пока игрок держит кота или строение. Касаний не перехватывает — их ведёт GameScene. */
+  private addSellZone(): void {
+    this.sellBg = this.add.rectangle(0, 0, GAME_W - CONTROLS_PAD * 2, SUMMON_H, COLORS.panel).setStrokeStyle(2, COLORS.brass);
+    this.sellLabel = this.add
+      .text(0, 0, '', { fontFamily: FONTS.display, fontSize: '16px', color: TEXT_COLORS.brass })
+      .setOrigin(0, 0.5);
+    this.sellCoin = addCoinIcon(this, 0, 0, SELL_COIN);
+    this.sellZone = this.add
+      .container(GAME_W / 2, CONTROLS_CENTER_Y, [this.sellBg, this.sellLabel, this.sellCoin])
+      .setVisible(false);
+  }
+
+  /** Игрок взял кота или строение, навёл на зону продажи или отпустил (`offer` — null). */
+  private showSellOffer(offer: SellOffer | null): void {
+    const zone = this.sellZone;
+    if (!zone) return;
+    const holding = offer !== null;
+    for (const button of this.controls) button.setVisible(!holding);
+    zone.setVisible(holding);
+    if (!offer) {
+      this.tweens.killTweensOf(zone);
+      zone.setScale(1);
+      return;
+    }
+
+    this.sellBg.setFillStyle(offer.over ? COLORS.brass : COLORS.panel);
+    this.sellLabel.setText(t('sell.zone', { gold: offer.gold })).setColor(offer.over ? TEXT_COLORS.dark : TEXT_COLORS.brass);
+    // Подпись и монета вместе стоят по центру зоны.
+    const width = this.sellLabel.width + 5 + SELL_COIN;
+    this.sellLabel.setX(-width / 2);
+    this.sellCoin.setX(width / 2 - SELL_COIN / 2);
+    this.tweens.killTweensOf(zone);
+    this.tweens.add({
+      targets: zone,
+      scaleY: offer.over ? SELL_FEEL.overScale : 1,
+      duration: SELL_FEEL.tweenMs,
+      ease: SELL_FEEL.ease,
+    });
+  }
+
+  /** Нажатие на строение: окно с его улучшением. */
+  private openUpgrade(slot: number): void {
+    this.buildPanel?.showUpgrade(slot);
+  }
+
+  /** Окно стройки или улучшения открыто; сколько в нём строк. Для смоук-проверки. */
+  buildPanelRows(): number {
+    // Зонд может спросить раньше, чем сцена создана.
+    return this.buildPanel?.rows ?? 0;
+  }
+
+  /** Зона продажи сейчас на экране и что на ней написано; null — её нет. Для смоук-проверки. */
+  sellZoneText(): string | null {
+    return this.sellZone?.visible ? this.sellLabel.text : null;
   }
 
   private addPauseButton(): void {
@@ -312,6 +427,7 @@ export class UIScene extends Phaser.Scene {
   /** Останавливает бой и показывает меню паузы: «Продолжить», звук, «В меню». */
   private openPause(): void {
     if (this.pauseMenu || !this.gameScene.pauseBattle()) return;
+    this.buildPanel?.close();
 
     // Затемнение перехватывает касания, чтобы под меню ничего не нажималось.
     const dim = this.add
@@ -339,7 +455,7 @@ export class UIScene extends Phaser.Scene {
     this.pauseMenu = this.add.container(0, 0, [dim, title, resume, sound, menu]);
   }
 
-  private addMeteorButton(): void {
+  private addMeteorButton(): Phaser.GameObjects.Container {
     this.meteorBg = this.add.rectangle(0, 0, METEOR_W, SUMMON_H, COLORS.meteor).setInteractive({ useHandCursor: true });
     this.meteorFill = this.add
       .rectangle(-METEOR_W / 2, 0, METEOR_W, SUMMON_H, COLORS.meteor, METEOR_FEEL.buttonFillAlpha)
@@ -376,10 +492,11 @@ export class UIScene extends Phaser.Scene {
       this.gameScene.toggleMeteorAim();
       this.refreshMeteor();
     });
+    return this.meteorButton;
   }
 
   /** Кнопка «монеты за рекламу»: ролик идёт на паузе боя, монеты приходят, только если его досмотрели. */
-  private addCoinAdButton(): void {
+  private addCoinAdButton(): Phaser.GameObjects.Container {
     this.coinAdBg = this.add
       .rectangle(0, 0, COIN_AD_W, SUMMON_H, COLORS.reward)
       .setName('coinAd')
@@ -403,6 +520,7 @@ export class UIScene extends Phaser.Scene {
 
     addPressFeel(this, this.coinAdBg, button, () => this.gameScene.coinAdState().ready);
     this.coinAdBg.on('pointerup', () => void this.watchCoinAd());
+    return button;
   }
 
   private async watchCoinAd(): Promise<void> {
@@ -505,6 +623,7 @@ export class UIScene extends Phaser.Scene {
     this.summonCost.setColor(textColor);
     this.summonLimit.setColor(textColor);
     this.summonCoin.setFillStyle(canSummon ? COLORS.bg : COLORS.line);
+    this.buildPanel?.refresh();
   }
 
   /**
@@ -654,6 +773,7 @@ export class UIScene extends Phaser.Scene {
 
   /** Экран поверх поля: победа со звёздами или поражение, кнопки «Ещё раз» и «В меню». */
   private showResult(result: LevelResult): void {
+    this.buildPanel?.close();
     this.tweens.killTweensOf(this.announce);
     this.announce.setAlpha(0);
     // Кнопки появляются вместе с экраном: случайное касание во время паузы ничего не нажмёт.

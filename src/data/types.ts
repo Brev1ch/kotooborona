@@ -83,8 +83,6 @@ export interface LevelConfig {
   /** Левый верхний угол каждой клетки. */
   slots: Point[];
   hero: Point;
-  /** Центр корзины, куда перетаскивают котов на продажу. */
-  trash: Point;
   waves: number;
   bossWaves: number[];
   /** Волна, на которой вместе с обычными врагами выходит Крысиный король. */

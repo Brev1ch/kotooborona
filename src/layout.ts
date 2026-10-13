@@ -152,16 +152,29 @@ export function pauseMenuButtonCenter(index: number): [number, number] {
   return [GAME_W / 2, firstY + index * (buttonH + gap)];
 }
 
-// Нижняя полоса слева направо: «Призвать», «Метеор», монеты за рекламу.
+// Нижняя полоса слева направо: «Призвать», «Строить», «Метеор», монеты за рекламу.
+// Пока игрок держит кота или строение, вся полоса — зона продажи.
 export const CONTROLS_PAD = 8;
 export const CONTROLS_GAP = 8;
-export const METEOR_W = 100;
+export const BUILD_W = 48;
+export const METEOR_W = 84;
 export const COIN_AD_W = 72;
-export const SUMMON_W = GAME_W - CONTROLS_PAD * 2 - CONTROLS_GAP * 2 - METEOR_W - COIN_AD_W;
+export const SUMMON_W = GAME_W - CONTROLS_PAD * 2 - CONTROLS_GAP * 3 - BUILD_W - METEOR_W - COIN_AD_W;
 export const SUMMON_X = CONTROLS_PAD + SUMMON_W / 2;
-export const METEOR_X = CONTROLS_PAD + SUMMON_W + CONTROLS_GAP + METEOR_W / 2;
+export const BUILD_X = CONTROLS_PAD + SUMMON_W + CONTROLS_GAP + BUILD_W / 2;
+export const METEOR_X = BUILD_X + BUILD_W / 2 + CONTROLS_GAP + METEOR_W / 2;
 export const COIN_AD_X = GAME_W - CONTROLS_PAD - COIN_AD_W / 2;
 export const CONTROLS_CENTER_Y = CONTROLS_Y + CONTROLS_H / 2;
+
+// Окно стройки и улучшения над нижней полосой: заголовок и строки-кнопки.
+export const BUILD_PANEL = { w: 344, pad: 8, titleH: 30, rowH: 52, rowGap: 6, bottomGap: 8, iconX: 30, textX: 60, iconScale: 0.72 };
+
+/** Центр строки окна стройки; `index` — номер сверху с нуля, `rows` — сколько строк в окне. */
+export function buildRowCenter(index: number, rows: number): [number, number] {
+  const { rowH, rowGap, bottomGap, pad } = BUILD_PANEL;
+  const bottom = CONTROLS_Y - bottomGap - pad;
+  return [GAME_W / 2, bottom - (rows - 1 - index) * (rowH + rowGap) - rowH / 2];
+}
 
 // Экран победы и поражения поверх поля: заголовок, звёзды, пояснение, награда, кнопка рекламы, кнопки перехода.
 export const RESULT = {
@@ -191,9 +204,6 @@ export function resultButtonCenter(side: 'left' | 'right'): [number, number] {
   const offset = (RESULT.buttonW + RESULT.buttonGap) / 2;
   return [GAME_W / 2 + (side === 'left' ? -offset : offset), RESULT_Y + RESULT.buttonsY];
 }
-
-/** Корзина на поле: сторона квадрата, в который нужно попасть котом, и скругление углов. */
-export const TRASH = { size: 48, radius: 12 };
 
 export const ROAD = { outerWidth: 38, innerWidth: 30, dash: 6, gap: 10 };
 export const SLOT_RADIUS = 14;
