@@ -27,15 +27,15 @@ export class Buildings {
     return board.filter((piece) => isBuilding(piece) && piece.kind === kind).length;
   }
 
-  /** Сколько строений одного вида можно поставить за уровень. */
-  get maxPerKind(): number {
-    return this.config.maxPerKind;
+  /** Сколько строений этого вида можно поставить за уровень. */
+  max(kind: BuildingKind): number {
+    return this.config.maxOf?.[kind] ?? this.config.maxPerKind;
   }
 
   /** Что мешает поставить строение, не считая монет; null — ничего. */
   blocked(board: Board, kind: BuildingKind): BuildBlock | null {
     if (!this.available.includes(kind)) return 'unavailable';
-    if (this.count(board, kind) >= this.config.maxPerKind) return 'limit';
+    if (this.count(board, kind) >= this.max(kind)) return 'limit';
     if (!board.includes(null)) return 'noRoom';
     return null;
   }

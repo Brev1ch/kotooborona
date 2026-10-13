@@ -48,6 +48,15 @@ describe('Buildings: постройка', () => {
     expect(all.blocked(board, 'altar')).toBeNull();
   });
 
+  it('у вида может быть свой предел', () => {
+    const oneAltar = new Buildings({ ...config, maxOf: { altar: 1 } }, ['shop', 'altar']);
+
+    expect(oneAltar.max('altar')).toBe(1);
+    expect(oneAltar.max('shop')).toBe(2);
+    expect(oneAltar.blocked([building('altar'), null], 'altar')).toBe('limit');
+    expect(oneAltar.blocked([building('shop'), null], 'shop')).toBeNull();
+  });
+
   it('на занятом поле места нет; коты тоже занимают клетки', () => {
     expect(all.blocked([cat, building('shop')], 'mine')).toBe('noRoom');
   });
@@ -97,6 +106,13 @@ describe('Buildings: доход', () => {
     const crystals = [1, 2, 3, 4].map(() => all.startWave(board).crystals);
 
     expect(crystals).toEqual([0, 1, 0, 1]);
+  });
+
+  it('шахта может давать несколько кристаллов раз в несколько волн', () => {
+    const slow = new Buildings({ ...config, kinds: { ...config.kinds, mine: [{ cost: 60, crystals: 2, everyWaves: 3 }] } }, ['mine']);
+    const board = [building('mine')];
+
+    expect([1, 2, 3, 4, 5, 6].map(() => slow.startWave(board).crystals)).toEqual([0, 0, 2, 0, 0, 2]);
   });
 
   it('улучшенная шахта платит каждую волну и не теряет накопленную волну', () => {

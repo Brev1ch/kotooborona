@@ -17,7 +17,7 @@ const SEED = Number(process.env.SEED ?? 1);
 const configs: BattleConfigs = { cats, enemies, economy, gear, levels, board: { width: BOARD_W, height: BOARD_H } };
 
 /** Среднее число звёзд бота по уровням главы: от «почти всегда три» до «чаще одна-две, иногда поражение». */
-const TARGET_STARS = [2.85, 2.7, 2.55, 2.4, 2.25, 2.1, 1.95, 1.8, 1.65, 1.5];
+const TARGET_STARS = [2.85, 2.7, 2.55, 2.4, 2.25, 2.1, 1.7, 1.65, 1.7, 1.6];
 
 function row(number: number, level: LevelConfig, report: LevelReport): string {
   const [lost, one, two, three] = report.stars;

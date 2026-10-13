@@ -8,7 +8,7 @@ import { noBonuses } from './Loadout';
 const level: LevelConfig = { ...levels.levels[0], startGold: 25, startCrystals: 2, startLives: 10 };
 const config: EconomyConfig = {
   ...economyJson,
-  summon: { cost: 10, perWave: 2, beforeFirstWave: 3, overLimitMult: [2, 3, 4] },
+  summon: { cost: 10, perWave: 2, beforeFirstWave: 3, overLimitMult: [2, 3, 4], overLimitGrowth: 1 },
   sell: { refund: 0.5 },
 };
 
@@ -43,7 +43,7 @@ describe('Economy', () => {
     expect(economy.overLimitMult).toBe(1);
   });
 
-  it('сверх лимита каждый призыв дороже предыдущего, после списка множитель не растёт', () => {
+  it('сверх лимита каждый призыв дороже предыдущего, и после списка множителей тоже', () => {
     const economy = new Economy({ ...level, startGold: 1000 }, config);
     for (let i = 0; i < 3; i++) economy.paySummon();
     expect(economy.summonsLeft).toBe(0);
@@ -54,14 +54,15 @@ describe('Economy', () => {
       economy.paySummon();
     }
 
-    expect(costs).toEqual([20, 30, 40, 40, 40]);
-    expect(economy.gold).toBe(1000 - 30 - 170);
+    expect(costs).toEqual([20, 30, 40, 50, 60]);
+    expect(economy.gold).toBe(1000 - 30 - 200);
   });
 
   it('новая волна обновляет лимит и снимает штраф', () => {
     const economy = new Economy({ ...level, startGold: 1000 }, config);
     for (let i = 0; i < 5; i++) economy.paySummon();
     expect(economy.summonCost).toBe(40);
+    expect(economy.overLimitMult).toBe(4);
 
     economy.startWave();
 

@@ -1069,7 +1069,7 @@ export class GameScene extends Phaser.Scene {
         cost,
         stats: this.buildings.stats(kind, 1),
         count: this.buildings.count(this.board, kind),
-        max: this.buildings.maxPerKind,
+        max: this.buildings.max(kind),
         block: this.finished ? 'unavailable' : this.buildings.blocked(this.board, kind),
         affordable: this.economy.gold >= cost,
       };

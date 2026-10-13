@@ -4,9 +4,9 @@
   "bossSlowResist": 0.5,
   "types": {
     "mouse": { "color": "b8b2a4", "hp": 1, "speed": 50, "gold": 2, "radius": 8, "lifeDamage": 1, "shield": 0, "crystalChance": 0, "crystalDrop": 0 },
-    "rat": { "color": "6e6a7a", "hp": 3, "speed": 38, "gold": 5, "radius": 11, "lifeDamage": 2, "shield": 0, "crystalChance": 0.3, "crystalDrop": 1 },
-    "shield": { "color": "9a9486", "hp": 1.4, "speed": 44, "gold": 4, "radius": 9, "lifeDamage": 1, "shield": 3, "crystalChance": 0, "crystalDrop": 0 },
-    "boss": { "color": "8a4b5a", "hp": 14, "speed": 32, "gold": 30, "radius": 15, "lifeDamage": 5, "shield": 0, "crystalChance": 1, "crystalDrop": 2, "slowResist": true },
-    "king": { "color": "b0405a", "hp": 25, "speed": 26, "gold": 80, "radius": 19, "lifeDamage": 12, "shield": 0, "crystalChance": 1, "crystalDrop": 3, "slowResist": true, "summon": { "type": "mouse", "count": 2, "interval": 6, "spread": 14 } }
+    "rat": { "color": "6e6a7a", "hp": 3, "speed": 38, "gold": 4, "radius": 11, "lifeDamage": 2, "shield": 0, "crystalChance": 0.06, "crystalDrop": 1 },
+    "shield": { "color": "9a9486", "hp": 1.4, "speed": 44, "gold": 3, "radius": 9, "lifeDamage": 1, "shield": 3, "crystalChance": 0, "crystalDrop": 0 },
+    "boss": { "color": "8a4b5a", "hp": 14, "speed": 32, "gold": 20, "radius": 15, "lifeDamage": 5, "shield": 0, "crystalChance": 0.5, "crystalDrop": 1, "slowResist": true },
+    "king": { "color": "b0405a", "hp": 25, "speed": 32, "gold": 80, "radius": 19, "lifeDamage": 12, "shield": 0, "crystalChance": 1, "crystalDrop": 3, "slowResist": true, "summon": { "type": "mouse", "count": 2, "interval": 6, "spread": 14 } }
   }
 }

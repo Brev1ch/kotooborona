@@ -112,24 +112,47 @@ describe('Bot: строения и продажа', () => {
   };
   const cat = (level: number, element: 'fire' | 'storm' = 'storm') => ({ element, level, cooldown: 0, ritual: 0, invested: 10 });
 
-  it('сначала тратит призывы волны, потом строит лавку', () => {
-    const { sim, bot } = create({ buildings: ALL, waves: 8, startGold: beforeFirstWave * cost + shop[0].cost, startCrystals: 0 });
+  it('лавку берёт вместо подорожавшего призыва: сначала призывы волны и один сверх лимита', () => {
+    const gold = beforeFirstWave * cost + cost * overLimitMult[0] + shop[0].cost;
+    const { sim, bot } = create({ buildings: ALL, waves: 8, startGold: gold, startCrystals: 5 });
     act(bot, 12);
 
-    expect(sim.result().summons).toBe(beforeFirstWave);
+    expect(sim.result().summons).toBe(beforeFirstWave + 1);
     expect(sim.result().built).toEqual({ shop: 1, mine: 0, altar: 0 });
     expect(sim.economy.gold).toBe(0);
   });
 
-  it('копит на лавку, а не призывает сверх лимита', () => {
-    const spare = shop[0].cost - 10;
-    const { sim, bot } = create({ buildings: ALL, waves: 8, startGold: beforeFirstWave * cost + spare, startCrystals: 0 });
+  it('когда призыв уже подорожал, ждёт монет на лавку, а не призывает дальше', () => {
+    const short = shop[0].cost - 5;
+    const gold = beforeFirstWave * cost + cost * overLimitMult[0] + short;
+    const { sim, bot } = create({ buildings: ALL, waves: 8, startGold: gold, startCrystals: 5 });
     act(bot, 12);
 
-    // На призыв сверх лимита монет хватило бы, но лавка нужнее.
-    expect(spare).toBeGreaterThanOrEqual(cost * overLimitMult[0]);
+    expect(sim.result().overLimitSummons).toBe(1);
+    expect(sim.result().built.shop).toBe(0);
+    expect(sim.economy.gold).toBe(short);
+  });
+
+  it('когда кристаллы на исходе, копит на шахту и сверх лимита не призывает', () => {
+    const mine = economy.buildings.kinds.mine[0].cost;
+    const { sim, bot } = create({ buildings: ALL, waves: 8, startGold: beforeFirstWave * cost + mine - 5, startCrystals: 0 });
+    act(bot, 12);
     expect(sim.result().overLimitSummons).toBe(0);
-    expect(sim.economy.gold).toBe(spare);
+    expect(sim.result().built.mine).toBe(0);
+
+    sim.economy.gold += 5;
+    act(bot, 2);
+    expect(sim.result().built).toEqual({ shop: 0, mine: 1, altar: 0 });
+  });
+
+  it('строит только те строения, что разрешены настройкой', () => {
+    const mine = economy.buildings.kinds.mine[0].cost;
+    const { sim } = create({ buildings: ALL, waves: 8, startGold: beforeFirstWave * cost + mine, startCrystals: 0 });
+    const bot = new Bot(sim, { ...DEFAULT_BOT, kinds: [] });
+    act(bot, 12);
+
+    expect(sim.result().built).toEqual({ shop: 0, mine: 0, altar: 0 });
+    expect(sim.result().overLimitSummons).toBeGreaterThan(0);
   });
 
   it('там, где строить нельзя, лишние монеты идут на призыв сверх лимита', () => {
@@ -159,7 +182,7 @@ describe('Bot: строения и продажа', () => {
   it('улучшает лавку, когда новые ставить уже нельзя', () => {
     const { sim, bot } = create({ buildings: ['shop'], waves: 8, startGold: 10_000, startCrystals: 0 });
     for (let i = 0; i < economy.buildings.maxPerKind; i++) sim.build('shop');
-    sim.economy.gold = beforeFirstWave * cost + shop[1].cost;
+    sim.economy.gold = beforeFirstWave * cost + cost * overLimitMult[0] + shop[1].cost;
     act(bot, 12);
 
     expect(sim.result().upgrades).toBe(1);
@@ -250,10 +273,25 @@ describe('баланс главы 1 глазами бота', () => {
     expect(reports[9].avgStars).toBeLessThan(2.2);
   });
 
-  it('уровень идёт от двух до семи минут', () => {
+  it('уровень идёт от двух до пяти минут', () => {
     for (const report of reports) {
       expect(report.avgTime).toBeGreaterThan(120);
-      expect(report.avgTime).toBeLessThan(420);
+      // Цель — пять минут; десять секунд сверху — на разброс между прогонами.
+      expect(report.avgTime).toBeLessThan(310);
+    }
+  });
+
+  it('лимит призывов держится до конца уровня: на поздних уровнях бот призывает немногим больше лимита', () => {
+    for (const report of reports.slice(6)) {
+      expect(report.avgLateSummons).toBeGreaterThan(3);
+      expect(report.avgLateSummons).toBeLessThan(6.5);
+    }
+  });
+
+  it('кристаллы остаются редкими, а продажа — выходом из тупика, а не способом играть', () => {
+    for (const report of reports) {
+      expect(report.avgHybrids).toBeLessThan(11);
+      expect(report.avgSales).toBeLessThan(10);
     }
   });
 

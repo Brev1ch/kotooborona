@@ -49,8 +49,10 @@ export class Economy {
   get overLimitMult(): number {
     const over = this.summonsThisWave - this.summonLimit;
     if (over < 0) return 1;
-    const steps = this.config.summon.overLimitMult;
-    return steps[Math.min(over, steps.length - 1)] ?? 1;
+    const { overLimitMult: steps, overLimitGrowth } = this.config.summon;
+    if (over < steps.length) return steps[over];
+    // Список кончился — штраф растёт дальше с тем же шагом.
+    return (steps[steps.length - 1] ?? 1) + (over - steps.length + 1) * overLimitGrowth;
   }
 
   get summonCost(): number {

@@ -819,7 +819,7 @@ test('все уровни главы запускаются, кот продаё
     await waitFor(
       page,
       SCREEN_TIMEOUT,
-      (s) => s.scenes.includes(SceneKey.UI) && s.hud?.totalWaves === 12,
+      (s) => s.scenes.includes(SceneKey.UI) && s.hud?.totalWaves === 9,
       (s) => `После сценки не начался бой с королём: ${scenesText(s)}`,
     );
     checkConsole('сценка перед королём');
