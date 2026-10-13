@@ -284,6 +284,25 @@ export const WAVE_BANNER_FEEL = {
   hideMs: 280,
 };
 
+/** Подсказки обучения. */
+export const TUTORIAL_FEEL = {
+  bubbleAlpha: 0.92,
+  /** Стрелка над кнопкой. */
+  arrowW: 18,
+  arrowH: 12,
+  arrowGap: 4,
+  arrowBounce: 8,
+  arrowMs: 420,
+  /** «Палец», который тащит кота. */
+  fingerSize: 24,
+  fingerAlpha: 0.85,
+  dragMs: 700,
+  dragHoldMs: 220,
+  /** Кольцо в точке удара метеора. */
+  ringPulse: 0.85,
+  ringAlpha: 0.5,
+};
+
 /** Сценки перед уровнями. */
 export const STORY_FEEL = {
   heroScale: 3,

@@ -21,6 +21,11 @@
     "fishPerExtraStar": 0.25,
     "replayMult": 0.4
   },
+  "tutorial": {
+    "summons": 2,
+    "meteorEnemies": 3,
+    "delay": 1.2
+  },
   "levels": [
     {
       "id": "opushka",
@@ -36,7 +41,8 @@
       "hpMult": 1.45,
       "ratChance": 0.15,
       "shieldChance": 0,
-      "fish": 20
+      "fish": 20,
+      "tutorial": { "steps": ["summon", "merge"], "at": [180, 425], "width": 300 }
     },
     {
       "id": "tropinka",
@@ -52,7 +58,8 @@
       "hpMult": 1.75,
       "ratChance": 0.2,
       "shieldChance": 0,
-      "fish": 24
+      "fish": 24,
+      "tutorial": { "steps": ["hybrid"], "at": [180, 425], "width": 300 }
     },
     {
       "id": "ruchey",
@@ -68,7 +75,8 @@
       "hpMult": 1.25,
       "ratChance": 0.25,
       "shieldChance": 0,
-      "fish": 28
+      "fish": 28,
+      "tutorial": { "steps": ["meteor"], "at": [282, 300], "width": 140 }
     },
     {
       "id": "dub",

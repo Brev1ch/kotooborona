@@ -1,7 +1,8 @@
 import type Phaser from 'phaser';
 import { audio } from './audio';
-import { enemies, levels } from './data';
+import { enemies, levels, type ElementId } from './data';
 import type { Enemy } from './entities/Enemy';
+import { BOARD_Y } from './layout';
 import { stress } from './debug';
 import { progress } from './progress';
 import type { GameScene } from './scenes/GameScene';
@@ -41,6 +42,8 @@ export interface SmokeState {
   march: number;
   /** Бой стоит на паузе. */
   paused: boolean;
+  /** Шаг обучения, подсказка о котором сейчас на экране. */
+  tutorial: string | null;
   /** Открытый экран итога боя. */
   result: 'win' | 'lose' | null;
   /** Сценка на экране: номер реплики и сколько их всего. */
@@ -72,6 +75,10 @@ export interface SmokeProbe {
   startLevel(levelId?: string): void;
   /** Показывает сценку `storyId`, даже если она уже была; после неё начнётся бой на уровне `levelId`. */
   startStory(levelId: string, storyId: string): void;
+  /** Центры клеток идущего боя в координатах экрана. */
+  slotCenters(): [number, number][];
+  /** Ставит кота в клетку идущего боя. */
+  placeCat(slot: number, element: ElementId, level: number): void;
   /** id всех уровней по порядку. */
   levelIds(): string[];
   /** Выпускает на дорогу Крысиного короля, уже прошедшего часть пути. */
@@ -169,6 +176,14 @@ export function installSmokeProbe(game: Phaser.Game): void {
       const data: StorySceneData = { levelId, storyId };
       game.scene.start(SceneKey.Story, data);
     },
+    slotCenters() {
+      const scene = game.scene.getScene(SceneKey.Game) as GameScene;
+      return scene.slotCenters().map(([x, y]) => [x, y + BOARD_Y]);
+    },
+    placeCat(slot, element, level) {
+      const scene = game.scene.getScene(SceneKey.Game) as GameScene;
+      scene.placeCat(slot, { element, level, cooldown: 0, ritual: 0 });
+    },
     levelIds() {
       return levels.levels.map((level) => level.id);
     },
@@ -221,11 +236,12 @@ export function installSmokeProbe(game: Phaser.Game): void {
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);
       if (!paused && !scenes.includes(SceneKey.Game)) {
-        return { ...common, hud: null, cats: 0, enemies: 0, march: 0, paused: false, result: null };
+        return { ...common, hud: null, cats: 0, enemies: 0, march: 0, paused: false, result: null, tutorial: null };
       }
       const gameScene = game.scene.getScene(SceneKey.Game) as GameScene;
-      const result = (game.scene.getScene(SceneKey.UI) as UIScene).resultShown();
-      return { ...common, hud: gameScene.hudState(), ...gameScene.fieldCounts(), paused, result };
+      const ui = game.scene.getScene(SceneKey.UI) as UIScene;
+      const hud = gameScene.hudState();
+      return { ...common, hud, ...gameScene.fieldCounts(), paused, result: ui.resultShown(), tutorial: ui.tutorialStep() };
     },
   };
 }

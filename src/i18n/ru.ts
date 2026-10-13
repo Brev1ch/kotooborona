@@ -61,6 +61,12 @@ export const ru = {
   'book.unknown': '???',
   'book.recipe': '{first} + {second}',
 
+  'tutorial.summon': 'Нажми «Призвать» — кот встанет на поле',
+  'tutorial.merge': 'Перетащи кота на такого же — они сольются',
+  'tutorial.hybrid': 'Смешай разные стихии: гибрид стоит кристалл',
+  'tutorial.meteor': 'Мышей много — жми «Метеор»',
+  'tutorial.meteorAim': 'Коснись дороги, где мышей больше',
+
   'story.speaker.archmage': 'Кот-Архимаг',
   'story.speaker.king': 'Крысиный король',
   'story.speaker.mouse': 'Мышь-гонец',

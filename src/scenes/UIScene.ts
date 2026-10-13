@@ -36,11 +36,13 @@ import { progress } from '../progress';
 import { nextLevelId } from '../systems/Campaign';
 import { Pool } from '../systems/Pool';
 import { MAX_STARS } from '../systems/Progress';
+import { Tutorial } from '../systems/Tutorial';
 import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
 import { GameEvent, SceneKey, type LevelResult, type LevelSceneData, type RewardDrop } from './keys';
 import { bakeTexture } from './textures';
 import { fadeIn, fadeOut } from './transitions';
+import { TutorialOverlay } from './TutorialOverlay';
 import { addAdButton, addButton, addCoinIcon, addCrystalIcon, addFishIcon, addPressFeel, addSoundToggle } from './widgets';
 
 const STAT_GAP = 6;
@@ -138,6 +140,9 @@ export class UIScene extends Phaser.Scene {
   /** Идёт ролик с наградой: второй не запускаем. */
   private adBusy = false;
   private resultWon = false;
+  /** Обучение: есть только на уровнях с подсказками и пока уровень не пройден. */
+  private tutorial: Tutorial | null = null;
+  private tutorialOverlay: TutorialOverlay | null = null;
   /** Игрок уже уходит с экрана итога: кнопки больше не действуют. */
   private leaving = false;
 
@@ -193,6 +198,10 @@ export class UIScene extends Phaser.Scene {
     this.addCoinAdButton();
     this.addPauseButton();
     this.pauseMenu = null;
+    // Подсказки нужны, только пока уровень не пройден: вернувшийся за звёздами игрок уже всё умеет.
+    const learning = this.level.tutorial !== undefined && progress.stars(this.level.id) === 0;
+    this.tutorial = learning && this.level.tutorial ? new Tutorial(this.level.tutorial.steps, levels.tutorial) : null;
+    this.tutorialOverlay = this.tutorial ? new TutorialOverlay(this, this.level) : null;
     this.resultOverlay = null;
     this.adBusy = false;
     this.leaving = false;
@@ -417,9 +426,18 @@ export class UIScene extends Phaser.Scene {
       .setText(seconds > 0 ? t('meteor.cooldown', { seconds }) : t('ad.watch'));
   }
 
-  update(): void {
+  update(_time: number, delta: number): void {
     this.refreshMeteor();
     this.refreshCoinAd();
+    // На паузе бой стоит, и отсчёт подсказок стоит вместе с ним.
+    if (this.tutorial && !this.pauseMenu) {
+      this.tutorialOverlay?.show(this.tutorial.update(delta / 1000, this.gameScene.tutorialState()));
+    }
+  }
+
+  /** Шаг обучения, подсказка о котором сейчас на экране; читает смоук-проверка (src/smoke.ts). */
+  tutorialStep(): string | null {
+    return this.tutorialOverlay?.step ?? null;
   }
 
   /** Кнопка метеора: готов, идёт перезарядка (полоса и секунды) или прицеливание. */

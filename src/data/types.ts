@@ -98,6 +98,19 @@ export interface LevelConfig {
   shieldChance: number;
   /** Рыбки за первое прохождение на одну звезду. */
   fish: number;
+  /** Обучение на этом уровне: какие шаги подсказывать и где на поле стоит текст подсказки (центр и ширина). */
+  tutorial?: { steps: TutorialStep[]; at: Point; width: number };
+}
+
+export type TutorialStep = 'summon' | 'merge' | 'hybrid' | 'meteor';
+
+export interface TutorialRules {
+  /** Про призыв подсказываем, пока игрок не призвал столько котов. */
+  summons: number;
+  /** Про метеор — когда на поле столько врагов. */
+  meteorEnemies: number;
+  /** Сколько секунд должен продержаться повод, чтобы подсказка появилась. */
+  delay: number;
 }
 
 export interface WavesConfig {
@@ -127,6 +140,7 @@ export interface LevelsConfig {
   waves: WavesConfig;
   stars: { threeStarsMaxLost: number; twoStarsMaxLost: number };
   rewards: RewardRules;
+  tutorial: TutorialRules;
   levels: LevelConfig[];
 }
 

@@ -63,6 +63,12 @@ export const en: Record<StringKey, string> = {
   'book.unknown': '???',
   'book.recipe': '{first} + {second}',
 
+  'tutorial.summon': 'Tap Summon to put a cat on the field',
+  'tutorial.merge': 'Drag a cat onto its twin to merge them',
+  'tutorial.hybrid': 'Mix two elements: a hybrid costs a crystal',
+  'tutorial.meteor': 'Too many mice — tap Meteor',
+  'tutorial.meteorAim': 'Tap the road where the mice are',
+
   'story.speaker.archmage': 'Cat Archmage',
   'story.speaker.king': 'The Rat King',
   'story.speaker.mouse': 'Messenger Mouse',

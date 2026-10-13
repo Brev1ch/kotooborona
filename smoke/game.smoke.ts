@@ -11,6 +11,7 @@ import {
   menuCardCenter,
   menuChestCenter,
   menuSoundCenter,
+  METEOR_X,
   MIN_TOUCH,
   pauseButtonCenter,
   pauseMenuButtonCenter,
@@ -655,5 +656,138 @@ test('все уровни главы запускаются; на последн
       (s) => `После сценки не начался бой с королём: ${scenesText(s)}`,
     );
     checkConsole('сценка перед королём');
+  });
+});
+
+test('обучение: призыв → слияние → гибрид → метеор; на пройденном уровне подсказок нет', async ({ page }) => {
+  /** Подсказка появляется с задержкой и после неё должна быть именно такой. */
+  const expectHint = (step: string | null, message: string): Promise<void> =>
+    waitFor(
+      page,
+      WAVE_TIMEOUT,
+      (s) => s.tutorial === step,
+      (s) => `${message}: на экране подсказка «${s?.tutorial ?? 'нет'}»`,
+    );
+  const startLevel = async (id?: string): Promise<void> => {
+    await page.evaluate((levelId) => window.__smoke?.startLevel(levelId), id);
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.UI) && s.hud?.wave === 0,
+      (s) => `Уровень ${id ?? 'первый'} не запустился: ${scenesText(s)}`,
+    );
+  };
+  /** Касание в логических координатах: нажать, провести, отпустить — как палец, который тащит кота. */
+  const drag = async (from: [number, number], to: [number, number]): Promise<void> => {
+    const box = await page.locator('canvas').boundingBox();
+    if (!box) throw new Error('На странице нет canvas');
+    const point = ([x, y]: [number, number]) => ({ x: box.x + (x / GAME_W) * box.width, y: box.y + (y / GAME_H) * box.height });
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: string, at?: { x: number; y: number }) =>
+      cdp.send('Input.dispatchTouchEvent', { type: type as 'touchStart', touchPoints: at ? [{ ...at, id: 1 }] : [] });
+    const start = point(from);
+    const end = point(to);
+    await touch('touchStart', start);
+    for (let step = 1; step <= 5; step++) {
+      await touch('touchMove', { x: start.x + ((end.x - start.x) * step) / 5, y: start.y + ((end.y - start.y) * step) / 5 });
+      await page.waitForTimeout(30);
+    }
+    await touch('touchEnd');
+  };
+
+  await page.goto('/?smoke');
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.Menu),
+    (s) => `Игра не дошла до меню: ${scenesText(s)}`,
+  );
+  const ids = (await page.evaluate(() => window.__smoke?.levelIds())) ?? [];
+
+  await test.step('уровень 1: призыв', async () => {
+    await startLevel(ids[0]);
+    await expectHint('summon', 'В начале первого уровня нет подсказки про призыв');
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/tutorial-1-summon.png` });
+    await checkTouchSizes(page, 'бой с подсказкой');
+
+    // Подсказка не мешает нажимать: два призыва — и она больше не нужна.
+    await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.cats === 2 && s.tutorial !== 'summon',
+      (s) => `После двух призывов подсказка про призыв осталась: котов ${s?.cats}, подсказка «${s?.tutorial}»`,
+    );
+    checkConsole('обучение: призыв');
+  });
+
+  await test.step('уровень 1: слияние', async () => {
+    // Два одинаковых кота в соседних клетках: какие стихии выпали при призыве, заранее не известно.
+    await page.evaluate(() => {
+      for (let slot = 0; slot < 12; slot++) window.__smoke?.placeCat(slot, slot < 2 ? 'fire' : 'water', slot < 2 ? 1 : slot);
+    });
+    await expectHint('merge', 'Нет подсказки про слияние, хотя на поле два одинаковых кота');
+    await page.waitForTimeout(WAVE_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/tutorial-2-merge.png` });
+
+    // Перетаскивание сквозь подсказку работает: коты сливаются, подсказка уходит.
+    const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
+    await drag(centers[0], centers[1]);
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.cats === 11 && s.tutorial === null,
+      (s) => `Коты не слились сквозь подсказку: котов ${s?.cats}, подсказка «${s?.tutorial}»`,
+    );
+    checkConsole('обучение: слияние');
+  });
+
+  await test.step('уровень 2: гибрид', async () => {
+    await startLevel(ids[1]);
+    await page.evaluate(() => {
+      window.__smoke?.placeCat(4, 'fire', 1);
+      window.__smoke?.placeCat(7, 'water', 1);
+    });
+    await expectHint('hybrid', 'Нет подсказки про гибрида, хотя есть коты разных стихий и кристалл');
+    await page.waitForTimeout(WAVE_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/tutorial-3-hybrid.png` });
+    checkConsole('обучение: гибрид');
+  });
+
+  await test.step('уровень 3: метеор', async () => {
+    await startLevel(ids[2]);
+    await expectHint('meteor', 'Мыши вышли, метеор готов, а подсказки про него нет');
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/tutorial-4-meteor.png` });
+
+    await tap(page, METEOR_X, CONTROLS_CENTER_Y);
+    await expectHint('meteorAim', 'После нажатия «Метеор» нет подсказки, куда бить');
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/tutorial-5-meteor-aim.png` });
+
+    // Удар по дороге у входа: подсказка про метеор больше не появляется.
+    await tap(page, 30, 200);
+    await expectHint(null, 'После удара метеором подсказка осталась');
+    checkConsole('обучение: метеор');
+  });
+
+  await test.step('пройденный уровень — без подсказок', async () => {
+    await startLevel(ids[0]);
+    await page.evaluate(() => window.__smoke?.win());
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.result === 'win',
+      () => 'Не появился экран победы',
+    );
+    await startLevel(ids[0]);
+    // Дольше задержки подсказки: если бы она была положена, уже появилась бы.
+    await page.waitForTimeout(2500);
+    const hint = (await state(page))?.tutorial ?? null;
+    if (hint !== null) throw new Error(`На пройденном уровне появилась подсказка «${hint}»`);
+    checkConsole('обучение: пройденный уровень');
   });
 });

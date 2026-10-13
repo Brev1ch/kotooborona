@@ -22,6 +22,7 @@ import { Pool } from '../systems/Pool';
 import { levelFish } from '../systems/Rewards';
 import { buildPath, positionAt, type Path } from '../systems/Path';
 import { Summon } from '../systems/Summon';
+import { densestPoint, findMergePair, type TutorialState } from '../systems/Tutorial';
 import { Waves } from '../systems/Waves';
 import {
   GameEvent,
@@ -107,6 +108,8 @@ export class GameScene extends Phaser.Scene {
   private meteor!: Meteor;
   private coinAd!: CoinAd;
   private secondChance!: SecondChance;
+  /** Что игрок уже сделал в этом бою; по этому обучение понимает, какие подсказки больше не нужны. */
+  private actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0 };
   private hero!: HeroView;
   /** Подсветка поля, пока игрок выбирает точку удара. */
   private aimGlow!: Phaser.GameObjects.Graphics;
@@ -169,6 +172,7 @@ export class GameScene extends Phaser.Scene {
     this.enemyViews = new Map();
     this.projectileViews = new Map();
     this.shownWave = '';
+    this.actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0 };
     this.finished = false;
     this.board = this.level.slots.map(() => null);
     this.views = this.level.slots.map(() => null);
@@ -282,6 +286,25 @@ export class GameScene extends Phaser.Scene {
     return true;
   }
 
+  /** Срез боя для обучения (systems/Tutorial). */
+  tutorialState(): TutorialState {
+    const points = this.combat.enemies
+      .map((enemy) => positionAt(this.path, enemy.distance))
+      .filter(([x, y]) => x >= 0 && y >= 0 && x <= BOARD_W && y <= BOARD_H);
+    const { crystals } = this.economy;
+    return {
+      finished: this.finished,
+      ...this.actions,
+      canSummon: !this.finished && this.economy.canAffordSummon() && this.board.includes(null),
+      mergePair: findMergePair(this.board, this.merger, crystals, false),
+      hybridPair: findMergePair(this.board, this.merger, crystals, true),
+      meteorReady: this.meteor.ready,
+      aiming: this.meteor.aiming,
+      enemies: points.length,
+      cluster: densestPoint(points, gear.meteor.radius),
+    };
+  }
+
   coinAdState(): CoinAdState {
     return { ready: !this.finished && this.coinAd.ready, remaining: this.coinAd.remaining, gold: ads.coins.gold };
   }
@@ -369,6 +392,11 @@ export class GameScene extends Phaser.Scene {
 
   get slotCount(): number {
     return this.level.slots.length;
+  }
+
+  /** Центры клеток в координатах поля; читает смоук-проверка (src/smoke.ts). */
+  slotCenters(): Point[] {
+    return this.level.slots.map((_, slot) => this.slotCenter(slot));
   }
 
   /** Меняет экономику и картинку по событию боя. Возвращает true, если HUD пора обновить. */
@@ -686,6 +714,7 @@ export class GameScene extends Phaser.Scene {
     const blast = this.meteor.cast(this.waves.wave, this.level.hpMult);
     this.syncAim();
     if (!blast) return;
+    this.actions.meteors++;
 
     this.hero.playCast();
     const [fromX, fromY] = this.hero.orbPoint();
@@ -757,6 +786,7 @@ export class GameScene extends Phaser.Scene {
     if (!result) return;
 
     this.economy.paySummon();
+    this.actions.summons++;
     this.placeCat(result.slot, result.cat).playSpawn();
     audio.play('summon');
 
@@ -861,6 +891,8 @@ export class GameScene extends Phaser.Scene {
         target?.absorb(x, y);
 
         this.economy.crystals -= result.crystalCost;
+        if (result.crystalCost > 0) this.actions.hybrids++;
+        else this.actions.merges++;
         this.board[to] = result.cat;
         this.board[from] = null;
         const merged = new CatView(this, x, y, result.cat);

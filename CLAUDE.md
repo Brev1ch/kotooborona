@@ -19,7 +19,7 @@ src/
   audio.ts           звуки поверх Phaser Sound: `audio.play(id)`, выключатель, паузы (скрытая вкладка, реклама)
   fonts.ts           загрузка веб-шрифтов до меню
   scenes/            Boot, Menu, Book, Gear, Story (сценки перед уровнями), Game, UI (HUD поверх Game)
-  systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy, Progress, Loadout, Gear, Chests, Campaign, Book, Story, Ads, Rewards, Simulation (бой без отрисовки), Bot (бот-игрок для подбора баланса)
+  systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy, Progress, Loadout, Gear, Chests, Campaign, Book, Story, Tutorial, Ads, Rewards, Simulation (бой без отрисовки), Bot (бот-игрок для подбора баланса)
   entities/          Cat, Enemy, Projectile, Hero
   data/              JSON-конфиги: cats.json, enemies.json, levels.json, gear.json, ads.json, story.json
   platform/          площадка за интерфейсом `Platform`: `YandexPlatform` (SDK Яндекс Игр: реклама, данные игрока, язык, разметка боя) и `DevPlatform` (заглушка); выбор — при запуске, по наличию `/sdk.js`
@@ -41,6 +41,7 @@ docs/                GDD и прототип
 - Нажимаемые элементы — не меньше 44×44 в логических координатах (`MIN_TOUCH` в `layout.ts`), нажатие работает по всей видимой площади.
 - Звук — только через `audio.play(id)` из `src/audio.ts`; громкость и ограничение частоты каждого звука — в `SOUND_FEEL` (`feel.ts`). Новый звук: строка в таблице `SOUNDS` в `scripts/sfx.mjs`, `npm run sfx`, строка в `SOUND_FEEL`. Общий вес `public/assets/sfx` — до 500 КБ (скрипт проверяет).
 - Реклама — только через `adBreaks` (`src/adBreaks.ts`): наградная по кнопке со значком ролика (`addAdButton`), полноэкранная — только при уходе с экрана итога боя. Числа — в `ads.json`.
+- Подсказки обучения (`systems/Tutorial.ts`, `scenes/TutorialOverlay.ts`) никогда не перехватывают касания; какие шаги на каком уровне и где стоит текст — в `levels.json` → `tutorial`.
 - Пауза: бой останавливает `GameScene.pauseBattle()` (кнопка паузы, скрытая вкладка), всю игру на время рекламы — `Platform.onPause` (подключён в `BootScene`). Всё, что должно замирать на паузе, живёт в обновлении, анимациях и таймерах сцен Phaser, а не в `setTimeout`.
 - Переходы между сценами — через `fadeIn`/`fadeOut` из `scenes/transitions.ts`, отклик нажатия — через `addPressFeel` из `scenes/widgets.ts`; параметры всех анимаций и эффектов — в `feel.ts`.
 - Производительность отрисовки: `Graphics` заново разбивается на треугольники каждый кадр, поэтому всё неизменное (фон поля, панели, силуэты котов и мышей) запекается в текстуры (`bakeTexture`/`addBakedShape` в `scenes/textures.ts`), а круги и кольца эффектов — картинки из общих текстур. То, что в бою появляется и исчезает часто (снаряды, вспышки, монеты, всплывающие числа), берётся из `Pool` (`systems/Pool.ts`), а не создаётся заново.
