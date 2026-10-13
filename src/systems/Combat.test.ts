@@ -49,6 +49,8 @@ const enemies: EnemiesConfig = {
     mouse: { ...type, lifeDamage: 1 },
     rat: { ...type, lifeDamage: 2, crystalChance: 0.3, crystalDrop: 1 },
     shield: { ...type, lifeDamage: 1 },
+    boots: { ...type, lifeDamage: 1, immune: ['slow', 'freeze'] },
+    fire: { ...type, lifeDamage: 1, immune: ['burn'], resist: { fire: 0, lava: 0.5, steam: 1, storm: 1 } },
     boss: { ...type, lifeDamage: 5, crystalChance: 1, crystalDrop: 2, slowResist: true },
     king: { ...type, lifeDamage: 20, slowResist: true, summon: { type: 'mouse', count: 2, interval: 2, spread: 10 } },
   },
@@ -753,6 +755,179 @@ describe('Combat: взрыв по площади (метеор)', () => {
 
     expect(ofKind(events, 'killed')).toEqual([{ kind: 'killed', enemy: weak, x: 50, y: 50, gold: 7, crystals: 0 }]);
     expect(combat.enemies).toEqual([strong]);
+  });
+});
+
+describe('Combat: иммунитеты к эффектам', () => {
+  /** Один выстрел кота по врагу и события до попадания включительно. */
+  function shoot(combat: Combat, element: ElementId): CombatEvent[] {
+    return [...combat.update(DT, [cat(element)]), ...run(combat, [], 0.1)];
+  }
+
+  it('мышь в сапогах не замедляется, но урон получает', () => {
+    const boots = enemy('boots', MIDDLE, { hp: 100 });
+    const events = shoot(create([boots]), 'water');
+
+    expect(boots).toMatchObject({ hp: 90, slowFactor: 1, slowTime: 0 });
+    expect(ofKind(events, 'hit')).toHaveLength(1);
+    expect(ofKind(events, 'immune')).toEqual([{ kind: 'immune', enemy: boots, x: 50, y: 50 }]);
+  });
+
+  it('мышь в сапогах не замерзает', () => {
+    const boots = enemy('boots', MIDDLE, { hp: 100 });
+    const events = shoot(create([boots]), 'ice');
+
+    expect(boots).toMatchObject({ hp: 85, slowFactor: 1, slowTime: 0 });
+    expect(ofKind(events, 'immune')).toHaveLength(1);
+  });
+
+  it('облако пара замедляет соседей, а мышь в сапогах — нет', () => {
+    const boots = enemy('boots', MIDDLE, { hp: 100 });
+    const mouse = enemy('mouse', MIDDLE - 10, { hp: 100 });
+    const events = shoot(create([boots, mouse]), 'steam');
+
+    expect(boots).toMatchObject({ hp: 85, slowFactor: 1 });
+    expect(mouse).toMatchObject({ hp: 92.5, slowFactor: 0.6 });
+    expect(ofKind(events, 'immune').map((event) => event.enemy)).toEqual([boots]);
+  });
+
+  it('иммунитет к замедлению и иммунитет к заморозке — разные', () => {
+    const custom: EnemiesConfig = { ...enemies, types: { ...enemies.types, boots: { ...enemies.types.boots, immune: ['freeze'] } } };
+    const boots = enemy('boots', MIDDLE, { hp: 100 });
+    const combat = new Combat({ cats, enemies: custom, path, slots, bounds });
+    combat.add(boots);
+
+    shoot(combat, 'water');
+    expect(boots.slowFactor).toBe(0.5);
+  });
+
+  it('иммунный к поджогу не горит', () => {
+    const custom: EnemiesConfig = { ...enemies, types: { ...enemies.types, boots: { ...enemies.types.boots, immune: ['burn'] } } };
+    const boots = enemy('boots', MIDDLE, { hp: 100 });
+    const combat = new Combat({ cats, enemies: custom, path, slots, bounds });
+    combat.add(boots);
+
+    const events = shoot(combat, 'fire');
+    expect(boots).toMatchObject({ hp: 90, burnDps: 0, burnTime: 0 });
+    expect(ofKind(events, 'immune')).toHaveLength(1);
+  });
+
+  it('иммунный к яду не отравляется', () => {
+    const custom: EnemiesConfig = { ...enemies, types: { ...enemies.types, boots: { ...enemies.types.boots, immune: ['poison'] } } };
+    const boots = enemy('boots', MIDDLE, { hp: 100 });
+    const combat = new Combat({ cats, enemies: custom, path, slots, bounds });
+    combat.add(boots);
+
+    const events = shoot(combat, 'swamp');
+    expect(boots).toMatchObject({ hp: 85, poisonDps: 0, poisonTime: 0 });
+    expect(ofKind(events, 'immune')).toHaveLength(1);
+  });
+
+  it('обычная мышь событий иммунитета не даёт', () => {
+    const combat = create([enemy('mouse', MIDDLE, { hp: 100 })]);
+    expect(ofKind(shoot(combat, 'water'), 'immune')).toEqual([]);
+  });
+});
+
+describe('Combat: сопротивление стихиям', () => {
+  function shoot(combat: Combat, element: ElementId): CombatEvent[] {
+    return [...combat.update(DT, [cat(element)]), ...run(combat, [], 0.1)];
+  }
+
+  it('пожарная мышь не получает урона от огня и не горит: одно событие иммунитета вместо попадания', () => {
+    const fire = enemy('fire', MIDDLE, { hp: 100 });
+    const events = shoot(create([fire]), 'fire');
+
+    expect(fire).toMatchObject({ hp: 100, burnTime: 0 });
+    expect(ofKind(events, 'hit')).toEqual([]);
+    expect(ofKind(events, 'immune')).toEqual([{ kind: 'immune', enemy: fire, x: 50, y: 50 }]);
+  });
+
+  it('лава бьёт пожарную мышь вполсилы и не поджигает', () => {
+    const fire = enemy('fire', MIDDLE, { hp: 100 });
+    shoot(create([fire]), 'lava');
+
+    expect(fire).toMatchObject({ hp: 92.5, burnTime: 0 });
+  });
+
+  it('осколки лавы тоже слабеют, а соседняя мышь получает их целиком и горит', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 100 });
+    const fire = enemy('fire', MIDDLE - 10, { hp: 100 });
+    const other = enemy('mouse', MIDDLE - 15, { hp: 100 });
+    shoot(create([mouse, fire, other]), 'lava');
+
+    expect(fire).toMatchObject({ hp: 96.25, burnTime: 0 });
+    expect(other).toMatchObject({ hp: 92.5, burnDps: 3 });
+  });
+
+  it('пар и молния бьют пожарную мышь в полную силу', () => {
+    const steamed = enemy('fire', MIDDLE, { hp: 100 });
+    shoot(create([steamed]), 'steam');
+    expect(steamed.hp).toBe(85);
+
+    const struck = enemy('fire', MIDDLE, { hp: 100 });
+    const events = shoot(create([struck]), 'storm');
+    expect(struck.hp).toBe(85);
+    expect(ofKind(events, 'immune')).toEqual([]);
+  });
+
+  it('перескок молнии считается по стихии кота', () => {
+    const custom: EnemiesConfig = { ...enemies, types: { ...enemies.types, fire: { ...enemies.types.fire, resist: { storm: 0.5 } } } };
+    const mouse = enemy('mouse', MIDDLE, { hp: 100 });
+    const fire = enemy('fire', MIDDLE - 10, { hp: 100 });
+    const combat = new Combat({ cats, enemies: custom, path, slots, bounds });
+    combat.add(mouse);
+    combat.add(fire);
+
+    shoot(combat, 'storm');
+    // Перескок — половина от 15, сопротивление — ещё половина.
+    expect(fire.hp).toBe(96.25);
+  });
+
+  it('буря по устойчивому к ней врагу урона не наносит', () => {
+    const custom: EnemiesConfig = { ...enemies, types: { ...enemies.types, fire: { ...enemies.types.fire, resist: { sand: 0 } } } };
+    const fire = enemy('fire', MIDDLE, { hp: 100 });
+    const combat = new Combat({ cats, enemies: custom, path, slots, bounds });
+    combat.add(fire);
+
+    const events = combat.update(DT, [cat('sand')]);
+    expect(fire.hp).toBe(100);
+    expect(ofKind(events, 'immune')).toHaveLength(1);
+  });
+
+  it('яд слабеет вместе с уроном стихии', () => {
+    const custom: EnemiesConfig = { ...enemies, types: { ...enemies.types, fire: { ...enemies.types.fire, resist: { swamp: 0.5 } } } };
+    const fire = enemy('fire', MIDDLE, { hp: 100 });
+    const combat = new Combat({ cats, enemies: custom, path, slots, bounds });
+    combat.add(fire);
+
+    combat.update(DT, [cat('swamp')]);
+    // Без шагов после попадания яд ещё не успевает тикнуть: смотрим только дозу.
+    while (fire.poisonTime === 0) combat.update(DT, []);
+    expect(fire.poisonDps).toBe(3.75);
+  });
+
+  it('щит принимает попадание раньше сопротивления', () => {
+    const fire = enemy('fire', MIDDLE, { hp: 100, shield: 1 });
+    const events = shoot(create([fire]), 'fire');
+
+    expect(fire.shield).toBe(0);
+    expect(ofKind(events, 'blocked')).toHaveLength(1);
+  });
+
+  it('метеор бьёт пожарную мышь в полную силу, но не поджигает', () => {
+    const fire = enemy('fire', MIDDLE, { hp: 100 });
+    const events = create([fire]).strike(50, 50, { radius: 20, damage: 30, burnDps: 4, burnTime: 2 });
+
+    expect(fire).toMatchObject({ hp: 70, burnTime: 0 });
+    expect(ofKind(events, 'hit')).toHaveLength(1);
+    expect(ofKind(events, 'immune')).toHaveLength(1);
+  });
+
+  it('в игровых данных у пожарной мыши явно записаны все огненные стихии', () => {
+    expect(enemiesJson.types.fire.immune).toEqual(['burn']);
+    expect(enemiesJson.types.fire.resist).toEqual({ fire: 0, lava: 0.5, steam: 1, storm: 1 });
+    expect(enemiesJson.types.boots.immune).toEqual(['slow', 'freeze']);
   });
 });
 

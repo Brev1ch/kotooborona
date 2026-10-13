@@ -1,4 +1,4 @@
-import type { CatsConfig, ElementId, EnemiesConfig, Point } from '../data/types';
+import type { CatsConfig, ElementId, EnemiesConfig, Point, StatusId } from '../data/types';
 import { isCat, type Piece } from '../entities/Building';
 import type { Cat } from '../entities/Cat';
 import type { Enemy } from '../entities/Enemy';
@@ -50,6 +50,8 @@ export type CombatEvent =
   | { kind: 'hit'; enemy: Enemy; x: number; y: number; element: ElementId }
   /** Щит принял попадание на себя. */
   | { kind: 'blocked'; enemy: Enemy; x: number; y: number }
+  /** Иммунитет: стихия не нанесла урона или её эффект не лёг. Не чаще раза на врага за шаг. */
+  | { kind: 'immune'; enemy: Enemy; x: number; y: number }
   | { kind: 'killed'; enemy: Enemy; x: number; y: number; gold: number; crystals: number }
   /** Враг призвал подмогу: `enemy` уже на поле. */
   | { kind: 'spawned'; enemy: Enemy }
@@ -98,7 +100,7 @@ export class Combat {
   }
 
   /**
-   * Взрыв в точке: урон мимо щита и поджог всем, кто сейчас в радиусе.
+   * Взрыв в точке: урон мимо щита и сопротивлений и поджог всем, кто сейчас в радиусе.
    * Возвращает события так же, как update().
    */
   strike(x: number, y: number, { radius, damage, burnDps, burnTime }: Blast): CombatEvent[] {
@@ -245,31 +247,33 @@ export class Combat {
     const [x, y] = positionAt(path, target.distance);
 
     this.hurt(target, damage, element);
+    // Огонь и яд слабеют вместе с уроном стихии.
+    const dealt = damage * this.resist(target, element);
 
     switch (fx) {
       case 'burn':
-        this.burn(target, damage * effect.burnDps, effect.burnTime);
+        this.burn(target, dealt * effect.burnDps, effect.burnTime);
         break;
 
       case 'slow':
       case 'freeze':
-        this.slow(target, effect.slowFactor, effect.slowTime);
+        this.slow(target, fx, effect.slowFactor, effect.slowTime);
         break;
 
       case 'splash_slow':
-        this.slow(target, effect.slowFactor, effect.slowTime);
+        this.slow(target, 'slow', effect.slowFactor, effect.slowTime);
         for (const other of this.near(x, y, effect.splashRadius, target)) {
-          this.damage(other, damage * effect.splashDamage, ...positionAt(path, other.distance));
-          this.slow(other, effect.slowFactor, effect.slowTime);
+          this.graze(other, damage * effect.splashDamage, element);
+          this.slow(other, 'slow', effect.slowFactor, effect.slowTime);
         }
         this.events.push({ kind: 'splash', x, y, radius: effect.splashRadius, element });
         break;
 
       case 'splash_burn':
-        this.burn(target, damage * effect.burnDps, effect.burnTime);
+        this.burn(target, dealt * effect.burnDps, effect.burnTime);
         for (const other of this.near(x, y, effect.splashRadius, target)) {
-          this.damage(other, damage * effect.splashDamage, ...positionAt(path, other.distance));
-          this.burn(other, damage * effect.splashBurnDps, effect.burnTime);
+          this.graze(other, damage * effect.splashDamage, element);
+          this.burn(other, damage * this.resist(other, element) * effect.splashBurnDps, effect.burnTime);
         }
         this.events.push({ kind: 'splash', x, y, radius: effect.splashRadius, element });
         break;
@@ -290,12 +294,7 @@ export class Combat {
       }
 
       case 'poison':
-        // Яд копится от попадания к попаданию до потолка; более сильный яд слабым не сбивается.
-        target.poisonDps = Math.max(
-          target.poisonDps,
-          Math.min(target.poisonDps + damage * effect.poisonDps, damage * effect.poisonCap),
-        );
-        target.poisonTime = effect.poisonTime;
+        this.poison(target, dealt * effect.poisonDps, dealt * effect.poisonCap, effect.poisonTime);
         break;
 
       case 'heavy':
@@ -305,8 +304,27 @@ export class Combat {
     }
   }
 
+  /** Множитель урона стихии по этому врагу. */
+  private resist(enemy: Enemy, element: ElementId): number {
+    return this.setup.enemies.types[enemy.type].resist?.[element] ?? 1;
+  }
+
+  /** Эффект на этого врага не ложится: об этом сообщает событие. */
+  private shrugs(enemy: Enemy, status: StatusId): boolean {
+    if (!this.setup.enemies.types[enemy.type].immune?.includes(status)) return false;
+    this.refuse(enemy);
+    return true;
+  }
+
+  private refuse(enemy: Enemy): void {
+    if (enemy.hp <= 0 || this.events.some((event) => event.kind === 'immune' && event.enemy === enemy)) return;
+    const [x, y] = positionAt(this.setup.path, enemy.distance);
+    this.events.push({ kind: 'immune', enemy, x, y });
+  }
+
   /** Замедления не складываются: действует сильнейшее. Командиры и король замедляются слабее. */
-  private slow(enemy: Enemy, factor: number, time: number): void {
+  private slow(enemy: Enemy, status: 'slow' | 'freeze', factor: number, time: number): void {
+    if (this.shrugs(enemy, status)) return;
     const { bossSlowResist, types } = this.setup.enemies;
     const applied = types[enemy.type].slowResist ? 1 - (1 - factor) * bossSlowResist : factor;
     enemy.slowFactor = Math.min(enemy.slowTime > 0 ? enemy.slowFactor : 1, applied);
@@ -315,11 +333,19 @@ export class Combat {
 
   /** Поджог продлевается каждым попаданием; из двух огней горит сильнейший. */
   private burn(enemy: Enemy, dps: number, time: number): void {
+    if (this.shrugs(enemy, 'burn') || dps <= 0) return;
     enemy.burnDps = enemy.burnTime > 0 ? Math.max(enemy.burnDps, dps) : dps;
     enemy.burnTime = time;
   }
 
-  /** Прямое попадание: щит съедает его целиком. */
+  /** Яд копится от попадания к попаданию до потолка `cap`; более сильный яд слабым не сбивается. */
+  private poison(enemy: Enemy, dps: number, cap: number, time: number): void {
+    if (this.shrugs(enemy, 'poison') || dps <= 0) return;
+    enemy.poisonDps = Math.max(enemy.poisonDps, Math.min(enemy.poisonDps + dps, cap));
+    enemy.poisonTime = time;
+  }
+
+  /** Прямое попадание: щит съедает его целиком, сопротивление стихии урезает урон. */
   private hurt(enemy: Enemy, damage: number, element: ElementId): void {
     if (enemy.hp <= 0) return;
     const [x, y] = positionAt(this.setup.path, enemy.distance);
@@ -328,11 +354,26 @@ export class Combat {
       this.events.push({ kind: 'blocked', enemy, x, y });
       return;
     }
+    const mult = this.resist(enemy, element);
+    if (mult <= 0) {
+      this.refuse(enemy);
+      return;
+    }
     this.events.push({ kind: 'hit', enemy, x, y, element });
-    this.damage(enemy, damage, x, y);
+    this.damage(enemy, damage * mult, x, y);
   }
 
-  /** Урон мимо щита: осколки взрыва, огонь, яд. */
+  /** Осколки взрыва и облако: мимо щита, но с учётом сопротивления стихии. */
+  private graze(enemy: Enemy, amount: number, element: ElementId): void {
+    const mult = this.resist(enemy, element);
+    if (mult <= 0) {
+      this.refuse(enemy);
+      return;
+    }
+    this.damage(enemy, amount * mult, ...positionAt(this.setup.path, enemy.distance));
+  }
+
+  /** Урон как есть, мимо щита и сопротивлений: метеор, огонь, яд. */
   private damage(enemy: Enemy, amount: number, x: number, y: number): void {
     if (enemy.hp <= 0) return;
     enemy.hp -= amount;

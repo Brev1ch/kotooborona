@@ -34,6 +34,8 @@ const enemies: EnemiesConfig = {
     mouse: { ...type, hp: 1, speed: 44, gold: 2, shield: 0 },
     rat: { ...type, hp: 3, speed: 32, gold: 5, shield: 0 },
     shield: { ...type, hp: 1.5, speed: 38, gold: 4, shield: 3 },
+    boots: { ...type, hp: 1.6, speed: 40, gold: 3, shield: 0 },
+    fire: { ...type, hp: 1.8, speed: 40, gold: 4, shield: 0 },
     boss: { ...type, hp: 14, speed: 26, gold: 30, shield: 0 },
     king: { ...type, hp: 50, speed: 20, gold: 80, shield: 0, summon: { type: 'mouse', count: 2, interval: 6, spread: 14 } },
   },

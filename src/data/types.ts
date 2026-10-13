@@ -50,7 +50,10 @@ export interface CatsConfig {
   effects: Record<CatEffect, Record<string, number>>;
 }
 
-export type EnemyTypeId = 'mouse' | 'rat' | 'shield' | 'boss' | 'king';
+export type EnemyTypeId = 'mouse' | 'rat' | 'shield' | 'boots' | 'fire' | 'boss' | 'king';
+
+/** Эффекты, которые коты накладывают на врага. Заморозка — отдельный от замедления эффект ледяного кота. */
+export type StatusId = 'slow' | 'freeze' | 'burn' | 'poison';
 
 export interface EnemyTypeConfig {
   color: string;
@@ -65,6 +68,10 @@ export interface EnemyTypeConfig {
   crystalDrop: number;
   /** Замедляется слабее остальных: командиры и король. */
   slowResist?: boolean;
+  /** Эти эффекты на врага не ложатся. */
+  immune?: StatusId[];
+  /** Множитель урона от стихии кота, включая её огонь и яд; 0 — урона нет вовсе. Стихий, которых здесь нет, это не касается. */
+  resist?: Partial<Record<ElementId, number>>;
   /** Призывает подмогу: каждые `interval` секунд рядом появляются `count` врагов типа `type` на расстоянии `spread` друг от друга. */
   summon?: { type: EnemyTypeId; count: number; interval: number; spread: number };
 }
