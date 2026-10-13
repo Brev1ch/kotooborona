@@ -112,23 +112,29 @@ describe('Bot: строения и продажа', () => {
   };
   const cat = (level: number, element: 'fire' | 'storm' = 'storm') => ({ element, level, cooldown: 0, ritual: 0, invested: 10 });
 
-  it('лавку берёт вместо подорожавшего призыва: сначала призывы волны и один сверх лимита', () => {
-    const gold = beforeFirstWave * cost + cost * overLimitMult[0] + shop[0].cost;
+  /** Цены призывов сверх лимита, которые бот ещё оплачивает, прежде чем предпочесть лавку: они дешевле её цены с поправкой. */
+  const cheapSummons = overLimitMult.map((mult) => cost * mult).filter((price) => price < shop[0].cost * DEFAULT_BOT.buildOverSummon);
+  const cheapTotal = cheapSummons.reduce((sum, price) => sum + price, 0);
+
+  it('лавку берёт вместо подорожавшего призыва: сначала призывы волны и те сверх лимита, что дешевле', () => {
+    const gold = beforeFirstWave * cost + cheapTotal + shop[0].cost;
     const { sim, bot } = create({ buildings: ALL, waves: 8, startGold: gold, startCrystals: 5 });
     act(bot, 12);
 
-    expect(sim.result().summons).toBe(beforeFirstWave + 1);
+    expect(sim.result().summons).toBe(beforeFirstWave + cheapSummons.length);
     expect(sim.result().built).toEqual({ shop: 1, mine: 0, altar: 0 });
     expect(sim.economy.gold).toBe(0);
   });
 
   it('когда призыв уже подорожал, ждёт монет на лавку, а не призывает дальше', () => {
     const short = shop[0].cost - 5;
-    const gold = beforeFirstWave * cost + cost * overLimitMult[0] + short;
+    const gold = beforeFirstWave * cost + cheapTotal + short;
     const { sim, bot } = create({ buildings: ALL, waves: 8, startGold: gold, startCrystals: 5 });
     act(bot, 12);
 
-    expect(sim.result().overLimitSummons).toBe(1);
+    // На следующий призыв монет хватило бы, но он уже не дешевле лавки.
+    expect(short).toBeGreaterThanOrEqual(cost * overLimitMult[cheapSummons.length]);
+    expect(sim.result().overLimitSummons).toBe(cheapSummons.length);
     expect(sim.result().built.shop).toBe(0);
     expect(sim.economy.gold).toBe(short);
   });
