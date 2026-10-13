@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { loadFonts } from '../fonts';
 import { setLang } from '../i18n';
 import { platform } from '../platform';
 import { progress } from '../progress';
@@ -10,13 +11,11 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    void platform
-      .init()
-      .then(() => progress.load())
-      .then(() => {
-        setLang(platform.getLang());
-        platform.gameReady();
-        this.scene.start(SceneKey.Menu);
-      });
+    const saves = platform.init().then(() => progress.load());
+    void Promise.all([saves, loadFonts()]).then(() => {
+      setLang(platform.getLang());
+      platform.gameReady();
+      this.scene.start(SceneKey.Menu);
+    });
   }
 }

@@ -121,6 +121,6 @@ export const TEXT_COLORS = {
 };
 
 export const FONTS = {
-  display: '"Arial Black", system-ui, sans-serif',
-  body: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+  display: '"Russo One", "Arial Black", system-ui, sans-serif',
+  body: 'Rubik, system-ui, -apple-system, "Segoe UI", sans-serif',
 };
