@@ -18,6 +18,8 @@ export interface SaveData {
   gear: GearSelection;
   /** Открытые коты. В сохранении новее кода здесь могут быть и незнакомые стихии. */
   book: string[];
+  /** Звук включён. */
+  sound: boolean;
 }
 
 type RawSave = Record<string, unknown>;
@@ -49,14 +51,14 @@ export interface SaveStorage {
   save<T>(key: string, value: T): Promise<void>;
 }
 
-const KNOWN_FIELDS = ['version', 'stars', 'gear', 'book'];
+const KNOWN_FIELDS = ['version', 'stars', 'gear', 'book', 'sound'];
 
 function isRecord(value: unknown): value is RawSave {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export function defaultSave(rules: SaveRules, version = MIGRATIONS.length + 1): SaveData {
-  return { version, stars: {}, gear: { ...rules.gear.defaults }, book: [] };
+  return { version, stars: {}, gear: { ...rules.gear.defaults }, book: [], sound: true };
 }
 
 /**
@@ -98,6 +100,9 @@ export function parseSave(raw: unknown, rules: SaveRules, migrations: readonly M
     // Кот из будущей версии этой игре незнаком, но у игрока он открыт — не теряем.
     data.book = [...new Set(newer ? cats : cats.filter((id) => id in rules.cats.elements))];
   }
+
+  // Поля нет в сохранениях, сделанных до появления звука: остаётся включённым.
+  if (typeof save.sound === 'boolean') data.sound = save.sound;
 
   const extra: RawSave = {};
   if (newer) {
@@ -170,14 +175,24 @@ export class Progress {
     return true;
   }
 
+  get soundOn(): boolean {
+    return this.data.sound;
+  }
+
+  setSound(on: boolean): void {
+    if (this.data.sound === on) return;
+    this.data.sound = on;
+    this.touch();
+  }
+
   /** Пишет накопленные изменения сразу, не дожидаясь задержки. Без изменений ничего не пишет. */
   flush(): void {
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
     if (!this.dirty) return;
     this.dirty = false;
-    const { version, stars, gear, book } = this.data;
-    const snapshot = { ...this.extra, version, stars: { ...stars }, gear: { ...gear }, book: [...book] };
+    const { version, stars, gear, book, sound } = this.data;
+    const snapshot = { ...this.extra, version, stars: { ...stars }, gear: { ...gear }, book: [...book], sound };
     // Не записалось — изменения уйдут со следующей записью.
     this.storage.save(SAVE_KEY, snapshot).catch(() => {
       this.dirty = true;

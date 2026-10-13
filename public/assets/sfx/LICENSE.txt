@@ -1,0 +1,8 @@
+Звуки в этой папке взяты из паков Kenney (www.kenney.nl):
+Interface Sounds, Impact Sounds, RPG Audio, Digital Audio.
+
+Лицензия: Creative Commons Zero (CC0)
+http://creativecommons.org/publicdomain/zero/1.0/
+
+Файлы обрезаны и сжаты скриптом scripts/sfx.mjs (npm run sfx);
+какой звук из какого исходника сделан — в таблице SOUNDS этого скрипта.

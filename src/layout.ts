@@ -10,7 +10,12 @@ export const CONTROLS_Y = BOARD_Y + BOARD_H;
 export const CONTROLS_H = GAME_H - CONTROLS_Y;
 
 // Меню: название игры и сетка уровней главы.
-export const MENU = { titleY: 84, gridY: 150, cols: 2, cardW: 160, cardH: 66, gap: 12, bookY: 590, bookW: 332, bookH: 50 };
+export const MENU = { titleY: 84, gridY: 150, cols: 2, cardW: 160, cardH: 66, gap: 12, bookY: 590, bookW: 332, bookH: 50, soundPad: 12 };
+
+/** Центр кнопки звука в правом верхнем углу меню. */
+export function menuSoundCenter(): [number, number] {
+  return [GAME_W - MENU.soundPad - MIN_TOUCH / 2, MENU.soundPad + MIN_TOUCH / 2];
+}
 
 /** Центр кнопки «Книга котов» в меню. */
 export function menuBookCenter(): [number, number] {

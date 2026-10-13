@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { audio } from '../audio';
 import { cats, elementColor, enemies, gear, getLevel, levels, type ElementId, type LevelConfig, type Point } from '../data';
 import type { Cat } from '../entities/Cat';
 import { CatView } from '../entities/CatView';
@@ -191,6 +192,7 @@ export class GameScene extends Phaser.Scene {
         return;
       }
       view?.finishRitual();
+      audio.play('hybrid');
       this.playRing(...this.slotCenter(slot), elementColor(cat.element));
       this.discover(cat.element);
       // Кот вышел из ритуала и мог стать парой для того, которого сейчас держат.
@@ -242,15 +244,18 @@ export class GameScene extends Phaser.Scene {
         this.enemyViews.get(event.enemy)?.destroy();
         this.enemyViews.delete(event.enemy);
         this.cameras.main.shake(ENEMY_FEEL.leakShakeMs, ENEMY_FEEL.leakShakeIntensity);
+        audio.play('lifeLost');
         return true;
 
       case 'shot':
         this.views[event.slot]?.playShot();
         this.addProjectileView(event.projectile);
+        audio.play('shot');
         break;
 
       case 'hit':
         this.enemyViews.get(event.enemy)?.playHit();
+        audio.play('hit');
         break;
 
       case 'splash': {
@@ -283,6 +288,7 @@ export class GameScene extends Phaser.Scene {
         const { radius } = event;
         const color = elementColor(event.element);
         this.views[event.slot]?.playShot();
+        audio.play('shot');
         this.playFx(FX_FEEL.auraMs, (g, k) => {
           g.lineStyle(FX_FEEL.auraWidth, color, FX_FEEL.auraAlpha * (1 - k));
           g.strokeCircle(x, y, radius * (FX_FEEL.auraFrom + (1 - FX_FEEL.auraFrom) * k));
@@ -299,6 +305,8 @@ export class GameScene extends Phaser.Scene {
         this.enemyViews.get(event.enemy)?.playDeath();
         this.enemyViews.delete(event.enemy);
         this.showReward(event.x, event.y, event.gold, event.crystals);
+        audio.play('enemyDeath');
+        audio.play('coins');
         // С новым кристаллом заблокированное смешение могло стать доступным.
         if (this.drag && event.crystals > 0) this.drawHighlights();
         return true;
@@ -507,6 +515,7 @@ export class GameScene extends Phaser.Scene {
       g.fillRect(0, 0, BOARD_W, BOARD_H);
     });
     this.cameras.main.shake(METEOR_FEEL.shakeMs, METEOR_FEEL.shakeIntensity);
+    audio.play('meteor');
   }
 
   summon(): void {
@@ -521,6 +530,7 @@ export class GameScene extends Phaser.Scene {
     const view = new CatView(this, x, y, result.cat);
     view.playSpawn();
     this.views[result.slot] = view;
+    audio.play('summon');
 
     if (this.drag) this.drawHighlights();
     this.events.emit(GameEvent.Changed);
@@ -629,6 +639,7 @@ export class GameScene extends Phaser.Scene {
         merged.playSpawn(MERGE_FEEL.absorbMs);
         this.views[to] = merged;
         this.views[from] = null;
+        audio.play('merge');
 
         if (result.cat.ritual > 0) {
           // Вспышка, кольцо и открытие кота — по окончании ритуала, см. update().

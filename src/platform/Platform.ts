@@ -9,6 +9,11 @@ export interface Platform {
   showInterstitial(): Promise<void>;
   /** Возвращает true, если игрок досмотрел ролик и награду можно выдать. */
   showRewarded(): Promise<boolean>;
+  /**
+   * Площадка просит тишины на время рекламы: `pause` — перед показом, `resume` — после закрытия.
+   * Вызовы всегда парные.
+   */
+  onPause(pause: () => void, resume: () => void): void;
   load<T>(key: string, fallback: T): Promise<T>;
   save<T>(key: string, value: T): Promise<void>;
 }

@@ -4,3 +4,6 @@ dist/
 .DS_Store
 screenshots/
 test-results/
+
+# Сырые паки звуков (Kenney, CC0). В сборку идут только сжатые файлы из public/assets/sfx, см. npm run sfx.
+assets-src/

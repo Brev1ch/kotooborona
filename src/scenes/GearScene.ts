@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { audio } from '../audio';
 import { cats, gear, type GearItem, type GearSlot } from '../data';
 import { BUTTON_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
@@ -89,6 +90,7 @@ export class GearScene extends Phaser.Scene {
       x += width + chipGap;
 
       bg.on('pointerdown', () => {
+        audio.play('click');
         this.tweens.add({ targets: chip, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
         progress.selectGear(slot, item.id);
         refresh();

@@ -8,6 +8,7 @@ import {
   gearButtonCenter,
   menuBookCenter,
   menuCardCenter,
+  menuSoundCenter,
   MIN_TOUCH,
   SUMMON_X,
 } from '../src/layout';
@@ -127,6 +128,20 @@ test('меню → книга котов → первый уровень → с�
     await page.screenshot({ path: `${SHOTS}/01-menu.png` });
     await checkTouchSizes(page, 'меню');
     checkConsole('меню');
+  });
+
+  await test.step('кнопка звука', async () => {
+    for (const expected of [false, true]) {
+      await tap(page, ...menuSoundCenter());
+      await waitFor(
+        page,
+        SUMMON_TIMEOUT,
+        (s) => s.sound === expected,
+        () => `Нажатие на кнопку звука не ${expected ? 'включило' : 'выключило'} звук`,
+      );
+      await page.waitForTimeout(PRESS_SETTLE_MS);
+    }
+    checkConsole('кнопка звука');
   });
 
   await test.step('книга котов', async () => {

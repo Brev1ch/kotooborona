@@ -13,7 +13,7 @@ const rules: SaveRules = {
   cats: { elements: { fire: {}, water: {}, steam: {}, ice: {} } } as unknown as CatsConfig,
 };
 
-const defaults = { version: 1, stars: {}, gear: { staff: 'none', mantle: 'thrift', amulet: 'cry' }, book: [] };
+const defaults = { version: 1, stars: {}, gear: { staff: 'none', mantle: 'thrift', amulet: 'cry' }, book: [], sound: true };
 
 /** Хранилище в памяти; `saves` — всё, что в него записали, по порядку. */
 function memoryStorage(initial?: unknown) {
@@ -45,9 +45,15 @@ describe('parseSave: чтение сохранения', () => {
       stars: { opushka: 2 },
       gear: { staff: 'fire', mantle: 'sorc', amulet: 'purse' },
       book: ['steam'],
+      sound: false,
     };
 
     expect(parseSave(raw, rules)).toEqual({ data: raw, extra: {} });
+  });
+
+  it('сохранение без настройки звука читается со включённым звуком, мусор в ней — тоже', () => {
+    expect(parseSave({ version: 1 }, rules).data.sound).toBe(true);
+    expect(parseSave({ version: 1, sound: 'off' }, rules).data.sound).toBe(true);
   });
 
   it('недостающие поля заполняет умолчаниями', () => {
@@ -189,6 +195,15 @@ describe('Progress: изменения', () => {
     expect(progress.discover('steam')).toBe(false);
     expect(progress.hasCat('steam')).toBe(true);
   });
+
+  it('звук включён по умолчанию и читается из сохранения', async () => {
+    expect(new Progress(memoryStorage().storage, rules).soundOn).toBe(true);
+
+    const progress = new Progress(memoryStorage({ version: 1, sound: false }).storage, rules);
+    await progress.load();
+
+    expect(progress.soundOn).toBe(false);
+  });
 });
 
 describe('Progress: запись', () => {
@@ -223,7 +238,7 @@ describe('Progress: запись', () => {
     vi.advanceTimersByTime(5000);
 
     expect(saves).toEqual([
-      { version: 1, stars: { opushka: 3 }, gear: { staff: 'fire', mantle: 'thrift', amulet: 'cry' }, book: ['steam'] },
+      { version: 1, stars: { opushka: 3 }, gear: { staff: 'fire', mantle: 'thrift', amulet: 'cry' }, book: ['steam'], sound: true },
     ]);
   });
 
@@ -251,6 +266,19 @@ describe('Progress: запись', () => {
 
     vi.advanceTimersByTime(5000);
     expect(saves).toHaveLength(1);
+  });
+
+  it('выключение звука уходит в сохранение, повтор того же значения — нет', () => {
+    const { storage, saves } = memoryStorage();
+    const progress = new Progress(storage, rules, 1000);
+
+    progress.setSound(false);
+    progress.flush();
+    progress.setSound(false);
+    progress.flush();
+
+    expect(progress.soundOn).toBe(false);
+    expect(saves).toEqual([{ ...defaults, sound: false }]);
   });
 
   it('без изменений ничего не пишет', () => {
@@ -292,6 +320,7 @@ describe('Progress: запись', () => {
         stars: { volcano: 2, opushka: 3 },
         gear: defaults.gear,
         book: ['dragon', 'steam'],
+        sound: true,
         fish: 120,
         chests: [{ id: 'wood' }],
       },

@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
+import { audio } from '../audio';
 import { levels } from '../data';
 import { BUTTON_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
-import { COLORS, FONTS, GAME_W, MENU, menuBookCenter, menuCardCenter, TEXT_COLORS } from '../layout';
+import { COLORS, FONTS, GAME_W, MENU, menuBookCenter, menuCardCenter, menuSoundCenter, TEXT_COLORS } from '../layout';
 import { progress } from '../progress';
 import { campaignTiles, type CampaignTile } from '../systems/Campaign';
 import { MAX_STARS } from '../systems/Progress';
 import { SceneKey, type LevelSceneData } from './keys';
-import { addButton } from './widgets';
+import { addButton, addSoundButton } from './widgets';
 
 const CARD_PAD = 14;
 const NUMBER_W = 26;
@@ -27,6 +28,8 @@ export class MenuScene extends Phaser.Scene {
         color: TEXT_COLORS.fg,
       })
       .setOrigin(0.5);
+
+    addSoundButton(this, ...menuSoundCenter());
 
     const levelIds = levels.levels.map((level) => level.id);
     const tiles = campaignTiles(levelIds, levels.chapterLevels, (id) => progress.stars(id));
@@ -77,6 +80,7 @@ export class MenuScene extends Phaser.Scene {
     const data: LevelSceneData = { levelId: tile.levelId };
     bg.setInteractive({ useHandCursor: true });
     bg.on('pointerdown', () => {
+      audio.play('click');
       this.tweens.add({ targets: card, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
     });
     bg.once('pointerup', () => this.scene.start(SceneKey.Gear, data));

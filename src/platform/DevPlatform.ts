@@ -4,6 +4,9 @@ const STORAGE_PREFIX = 'koto_';
 
 /** Заглушка для локальной разработки: сохранения в localStorage, реклама сразу отдаёт награду. */
 export class DevPlatform implements Platform {
+  private pause: () => void = () => {};
+  private resume: () => void = () => {};
+
   async init(): Promise<void> {}
 
   getLang(): Lang {
@@ -12,9 +15,19 @@ export class DevPlatform implements Platform {
 
   gameReady(): void {}
 
-  async showInterstitial(): Promise<void> {}
+  onPause(pause: () => void, resume: () => void): void {
+    this.pause = pause;
+    this.resume = resume;
+  }
+
+  async showInterstitial(): Promise<void> {
+    this.pause();
+    this.resume();
+  }
 
   async showRewarded(): Promise<boolean> {
+    this.pause();
+    this.resume();
     return true;
   }
 

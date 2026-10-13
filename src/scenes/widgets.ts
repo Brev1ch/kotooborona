@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
+import { audio } from '../audio';
 import { BUTTON_FEEL } from '../feel';
-import { COLORS, FONTS, TEXT_COLORS } from '../layout';
+import { COLORS, FONTS, MIN_TOUCH, TEXT_COLORS } from '../layout';
 
 /**
  * Кнопка перехода между экранами: главная — латунная, второстепенная — контурная.
@@ -30,9 +31,50 @@ export function addButton(
   const button = scene.add.container(x, y, [bg, text]);
 
   bg.on('pointerdown', () => {
+    audio.play('click');
     scene.tweens.add({ targets: button, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
   });
   bg.once('pointerup', onClick);
+  return button;
+}
+
+/** Кнопка звука: динамик с волнами, а когда звук выключен — перечёркнутый. Состояние хранится в сохранении. */
+export function addSoundButton(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Container {
+  const bg = scene.add
+    .rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel)
+    .setStrokeStyle(1, COLORS.line)
+    .setName('sound')
+    .setInteractive({ useHandCursor: true });
+  const icon = scene.add.graphics();
+  const button = scene.add.container(x, y, [bg, icon]);
+
+  const draw = (on: boolean): void => {
+    const color = on ? COLORS.range : COLORS.line;
+    icon.clear();
+    icon.fillStyle(color);
+    icon.fillRect(-11, -4, 6, 8);
+    icon.fillTriangle(-6, -4, 1, -10, 1, 10);
+    icon.fillTriangle(-6, -4, 1, 10, -6, 4);
+    icon.lineStyle(2, color);
+    if (on) {
+      for (const radius of [6, 11]) {
+        icon.beginPath();
+        icon.arc(1, 0, radius, -Math.PI / 4, Math.PI / 4);
+        icon.strokePath();
+      }
+    } else {
+      icon.lineBetween(5, -5, 12, 5);
+      icon.lineBetween(12, -5, 5, 5);
+    }
+  };
+  draw(audio.on);
+
+  bg.on('pointerdown', () => {
+    draw(audio.toggle());
+    // Слышно только при включении: так игрок сразу понимает, что звук вернулся.
+    audio.play('click');
+    scene.tweens.add({ targets: button, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
+  });
   return button;
 }
 

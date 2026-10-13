@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { audio } from '../audio';
 import { cats, getLevel, type ElementId, type LevelConfig } from '../data';
 import { ANNOUNCE_FEEL, BANNER_FEEL, BUTTON_FEEL, METEOR_FEEL, RESULT_FEEL, STAT_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
@@ -210,6 +211,7 @@ export class UIScene extends Phaser.Scene {
     // Повторное нажатие отменяет прицеливание.
     this.meteorBg.on('pointerdown', () => {
       if (!this.gameScene.meteorState().ready) return;
+      audio.play('click');
       this.tweens.killTweensOf(this.meteorButton);
       this.meteorButton.setScale(1);
       this.tweens.add({
@@ -311,6 +313,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private buildResult(result: LevelResult): void {
+    audio.play(result.won ? 'win' : 'lose');
     // Затемнение перехватывает касания, чтобы под экраном ничего не нажималось.
     const dim = this.add
       .rectangle(GAME_W / 2, RESULT_Y, GAME_W, BOARD_H, COLORS.bg, RESULT_FEEL.dimAlpha)

@@ -8,6 +8,7 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "sfx": "node scripts/sfx.mjs",
     "smoke": "node -e \"fs.rmSync('screenshots', { recursive: true, force: true })\" && playwright test"
   },
   "dependencies": {

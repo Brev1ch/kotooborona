@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { audio } from './audio';
 import { progress } from './progress';
 import type { GameScene } from './scenes/GameScene';
 import { SceneKey, type HudState } from './scenes/keys';
@@ -21,6 +22,8 @@ export interface SmokeState {
   scenes: string[];
   /** Всё, что сейчас реагирует на нажатие, во всех активных сценах. */
   targets: SmokeTarget[];
+  /** Звук включён игроком. */
+  sound: boolean;
   /** Надетое снаряжение. */
   gear: GearSelection;
   /** null, пока GameScene не запущена. */
@@ -59,7 +62,7 @@ export function installSmokeProbe(game: Phaser.Game): void {
       const scenes = active.map((scene) => scene.scene.key);
       const targets: SmokeTarget[] = [];
       for (const scene of active) collectTargets(scene.children.list, targets);
-      const common = { scenes, targets, gear: { ...progress.gear } };
+      const common = { scenes, targets, sound: audio.on, gear: { ...progress.gear } };
 
       if (!scenes.includes(SceneKey.Game)) return { ...common, hud: null, cats: 0, enemies: 0 };
       const gameScene = game.scene.getScene(SceneKey.Game) as GameScene;
