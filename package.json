@@ -8,6 +8,7 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "check": "npm run typecheck && npm test",
     "balance": "vitest run --config vitest.balance.config.ts",
     "sfx": "node scripts/sfx.mjs",
     "smoke": "node -e \"fs.rmSync('screenshots', { recursive: true, force: true })\" && playwright test",
