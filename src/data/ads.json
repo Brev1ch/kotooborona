@@ -1,0 +1,6 @@
+{
+  "coins": { "gold": 60, "cooldown": 30 },
+  "secondChance": { "lives": 10 },
+  "doubleReward": { "mult": 2 },
+  "interstitial": { "minInterval": 150 }
+}

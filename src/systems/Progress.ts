@@ -20,6 +20,8 @@ export interface SaveData {
   book: string[];
   /** Звук включён. */
   sound: boolean;
+  /** Рыбки: валюта между уровнями. */
+  fish: number;
 }
 
 type RawSave = Record<string, unknown>;
@@ -31,7 +33,13 @@ export type Migration = (save: RawSave) => RawSave;
  * Миграции по порядку: элемент с индексом i переводит версию i+1 в i+2.
  * Текущая версия сохранения — на единицу больше длины списка. Меняешь структуру — добавь миграцию в конец.
  */
-const MIGRATIONS: readonly Migration[] = [];
+const MIGRATIONS: readonly Migration[] = [
+  // 1 → 2: появились рыбки.
+  (save) => ({ ...save, fish: 0 }),
+];
+
+/** Версия, в которой игра пишет сохранение. */
+export const CURRENT_VERSION = MIGRATIONS.length + 1;
 
 /** Конфиги, по которым проверяется содержимое сохранения. */
 export interface SaveRules {
@@ -51,14 +59,14 @@ export interface SaveStorage {
   save<T>(key: string, value: T): Promise<void>;
 }
 
-const KNOWN_FIELDS = ['version', 'stars', 'gear', 'book', 'sound'];
+const KNOWN_FIELDS = ['version', 'stars', 'gear', 'book', 'sound', 'fish'];
 
 function isRecord(value: unknown): value is RawSave {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export function defaultSave(rules: SaveRules, version = MIGRATIONS.length + 1): SaveData {
-  return { version, stars: {}, gear: { ...rules.gear.defaults }, book: [], sound: true };
+  return { version, stars: {}, gear: { ...rules.gear.defaults }, book: [], sound: true, fish: 0 };
 }
 
 /**
@@ -103,6 +111,8 @@ export function parseSave(raw: unknown, rules: SaveRules, migrations: readonly M
 
   // Поля нет в сохранениях, сделанных до появления звука: остаётся включённым.
   if (typeof save.sound === 'boolean') data.sound = save.sound;
+
+  if (typeof save.fish === 'number' && Number.isFinite(save.fish)) data.fish = Math.max(0, Math.floor(save.fish));
 
   const extra: RawSave = {};
   if (newer) {
@@ -185,14 +195,32 @@ export class Progress {
     this.touch();
   }
 
+  get fish(): number {
+    return this.data.fish;
+  }
+
+  addFish(amount: number): void {
+    if (amount <= 0) return;
+    this.data.fish += Math.floor(amount);
+    this.touch();
+  }
+
+  /** Списывает рыбки. Возвращает false и ничего не меняет, если их не хватает. */
+  spendFish(amount: number): boolean {
+    if (amount < 0 || this.data.fish < amount) return false;
+    this.data.fish -= amount;
+    this.touch();
+    return true;
+  }
+
   /** Пишет накопленные изменения сразу, не дожидаясь задержки. Без изменений ничего не пишет. */
   flush(): void {
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
     if (!this.dirty) return;
     this.dirty = false;
-    const { version, stars, gear, book, sound } = this.data;
-    const snapshot = { ...this.extra, version, stars: { ...stars }, gear: { ...gear }, book: [...book], sound };
+    const { version, stars, gear, book, sound, fish } = this.data;
+    const snapshot = { ...this.extra, version, stars: { ...stars }, gear: { ...gear }, book: [...book], sound, fish };
     // Не записалось — изменения уйдут со следующей записью.
     this.storage.save(SAVE_KEY, snapshot).catch(() => {
       this.dirty = true;

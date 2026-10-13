@@ -25,6 +25,14 @@ export const en: Record<StringKey, string> = {
   'result.reached': 'The cats held out until wave {wave} of {total}',
   'result.retry': 'Try again',
   'result.menu': 'Menu',
+  'result.next': 'Next',
+  'result.reward': 'Reward:',
+
+  'ad.coins': '+{gold}',
+  'ad.watch': 'watch ad',
+  'ad.revive': 'Watch ad for a second chance',
+  'ad.reviveHint': '+{lives} lives and a ready meteor',
+  'ad.double': 'Watch ad to double',
 
   'pause.title': 'Paused',
   'pause.resume': 'Resume',

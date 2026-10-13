@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatsConfig, GearConfig } from '../data/types';
-import { parseSave, Progress, SAVE_KEY, type Migration, type SaveRules, type SaveStorage } from './Progress';
+import { CURRENT_VERSION, parseSave, Progress, SAVE_KEY, type Migration, type SaveRules, type SaveStorage } from './Progress';
 
 // Из конфигов нужны только id предметов, умолчания и список стихий.
 const rules: SaveRules = {
@@ -13,7 +13,18 @@ const rules: SaveRules = {
   cats: { elements: { fire: {}, water: {}, steam: {}, ice: {} } } as unknown as CatsConfig,
 };
 
-const defaults = { version: 1, stars: {}, gear: { staff: 'none', mantle: 'thrift', amulet: 'cry' }, book: [], sound: true };
+/** Текущая версия сохранения и версия «из будущего», которой этот код ещё не знает. */
+const V = CURRENT_VERSION;
+const NEWER = CURRENT_VERSION + 5;
+
+const defaults = {
+  version: V,
+  stars: {},
+  gear: { staff: 'none', mantle: 'thrift', amulet: 'cry' },
+  book: [],
+  sound: true,
+  fish: 0,
+};
 
 /** Хранилище в памяти; `saves` — всё, что в него записали, по порядку. */
 function memoryStorage(initial?: unknown) {
@@ -41,48 +52,49 @@ describe('parseSave: чтение сохранения', () => {
 
   it('читает сохранение текущей версии', () => {
     const raw = {
-      version: 1,
+      version: V,
       stars: { opushka: 2 },
       gear: { staff: 'fire', mantle: 'sorc', amulet: 'purse' },
       book: ['steam'],
       sound: false,
+      fish: 9,
     };
 
     expect(parseSave(raw, rules)).toEqual({ data: raw, extra: {} });
   });
 
   it('сохранение без настройки звука читается со включённым звуком, мусор в ней — тоже', () => {
-    expect(parseSave({ version: 1 }, rules).data.sound).toBe(true);
-    expect(parseSave({ version: 1, sound: 'off' }, rules).data.sound).toBe(true);
+    expect(parseSave({ version: V }, rules).data.sound).toBe(true);
+    expect(parseSave({ version: V, sound: 'off' }, rules).data.sound).toBe(true);
   });
 
   it('недостающие поля заполняет умолчаниями', () => {
-    expect(parseSave({ version: 1, gear: { staff: 'fire' } }, rules).data).toEqual({
+    expect(parseSave({ version: V, gear: { staff: 'fire' } }, rules).data).toEqual({
       ...defaults,
       gear: { staff: 'fire', mantle: 'thrift', amulet: 'cry' },
     });
   });
 
   it('неизвестный предмет и предмет из чужого слота заменяет умолчанием', () => {
-    const { data } = parseSave({ version: 1, gear: { staff: 'laser', mantle: 'fire', amulet: 7 } }, rules);
+    const { data } = parseSave({ version: V, gear: { staff: 'laser', mantle: 'fire', amulet: 7 } }, rules);
 
     expect(data.gear).toEqual(defaults.gear);
   });
 
   it('звёзды держит в пределах от 1 до 3, мусор отбрасывает', () => {
-    const { data } = parseSave({ version: 1, stars: { a: 5, b: 0, c: -1, d: '3', e: 2.9, f: NaN } }, rules);
+    const { data } = parseSave({ version: V, stars: { a: 5, b: 0, c: -1, d: '3', e: 2.9, f: NaN } }, rules);
 
     expect(data.stars).toEqual({ a: 3, e: 2 });
   });
 
   it('из книги убирает неизвестных котов, мусор и повторы', () => {
-    const { data } = parseSave({ version: 1, book: ['steam', 'dragon', 3, 'steam', 'ice'] }, rules);
+    const { data } = parseSave({ version: V, book: ['steam', 'dragon', 3, 'steam', 'ice'] }, rules);
 
     expect(data.book).toEqual(['steam', 'ice']);
   });
 
   it('незнакомые поля сохранения текущей версии отбрасывает', () => {
-    expect(parseSave({ version: 1, junk: true }, rules).extra).toEqual({});
+    expect(parseSave({ version: V, junk: true }, rules).extra).toEqual({});
   });
 });
 
@@ -115,32 +127,106 @@ describe('parseSave: миграции', () => {
   });
 });
 
+describe('parseSave: настоящие миграции', () => {
+  // Сохранение первой версии игры: без рыбок.
+  const v1 = {
+    version: 1,
+    stars: { opushka: 3 },
+    gear: { staff: 'fire', mantle: 'sorc', amulet: 'purse' },
+    book: ['steam', 'ice'],
+    sound: false,
+  };
+
+  it('сохранение версии 1 читается без потерь', () => {
+    const { data, extra } = parseSave(v1, rules);
+
+    expect(data.version).toBe(V);
+    expect(data.stars).toEqual({ opushka: 3 });
+    expect(data.gear).toEqual({ staff: 'fire', mantle: 'sorc', amulet: 'purse' });
+    expect(data.book).toEqual(['steam', 'ice']);
+    expect(data.sound).toBe(false);
+    expect(extra).toEqual({});
+  });
+
+  it('версия 1 → 2: рыбок ещё нет, счёт начинается с нуля', () => {
+    expect(parseSave(v1, rules).data.fish).toBe(0);
+  });
+
+  it('после загрузки версии 1 запись уходит уже в текущей версии и с прежним прогрессом', async () => {
+    const { storage, saves } = memoryStorage(v1);
+    const progress = new Progress(storage, rules, 1000);
+    await progress.load();
+
+    progress.addFish(5);
+    progress.flush();
+
+    expect(saves).toEqual([{ ...defaults, ...v1, version: V, fish: 5 }]);
+  });
+});
+
+describe('parseSave: рыбки', () => {
+  it('читает целое неотрицательное число, мусор заменяет нулём', () => {
+    expect(parseSave({ version: V, fish: 42 }, rules).data.fish).toBe(42);
+    expect(parseSave({ version: V, fish: 7.9 }, rules).data.fish).toBe(7);
+    for (const fish of [-3, '10', NaN, null, Infinity]) {
+      expect(parseSave({ version: V, fish }, rules).data.fish).toBe(0);
+    }
+  });
+});
+
+describe('Progress: рыбки', () => {
+  it('копятся и тратятся, в минус не уходят', () => {
+    const progress = new Progress(memoryStorage().storage, rules);
+    expect(progress.fish).toBe(0);
+
+    progress.addFish(30);
+    progress.addFish(12);
+    expect(progress.fish).toBe(42);
+
+    expect(progress.spendFish(50)).toBe(false);
+    expect(progress.fish).toBe(42);
+    expect(progress.spendFish(40)).toBe(true);
+    expect(progress.fish).toBe(2);
+  });
+
+  it('нулевая и отрицательная прибавка ничего не меняют и не пишут', () => {
+    const { storage, saves } = memoryStorage();
+    const progress = new Progress(storage, rules, 1000);
+    progress.addFish(0);
+    progress.addFish(-5);
+    progress.flush();
+
+    expect(progress.fish).toBe(0);
+    expect(saves).toEqual([]);
+  });
+});
+
 describe('parseSave: сохранение новее кода', () => {
   const raw = {
-    version: 4,
+    version: NEWER,
     stars: { opushka: 3, volcano: 2 },
     gear: { staff: 'fire', mantle: 'cloak', amulet: 'purse' },
     book: ['steam', 'dragon'],
-    fish: 120,
-    chests: [{ id: 'wood' }],
+    guild: 120,
+    pets: [{ id: 'owl' }],
   };
 
   it('знакомые поля читает, версию не понижает', () => {
     const { data } = parseSave(raw, rules);
 
-    expect(data.version).toBe(4);
+    expect(data.version).toBe(NEWER);
     expect(data.stars).toEqual({ opushka: 3, volcano: 2 });
   });
 
   it('незнакомый предмет оставляет в слоте, мусор заменяет умолчанием', () => {
     expect(parseSave(raw, rules).data.gear).toEqual({ staff: 'fire', mantle: 'cloak', amulet: 'purse' });
-    expect(parseSave({ version: 4, gear: { mantle: 7 } }, rules).data.gear).toEqual(defaults.gear);
+    expect(parseSave({ version: NEWER, gear: { mantle: 7 } }, rules).data.gear).toEqual(defaults.gear);
   });
 
   it('незнакомые поля и незнакомых котов сохраняет', () => {
     const { data, extra } = parseSave(raw, rules);
 
-    expect(extra).toEqual({ fish: 120, chests: [{ id: 'wood' }] });
+    expect(extra).toEqual({ guild: 120, pets: [{ id: 'owl' }] });
     expect(data.book).toEqual(['steam', 'dragon']);
   });
 });
@@ -158,7 +244,7 @@ describe('Progress: изменения', () => {
   });
 
   it('загружает сохранённый прогресс', async () => {
-    const saved = { version: 1, stars: { opushka: 2 }, gear: { staff: 'fire' }, book: ['steam'] };
+    const saved = { version: V, stars: { opushka: 2 }, gear: { staff: 'fire' }, book: ['steam'] };
     const progress = new Progress(memoryStorage(saved).storage, rules);
     await progress.load();
 
@@ -199,7 +285,7 @@ describe('Progress: изменения', () => {
   it('звук включён по умолчанию и читается из сохранения', async () => {
     expect(new Progress(memoryStorage().storage, rules).soundOn).toBe(true);
 
-    const progress = new Progress(memoryStorage({ version: 1, sound: false }).storage, rules);
+    const progress = new Progress(memoryStorage({ version: V, sound: false }).storage, rules);
     await progress.load();
 
     expect(progress.soundOn).toBe(false);
@@ -238,7 +324,7 @@ describe('Progress: запись', () => {
     vi.advanceTimersByTime(5000);
 
     expect(saves).toEqual([
-      { version: 1, stars: { opushka: 3 }, gear: { staff: 'fire', mantle: 'thrift', amulet: 'cry' }, book: ['steam'], sound: true },
+      { ...defaults, stars: { opushka: 3 }, gear: { staff: 'fire', mantle: 'thrift', amulet: 'cry' }, book: ['steam'] },
     ]);
   });
 
@@ -305,7 +391,7 @@ describe('Progress: запись', () => {
   });
 
   it('незнакомые поля сохранения новее кода возвращает в хранилище как были', async () => {
-    const saved = { version: 4, stars: { volcano: 2 }, book: ['dragon'], fish: 120, chests: [{ id: 'wood' }] };
+    const saved = { version: NEWER, stars: { volcano: 2 }, book: ['dragon'], fish: 7, guild: 120, pets: [{ id: 'owl' }] };
     const { storage, saves } = memoryStorage(saved);
     const progress = new Progress(storage, rules, 1000);
     await progress.load();
@@ -316,19 +402,20 @@ describe('Progress: запись', () => {
 
     expect(saves).toEqual([
       {
-        version: 4,
+        version: NEWER,
         stars: { volcano: 2, opushka: 3 },
         gear: defaults.gear,
         book: ['dragon', 'steam'],
         sound: true,
-        fish: 120,
-        chests: [{ id: 'wood' }],
+        fish: 7,
+        guild: 120,
+        pets: [{ id: 'owl' }],
       },
     ]);
   });
 
   describe('незнакомый предмет из сохранения новее кода', () => {
-    const saved = { version: 4, gear: { staff: 'fire', mantle: 'cloak', amulet: 'purse' } };
+    const saved = { version: NEWER, gear: { staff: 'fire', mantle: 'cloak', amulet: 'purse' } };
 
     it('в бою заменяется предметом по умолчанию, а в сохранении остаётся', async () => {
       const { storage, saves } = memoryStorage(saved);
@@ -341,7 +428,7 @@ describe('Progress: запись', () => {
       progress.selectGear('mantle', 'thrift');
       progress.flush();
 
-      expect(saves).toEqual([{ ...defaults, version: 4, gear: { staff: 'none', mantle: 'cloak', amulet: 'purse' } }]);
+      expect(saves).toEqual([{ ...defaults, version: NEWER, gear: { staff: 'none', mantle: 'cloak', amulet: 'purse' } }]);
     });
 
     it('пропадает из сохранения, когда игрок выбрал в слоте другой предмет', async () => {
@@ -353,7 +440,7 @@ describe('Progress: запись', () => {
       progress.flush();
 
       expect(progress.gear.mantle).toBe('sorc');
-      expect(saves).toEqual([{ ...defaults, version: 4, gear: { staff: 'fire', mantle: 'sorc', amulet: 'purse' } }]);
+      expect(saves).toEqual([{ ...defaults, version: NEWER, gear: { staff: 'fire', mantle: 'sorc', amulet: 'purse' } }]);
     });
   });
 

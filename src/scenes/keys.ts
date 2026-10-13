@@ -64,4 +64,17 @@ export interface LevelResult {
   livesLost: number;
   wave: number;
   totalWaves: number;
+  /** Рыбки за победу, уже зачисленные игроку; 0 при поражении. */
+  fish: number;
+  /** После поражения доступен «Второй шанс»; `reviveLives` — сколько жизней он вернёт. */
+  canRevive: boolean;
+  reviveLives: number;
+}
+
+/** Кнопка «монеты за рекламу» в бою. */
+export interface CoinAdState {
+  ready: boolean;
+  /** Секунды до следующего показа. */
+  remaining: number;
+  gold: number;
 }

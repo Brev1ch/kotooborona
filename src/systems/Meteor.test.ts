@@ -100,6 +100,18 @@ describe('Meteor: прицеливание', () => {
   });
 });
 
+describe('Meteor: второй шанс', () => {
+  it('recharge делает умение готовым посреди перезарядки', () => {
+    const meteor = new Meteor(config);
+    meteor.cast(1, 1);
+    expect(meteor.ready).toBe(false);
+
+    meteor.recharge();
+    expect(meteor.ready).toBe(true);
+    expect(meteor.progress).toBe(1);
+  });
+});
+
 describe('Meteor: сила удара', () => {
   it('на первой волне — базовый урон, радиус и поджог из конфига', () => {
     expect(new Meteor(config).cast(1, 1)).toEqual({ radius: 60, damage: 40, burnDps: 4, burnTime: 2 });

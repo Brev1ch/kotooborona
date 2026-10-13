@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
-import { cats, elementColor, enemies, gear, getLevel, levels, type ElementId, type LevelConfig, type Point } from '../data';
+import { ads, cats, elementColor, enemies, gear, getLevel, levels, type ElementId, type LevelConfig, type Point } from '../data';
 import type { Cat } from '../entities/Cat';
 import { CatView } from '../entities/CatView';
 import type { Enemy } from '../entities/Enemy';
@@ -12,18 +12,21 @@ import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
 import { platform } from '../platform';
 import { progress } from '../progress';
+import { CoinAd, SecondChance } from '../systems/Ads';
 import { catRange, Combat, type Blast, type CombatEvent } from '../systems/Combat';
 import { Economy, starsFor } from '../systems/Economy';
 import { gearBonuses } from '../systems/Loadout';
 import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
 import { Meteor } from '../systems/Meteor';
 import { Pool } from '../systems/Pool';
+import { levelFish } from '../systems/Rewards';
 import { buildPath, positionAt, type Path } from '../systems/Path';
 import { Summon } from '../systems/Summon';
 import { Waves } from '../systems/Waves';
 import {
   GameEvent,
   SceneKey,
+  type CoinAdState,
   type HudState,
   type LevelResult,
   type LevelSceneData,
@@ -102,6 +105,8 @@ export class GameScene extends Phaser.Scene {
   /** Бой окончен: поле замирает, призыв и перетаскивание отключены. */
   private finished = false;
   private meteor!: Meteor;
+  private coinAd!: CoinAd;
+  private secondChance!: SecondChance;
   private hero!: HeroView;
   /** Подсветка поля, пока игрок выбирает точку удара. */
   private aimGlow!: Phaser.GameObjects.Graphics;
@@ -143,6 +148,8 @@ export class GameScene extends Phaser.Scene {
     this.economy = new Economy(this.level, gear.summon, bonuses);
     this.summoner = new Summon(cats, bonuses.summonWeights);
     this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult);
+    this.coinAd = new CoinAd(ads.coins);
+    this.secondChance = new SecondChance(ads.secondChance);
     const staff = gear.staff.find((item) => item.id === worn.staff);
     this.hero = new HeroView(this, ...this.level.hero, staff?.element ? elementColor(staff.element) : COLORS.meteor);
     this.merger = new Merge(cats, {
@@ -201,6 +208,7 @@ export class GameScene extends Phaser.Scene {
     if (this.finished) return;
     const dt = Math.min(MAX_STEP, delta / 1000);
     this.meteor.update(dt);
+    this.coinAd.update(dt);
     this.hero.setReady(this.meteor.ready);
     this.updateRituals(dt);
     this.updateBattle(dt);
@@ -229,27 +237,64 @@ export class GameScene extends Phaser.Scene {
     platform.gameplayStart();
   }
 
-  private finish(won: boolean): void {
+  /** Заканчивает бой. Открыт наружу для смоук-проверки (src/smoke.ts). */
+  finish(won: boolean): void {
+    if (this.finished) return;
     this.finished = true;
     platform.gameplayStop();
     this.cancelDrag();
     this.meteor.cancelAim();
     this.syncAim();
 
-    const livesLost = this.level.startLives - this.economy.lives;
+    const { livesLost } = this.economy;
+    const stars = won ? starsFor(livesLost, levels.stars) : 0;
+    const firstClear = progress.stars(this.level.id) === 0;
     const result: LevelResult = {
       won,
-      stars: won ? starsFor(livesLost, levels.stars) : 0,
+      stars,
       livesLost,
       wave: this.waves.wave,
       totalWaves: this.level.waves,
+      fish: won ? levelFish(this.level.fish, stars, firstClear, levels.rewards) : 0,
+      canRevive: !won && this.secondChance.available,
+      reviveLives: this.secondChance.lives,
     };
     if (won) {
-      progress.recordStars(this.level.id, result.stars);
+      progress.recordStars(this.level.id, stars);
+      progress.addFish(result.fish);
       progress.flush();
     }
     this.events.emit(GameEvent.Changed);
     this.events.emit(GameEvent.Finished, result);
+  }
+
+  /**
+   * «Второй шанс»: бой продолжается с того же места, жизни возвращаются, метеор готов.
+   * Возвращает false, если шанс уже потрачен или бой не проигран.
+   */
+  revive(): boolean {
+    if (!this.finished || this.economy.lives > 0 || !this.secondChance.available) return false;
+    this.economy.revive(this.secondChance.use());
+    this.meteor.recharge();
+    this.finished = false;
+    platform.gameplayStart();
+    this.events.emit(GameEvent.Changed);
+    return true;
+  }
+
+  coinAdState(): CoinAdState {
+    return { ready: !this.finished && this.coinAd.ready, remaining: this.coinAd.remaining, gold: ads.coins.gold };
+  }
+
+  /** Игрок досмотрел ролик: монеты в бой. Возвращает, сколько выдано. */
+  claimCoinAd(): number {
+    if (this.finished) return 0;
+    const gold = this.coinAd.claim();
+    if (gold > 0) {
+      this.economy.gold += gold;
+      this.events.emit(GameEvent.Changed);
+    }
+    return gold;
   }
 
   private updateRituals(dt: number): void {

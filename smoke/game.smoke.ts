@@ -1,8 +1,8 @@
 import { test, type Page } from '@playwright/test';
 import {
   bookBackCenter,
-  CONTROLS_H,
-  CONTROLS_Y,
+  COIN_AD_X,
+  CONTROLS_CENTER_Y,
   GAME_H,
   GAME_W,
   gearButtonCenter,
@@ -12,6 +12,8 @@ import {
   MIN_TOUCH,
   pauseButtonCenter,
   pauseMenuButtonCenter,
+  resultAdCenter,
+  resultButtonCenter,
   SUMMON_X,
 } from '../src/layout';
 import { SceneKey } from '../src/scenes/keys';
@@ -35,7 +37,18 @@ const CORNER_INSET = 2;
 /** Анимация нажатия на время сжимает элемент — ждём, пока он вернётся к своему размеру. */
 const PRESS_SETTLE_MS = 250;
 
+/** Экран итога проявляется, звёзды выскакивают по одной. */
+const RESULT_SETTLE_MS = 1200;
+
 const errors: string[] = [];
+
+let shots = 0;
+
+/** Имя снимка с порядковым номером: в папке они лежат по ходу проверки. */
+function shot(name: string): string {
+  shots++;
+  return `${String(shots).padStart(2, '0')}-${name}.png`;
+}
 
 function state(page: Page): Promise<SmokeState | null> {
   return page.evaluate(() => window.__smoke?.state() ?? null);
@@ -107,6 +120,7 @@ function scenesText(s: SmokeState | null): string {
 
 test.beforeEach(({ page }) => {
   errors.length = 0;
+  shots = 0;
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
     const { url } = msg.location();
@@ -130,7 +144,7 @@ test('меню → книга котов → первый уровень → с�
       (s) => s.scenes.includes(SceneKey.Menu),
       (s) => `Игра не дошла до экрана «Меню» за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
     );
-    await page.screenshot({ path: `${SHOTS}/01-menu.png` });
+    await page.screenshot({ path: `${SHOTS}/${shot('menu')}` });
     await checkTouchSizes(page, 'меню');
     checkConsole('меню');
   });
@@ -157,7 +171,7 @@ test('меню → книга котов → первый уровень → с�
       (s) => s.scenes.includes(SceneKey.Book),
       (s) => `После нажатия «Книга котов» игра не дошла до книги за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
     );
-    await page.screenshot({ path: `${SHOTS}/02-book.png` });
+    await page.screenshot({ path: `${SHOTS}/${shot('book')}` });
     await checkTouchSizes(page, 'книга котов');
     checkConsole('книга котов');
 
@@ -220,7 +234,7 @@ test('меню → книга котов → первый уровень → с�
   }
 
   await test.step('снаряжение выбрано', async () => {
-    await page.screenshot({ path: `${SHOTS}/03-gear.png` });
+    await page.screenshot({ path: `${SHOTS}/${shot('gear')}` });
     checkConsole('снаряжение выбрано');
   });
 
@@ -232,14 +246,14 @@ test('меню → книга котов → первый уровень → с�
       (s) => s.scenes.includes(SceneKey.Game) && s.scenes.includes(SceneKey.UI),
       (s) => `После нажатия «В бой» игра не дошла до игрового поля за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
     );
-    await page.screenshot({ path: `${SHOTS}/04-game.png` });
+    await page.screenshot({ path: `${SHOTS}/${shot('game')}` });
     await checkTouchSizes(page, 'игровое поле');
     checkConsole('игровое поле');
   });
 
   for (let n = 1; n <= CATS; n++) {
     await test.step(`призыв кота ${n}`, async () => {
-      await tap(page, SUMMON_X, CONTROLS_Y + CONTROLS_H / 2);
+      await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
       await waitFor(
         page,
         SUMMON_TIMEOUT,
@@ -247,7 +261,7 @@ test('меню → книга котов → первый уровень → с�
         (s) => `После нажатия «Призвать» котов на поле: ${s?.cats ?? 0}, ожидалось ${n} (монет: ${s?.hud?.gold ?? '?'})`,
       );
       await page.waitForTimeout(SPAWN_SETTLE_MS);
-      await page.screenshot({ path: `${SHOTS}/0${n + 4}-cat-${n}.png` });
+      await page.screenshot({ path: `${SHOTS}/${shot(`cat-${n}`)}` });
       checkConsole(`призыв кота ${n}`);
     });
   }
@@ -260,8 +274,29 @@ test('меню → книга котов → первый уровень → с�
       (s) => `Волна не началась за ${WAVE_TIMEOUT / 1000} с (волна ${s?.hud?.wave ?? 0}, врагов ${s?.enemies ?? 0})`,
     );
     await page.waitForTimeout(WAVE_SETTLE_MS);
-    await page.screenshot({ path: `${SHOTS}/0${CATS + 5}-wave.png` });
+    await page.screenshot({ path: `${SHOTS}/${shot('wave')}` });
     checkConsole('первая волна');
+  });
+
+  await test.step('монеты за рекламу', async () => {
+    const before = (await state(page))?.hud?.gold ?? 0;
+    await tap(page, COIN_AD_X, CONTROLS_CENTER_Y);
+    // Заглушка площадки засчитывает ролик сразу: монеты приходят, кнопка уходит отдыхать.
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => (s.hud?.gold ?? 0) >= before + 60,
+      (s) => `Ролик не принёс монет: было ${before}, стало ${s?.hud?.gold ?? '?'}`,
+    );
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    const after = (await state(page))?.hud?.gold ?? 0;
+    await tap(page, COIN_AD_X, CONTROLS_CENTER_Y);
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    const again = (await state(page))?.hud?.gold ?? 0;
+    // За это время монеты могли прийти и за мышей, но не шестьдесят разом.
+    if (again >= after + 60) throw new Error(`Кнопка рекламы сработала дважды подряд: ${after} → ${again}`);
+    await page.screenshot({ path: `${SHOTS}/${shot('coin-ad')}` });
+    checkConsole('монеты за рекламу');
   });
 
   /** На паузе враги стоят; «Продолжить» возвращает в бой. */
@@ -293,7 +328,7 @@ test('меню → книга котов → первый уровень → с�
 
   await test.step('пауза', async () => {
     await tap(page, ...pauseButtonCenter());
-    await checkPausedAndResume('меню паузы', `0${CATS + 6}-pause.png`);
+    await checkPausedAndResume('меню паузы', shot('pause'));
   });
 
   await test.step('пауза после сворачивания', async () => {
@@ -305,5 +340,87 @@ test('меню → книга котов → первый уровень → с�
     await setHidden(true);
     await setHidden(false);
     await checkPausedAndResume('возврат после сворачивания');
+  });
+
+  await test.step('поражение и второй шанс', async () => {
+    await page.evaluate(() => window.__smoke?.lose());
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.result === 'lose',
+      () => 'После потери всех жизней не появился экран поражения',
+    );
+    await page.waitForTimeout(RESULT_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${shot('lose')}` });
+    await checkTouchSizes(page, 'поражение');
+
+    await tap(page, ...resultAdCenter());
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.result === null && (s.hud?.lives ?? 0) > 0,
+      (s) => `«Второй шанс» не вернул в бой: экран итога «${s?.result}», жизней ${s?.hud?.lives ?? '?'}`,
+    );
+    checkConsole('второй шанс');
+
+    // Шанс один на уровень: после второго поражения кнопки нет, нажатие на её место ничего не даёт.
+    await page.evaluate(() => window.__smoke?.lose());
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.result === 'lose',
+      () => 'После второго поражения не появился экран итога',
+    );
+    await page.waitForTimeout(RESULT_SETTLE_MS);
+    await tap(page, ...resultAdCenter());
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    if ((await state(page))?.result !== 'lose') throw new Error('«Второй шанс» сработал второй раз за уровень');
+    await page.screenshot({ path: `${SHOTS}/${shot('lose-again')}` });
+
+    await tap(page, ...resultButtonCenter('right'));
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.result === null && s.scenes.includes(SceneKey.UI) && (s.hud?.wave ?? 1) === 0,
+      (s) => `«Ещё раз» не перезапустило уровень: ${scenesText(s)}`,
+    );
+    checkConsole('ещё раз');
+  });
+
+  await test.step('победа и удвоение награды', async () => {
+    const before = (await state(page))?.fish ?? 0;
+    await page.evaluate(() => window.__smoke?.win());
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.result === 'win',
+      () => 'Не появился экран победы',
+    );
+    await page.waitForTimeout(RESULT_SETTLE_MS);
+    const reward = ((await state(page))?.fish ?? 0) - before;
+    if (reward <= 0) throw new Error(`За победу не выданы рыбки: было ${before}, стало ${before + reward}`);
+    await page.screenshot({ path: `${SHOTS}/${shot('win')}` });
+    await checkTouchSizes(page, 'победа');
+
+    await tap(page, ...resultAdCenter());
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.fish === before + reward * 2,
+      (s) => `Ролик не удвоил награду: ожидалось ${before + reward * 2} рыбок, стало ${s?.fish ?? '?'}`,
+    );
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${shot('win-doubled')}` });
+    checkConsole('удвоение награды');
+
+    await tap(page, ...resultButtonCenter('left'));
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Menu),
+      (s) => `«В меню» с экрана победы не вернуло в меню: ${scenesText(s)}`,
+    );
+    await page.screenshot({ path: `${SHOTS}/${shot('menu-after')}` });
+    checkConsole('меню после победы');
   });
 });

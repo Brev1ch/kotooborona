@@ -13,6 +13,8 @@ export class Economy {
   gold: number;
   crystals: number;
   lives: number;
+  /** Сколько жизней потеряно за бой; «Второй шанс» жизни возвращает, а этот счёт — нет. */
+  livesLost = 0;
   private summons = 0;
 
   constructor(
@@ -50,6 +52,13 @@ export class Economy {
 
   /** Враг прошёл в ворота; жизни не уходят ниже нуля. */
   loseLives(amount: number): void {
-    this.lives = Math.max(0, this.lives - amount);
+    const lost = Math.min(this.lives, amount);
+    this.lives -= lost;
+    this.livesLost += lost;
+  }
+
+  /** «Второй шанс»: жизни после поражения. Потерянные раньше остаются в счёте для звёзд. */
+  revive(lives: number): void {
+    this.lives = lives;
   }
 }

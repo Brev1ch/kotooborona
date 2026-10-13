@@ -26,3 +26,9 @@ export function campaignTiles(
   }
   return tiles;
 }
+
+/** Уровень, идущий в главе следом за `levelId`, или null, если он последний из описанных. */
+export function nextLevelId(levelIds: readonly string[], levelId: string): string | null {
+  const index = levelIds.indexOf(levelId);
+  return index === -1 ? null : (levelIds[index + 1] ?? null);
+}

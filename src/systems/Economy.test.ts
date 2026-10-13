@@ -131,6 +131,31 @@ describe('Economy: снаряжение', () => {
   });
 });
 
+describe('Economy: жизни', () => {
+  it('считает потерянные жизни и не уходит ниже нуля', () => {
+    const economy = new Economy(level, summon);
+    economy.loseLives(3);
+    expect(economy.lives).toBe(7);
+    expect(economy.livesLost).toBe(3);
+
+    economy.loseLives(50);
+    expect(economy.lives).toBe(0);
+    expect(economy.livesLost).toBe(10);
+  });
+
+  it('второй шанс возвращает жизни, но счёт потерь для звёзд не сбрасывает', () => {
+    const economy = new Economy(level, summon);
+    economy.loseLives(10);
+    economy.revive(6);
+    expect(economy.lives).toBe(6);
+    expect(economy.livesLost).toBe(10);
+
+    economy.loseLives(2);
+    expect(economy.lives).toBe(4);
+    expect(economy.livesLost).toBe(12);
+  });
+});
+
 describe('starsFor', () => {
   const rules = { threeStarsMaxLost: 0, twoStarsMaxLost: 5 };
 

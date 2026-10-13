@@ -17,6 +17,10 @@
     "threeStarsMaxLost": 0,
     "twoStarsMaxLost": 5
   },
+  "rewards": {
+    "fishPerExtraStar": 0.25,
+    "replayMult": 0.4
+  },
   "levels": [
     {
       "id": "opushka",
@@ -36,7 +40,8 @@
       "startLives": 20,
       "hpMult": 1,
       "ratChance": 0.15,
-      "shieldChance": 0.15
+      "shieldChance": 0.15,
+      "fish": 20
     }
   ]
 }

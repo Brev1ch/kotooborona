@@ -11,6 +11,7 @@ export const Texture = {
   ring: 'ring',
   coin: 'coin',
   crystal: 'crystal',
+  fish: 'fish',
 } as const;
 
 /** Текстуры крупнее, чем значки на экране, чтобы края оставались гладкими. */
@@ -119,5 +120,17 @@ export function ensureTextures(scene: Phaser.Scene): void {
     // Светлая грань сверху слева.
     g.fillStyle(COLORS.crystalLight);
     g.fillPoints([top, new Phaser.Math.Vector2(half, half), left], true);
+  });
+
+  // Рыбка носом влево: тело, хвост, плавник и глаз.
+  generate(scene, Texture.fish, ICON_SIZE, (g) => {
+    const half = ICON_SIZE / 2;
+    g.fillStyle(COLORS.fishDark);
+    g.fillTriangle(ICON_SIZE * 0.66, half, ICON_SIZE, ICON_SIZE * 0.22, ICON_SIZE, ICON_SIZE * 0.78);
+    g.fillTriangle(ICON_SIZE * 0.3, ICON_SIZE * 0.3, ICON_SIZE * 0.55, ICON_SIZE * 0.1, ICON_SIZE * 0.6, ICON_SIZE * 0.35);
+    g.fillStyle(COLORS.fish);
+    g.fillEllipse(ICON_SIZE * 0.4, half, ICON_SIZE * 0.78, ICON_SIZE * 0.5);
+    g.fillStyle(COLORS.bg);
+    g.fillCircle(ICON_SIZE * 0.2, ICON_SIZE * 0.44, ICON_SIZE * 0.05);
   });
 }

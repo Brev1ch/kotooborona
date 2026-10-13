@@ -159,6 +159,49 @@ export function addSoundButton(scene: Phaser.Scene, x: number, y: number): Phase
   return button;
 }
 
+/** Размеры значка ролика на кнопке рекламы. */
+const AD_ICON = { width: 20, height: 15, radius: 4, gap: 8 };
+
+/**
+ * Кнопка наградной рекламы: зелёная, со значком ролика — игрок видит, что за нажатием последует реклама.
+ * В отличие от `addButton`, срабатывает на каждое нажатие: ролик могут закрыть раньше времени и попробовать снова.
+ */
+export function addAdButton(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label: string,
+  onClick: () => void,
+): Phaser.GameObjects.Container {
+  const bg = scene.add.rectangle(0, 0, width, height, COLORS.reward).setInteractive({ useHandCursor: true });
+  const text = scene.add
+    .text(0, 0, label, { fontFamily: FONTS.display, fontSize: '15px', color: TEXT_COLORS.fg })
+    .setOrigin(0, 0.5);
+
+  // Значок и подпись вместе стоят по центру кнопки.
+  const left = -(AD_ICON.width + AD_ICON.gap + text.width) / 2;
+  const icon = scene.add.graphics({ x: left + AD_ICON.width / 2 });
+  icon.fillStyle(COLORS.range);
+  icon.fillRoundedRect(-AD_ICON.width / 2, -AD_ICON.height / 2, AD_ICON.width, AD_ICON.height, AD_ICON.radius);
+  icon.fillStyle(COLORS.reward);
+  icon.fillTriangle(-3, -4, -3, 4, 5, 0);
+  text.setX(left + AD_ICON.width + AD_ICON.gap);
+
+  const button = scene.add.container(x, y, [bg, icon, text]);
+  addPressFeel(scene, bg, button);
+  bg.on('pointerdown', () => audio.play('click'));
+  bg.on('pointerup', onClick);
+  return button;
+}
+
+/** Рыбка шириной `size`. */
+export function addFishIcon(scene: Phaser.Scene, x: number, y: number, size: number): Phaser.GameObjects.Image {
+  ensureTextures(scene);
+  return scene.add.image(x, y, Texture.fish).setDisplaySize(size, size);
+}
+
 /** Значок кристалла высотой `size`. Нарисован, а не взят из шрифта: на всех устройствах выглядит одинаково. */
 export function addCrystalIcon(scene: Phaser.Scene, x: number, y: number, size: number): Phaser.GameObjects.Image {
   ensureTextures(scene);

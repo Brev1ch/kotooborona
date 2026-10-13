@@ -90,6 +90,8 @@ export interface LevelConfig {
   hpMult: number;
   ratChance: number;
   shieldChance: number;
+  /** Рыбки за первое прохождение на одну звезду. */
+  fish: number;
 }
 
 export interface WavesConfig {
@@ -105,12 +107,20 @@ export interface WavesConfig {
   shieldFromWave: number;
 }
 
+export interface RewardRules {
+  /** Прибавка к рыбкам уровня за каждую звезду сверх первой, доля от награды уровня. */
+  fishPerExtraStar: number;
+  /** Множитель награды за повторное прохождение уже пройденного уровня. */
+  replayMult: number;
+}
+
 export interface LevelsConfig {
   slotSize: number;
   /** Сколько уровней в главе; тех, что ещё не описаны в `levels`, меню показывает закрытыми. */
   chapterLevels: number;
   waves: WavesConfig;
   stars: { threeStarsMaxLost: number; twoStarsMaxLost: number };
+  rewards: RewardRules;
   levels: LevelConfig[];
 }
 
@@ -138,6 +148,16 @@ export interface GearConfig extends Record<GearSlot, GearItem[]> {
     burnDps: number;
     burnTime: number;
   };
-  rewardedAd: { gold: number; cooldown: number };
   defaults: Record<GearSlot, string>;
+}
+
+export interface AdsConfig {
+  /** Наградной ролик в бою: монеты и пауза до следующего показа, секунды. */
+  coins: { gold: number; cooldown: number };
+  /** «Второй шанс» после поражения: сколько жизней возвращает. */
+  secondChance: { lives: number };
+  /** Во сколько раз ролик на экране победы увеличивает награду уровня. */
+  doubleReward: { mult: number };
+  /** Полноэкранная реклама между уровнями: наименьший промежуток между показами, секунды. */
+  interstitial: { minInterval: number };
 }

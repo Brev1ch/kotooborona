@@ -4,6 +4,7 @@ import { levels } from './data';
 import { stress } from './debug';
 import { progress } from './progress';
 import type { GameScene } from './scenes/GameScene';
+import type { UIScene } from './scenes/UIScene';
 import { SceneKey, type HudState, type LevelSceneData } from './scenes/keys';
 import type { GearSelection } from './systems/Progress';
 
@@ -38,6 +39,10 @@ export interface SmokeState {
   march: number;
   /** Бой стоит на паузе. */
   paused: boolean;
+  /** Открытый экран итога боя. */
+  result: 'win' | 'lose' | null;
+  /** Рыбки игрока. */
+  fish: number;
 }
 
 /** Стоимость кадра для процессора: обновление и отправка отрисовки, без работы видеокарты. Время — в мс. */
@@ -55,6 +60,10 @@ export interface SmokeProbe {
   state(): SmokeState;
   /** Сразу запускает бой, минуя меню и снаряжение; без id — на первом уровне. */
   startLevel(levelId?: string): void;
+  /** Обнуляет жизни: бой заканчивается поражением. */
+  lose(): void;
+  /** Заканчивает бой победой с теми жизнями, что есть. */
+  win(): void;
   /** Стресс-проверка из src/debug.ts: поле гибридов и толпа врагов. */
   stress(): void;
   /** Вся игра остановлена площадкой: идёт реклама или игру свернули. */
@@ -119,6 +128,12 @@ export function installSmokeProbe(game: Phaser.Game): void {
       const data: LevelSceneData = { levelId };
       game.scene.start(SceneKey.Game, data);
     },
+    lose() {
+      (game.scene.getScene(SceneKey.Game) as GameScene).economy.loseLives(Infinity);
+    },
+    win() {
+      (game.scene.getScene(SceneKey.Game) as GameScene).finish(true);
+    },
     frozen() {
       return game.isPaused;
     },
@@ -134,15 +149,16 @@ export function installSmokeProbe(game: Phaser.Game): void {
       const targets: SmokeTarget[] = [];
       for (const scene of active) collectTargets(scene.children.list, targets);
       const fading = active.some((scene) => scene.cameras.main?.fadeEffect.isRunning);
-      const common = { scenes, fading, targets, sound: audio.on, gear: { ...progress.gear } };
+      const common = { scenes, fading, targets, sound: audio.on, gear: { ...progress.gear }, fish: progress.fish };
 
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);
       if (!paused && !scenes.includes(SceneKey.Game)) {
-        return { ...common, hud: null, cats: 0, enemies: 0, march: 0, paused: false };
+        return { ...common, hud: null, cats: 0, enemies: 0, march: 0, paused: false, result: null };
       }
       const gameScene = game.scene.getScene(SceneKey.Game) as GameScene;
-      return { ...common, hud: gameScene.hudState(), ...gameScene.fieldCounts(), paused };
+      const result = (game.scene.getScene(SceneKey.UI) as UIScene).resultShown();
+      return { ...common, hud: gameScene.hudState(), ...gameScene.fieldCounts(), paused, result };
     },
   };
 }

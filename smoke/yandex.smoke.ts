@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { COIN_AD_X, CONTROLS_CENTER_Y, GAME_H, GAME_W } from '../src/layout';
 import { SceneKey } from '../src/scenes/keys';
 
 // Игра на Яндекс Играх: вместо настоящего /sdk.js страница получает подделку, которая записывает вызовы.
@@ -94,6 +95,36 @@ test('Яндекс Игры: SDK найден, язык и сохранение 
   await expect.poll(() => calls(page), { timeout: 5000 }).toContain('setData');
   const saved = await page.evaluate(() => window.__ya.data.save as { sound: boolean });
   expect(saved.sound).toBe(false);
+
+  // Ролик за монеты: под рекламой игра стоит; закрыли раньше времени — монет нет, досмотрели — есть.
+  const gold = async (): Promise<number> => (await page.evaluate(() => window.__smoke?.state().hud?.gold)) ?? 0;
+  const tapCoinAd = async (): Promise<void> => {
+    const box = await page.locator('canvas').boundingBox();
+    if (!box) throw new Error('нет canvas');
+    await page.touchscreen.tap(box.x + (COIN_AD_X / GAME_W) * box.width, box.y + (CONTROLS_CENTER_Y / GAME_H) * box.height);
+  };
+  const before = await gold();
+
+  await tapCoinAd();
+  await expect.poll(() => calls(page)).toContain('rewarded');
+  await page.evaluate(() => window.__ya.ad?.onOpen());
+  expect(await page.evaluate(() => window.__smoke?.frozen())).toBe(true);
+  await page.evaluate(() => window.__ya.ad?.onClose());
+  expect(await page.evaluate(() => window.__smoke?.frozen())).toBe(false);
+  await page.waitForTimeout(300);
+  expect(await gold()).toBeLessThan(before + 60);
+
+  await page.evaluate(() => (window.__ya.calls.length = 0));
+  await tapCoinAd();
+  await expect.poll(() => calls(page)).toContain('rewarded');
+  await page.evaluate(() => {
+    window.__ya.ad?.onOpen();
+    window.__ya.ad?.onRewarded();
+    window.__ya.ad?.onClose();
+  });
+  await expect.poll(gold).toBeGreaterThanOrEqual(before + 60);
+  // Полноэкранной рекламы посреди боя нет.
+  expect(await calls(page)).not.toContain('fullscreen');
 
   expect(errors).toEqual([]);
 });

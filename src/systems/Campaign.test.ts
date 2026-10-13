@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { campaignTiles } from './Campaign';
+import { campaignTiles, nextLevelId } from './Campaign';
 
 function starsFrom(stars: Record<string, number>): (levelId: string) => number {
   return (levelId) => stars[levelId] ?? 0;
@@ -42,5 +42,17 @@ describe('campaignTiles', () => {
 
   it('показывает все уровни, если их больше, чем заявлено в главе', () => {
     expect(campaignTiles(['a', 'b', 'c'], 2, starsFrom({}))).toHaveLength(3);
+  });
+});
+
+describe('nextLevelId', () => {
+  it('возвращает следующий уровень главы', () => {
+    expect(nextLevelId(['a', 'b', 'c'], 'a')).toBe('b');
+    expect(nextLevelId(['a', 'b', 'c'], 'b')).toBe('c');
+  });
+
+  it('после последнего уровня и для незнакомого id — null', () => {
+    expect(nextLevelId(['a', 'b', 'c'], 'c')).toBeNull();
+    expect(nextLevelId(['a', 'b', 'c'], 'x')).toBeNull();
   });
 });

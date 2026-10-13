@@ -23,6 +23,14 @@ export const ru = {
   'result.reached': 'Коты продержались до волны {wave} из {total}',
   'result.retry': 'Ещё раз',
   'result.menu': 'В меню',
+  'result.next': 'Дальше',
+  'result.reward': 'Награда:',
+
+  'ad.coins': '+{gold}',
+  'ad.watch': 'за рекламу',
+  'ad.revive': 'Второй шанс за рекламу',
+  'ad.reviveHint': '+{lives} жизней и готовый метеор',
+  'ad.double': 'Удвоить за рекламу',
 
   'pause.title': 'Пауза',
   'pause.resume': 'Продолжить',

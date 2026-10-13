@@ -2,7 +2,6 @@
   "summon": { "baseCost": 10, "costGrowth": 1.13 },
   "ritual": { "time": 4, "crystalCost": 1 },
   "meteor": { "cooldown": 25, "damage": 40, "damageGrowthPerWave": 1.22, "radius": 60, "burnDps": 0.1, "burnTime": 2 },
-  "rewardedAd": { "gold": 60, "cooldown": 30 },
   "defaults": { "staff": "none", "mantle": "thrift", "amulet": "cry" },
   "staff": [
     { "id": "none" },

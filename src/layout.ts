@@ -95,10 +95,45 @@ export function pauseMenuButtonCenter(index: number): [number, number] {
   return [GAME_W / 2, firstY + index * (buttonH + gap)];
 }
 
-// Нижняя полоса: «Призвать» слева, «Метеор» справа.
+// Нижняя полоса слева направо: «Призвать», «Метеор», монеты за рекламу.
 export const CONTROLS_PAD = 8;
-export const SUMMON_W = 204;
+export const CONTROLS_GAP = 8;
+export const METEOR_W = 100;
+export const COIN_AD_W = 72;
+export const SUMMON_W = GAME_W - CONTROLS_PAD * 2 - CONTROLS_GAP * 2 - METEOR_W - COIN_AD_W;
 export const SUMMON_X = CONTROLS_PAD + SUMMON_W / 2;
+export const METEOR_X = CONTROLS_PAD + SUMMON_W + CONTROLS_GAP + METEOR_W / 2;
+export const COIN_AD_X = GAME_W - CONTROLS_PAD - COIN_AD_W / 2;
+export const CONTROLS_CENTER_Y = CONTROLS_Y + CONTROLS_H / 2;
+
+// Экран победы и поражения поверх поля: заголовок, звёзды, пояснение, награда, кнопка рекламы, кнопки перехода.
+export const RESULT = {
+  titleY: -128,
+  starsY: -78,
+  detailY: -26,
+  rewardY: 16,
+  adY: 64,
+  adW: 272,
+  buttonsY: 124,
+  buttonW: 130,
+  buttonH: 46,
+  buttonGap: 12,
+  textW: 280,
+};
+
+/** Середина экрана итога по вертикали. */
+export const RESULT_Y = BOARD_Y + BOARD_H / 2;
+
+/** Центр кнопки рекламы на экране итога. */
+export function resultAdCenter(): [number, number] {
+  return [GAME_W / 2, RESULT_Y + RESULT.adY];
+}
+
+/** Центр кнопки перехода на экране итога: левая или правая. */
+export function resultButtonCenter(side: 'left' | 'right'): [number, number] {
+  const offset = (RESULT.buttonW + RESULT.buttonGap) / 2;
+  return [GAME_W / 2 + (side === 'left' ? -offset : offset), RESULT_Y + RESULT.buttonsY];
+}
 
 export const ROAD = { outerWidth: 38, innerWidth: 30, dash: 6, gap: 10 };
 export const SLOT_RADIUS = 14;
@@ -136,6 +171,10 @@ export const COLORS = {
   heroMantle: 0x4b3f7a,
   heroHat: 0x3b3a6b,
   heroStaff: 0xa07c4c,
+  fish: 0x7fd1e8,
+  fishDark: 0x3f8fb0,
+  /** Кнопки наградной рекламы. */
+  reward: 0x3f8f5f,
 };
 
 export const TEXT_COLORS = {
@@ -145,6 +184,7 @@ export const TEXT_COLORS = {
   brass: '#e0a948',
   danger: '#e2604f',
   crystal: '#b48cf2',
+  fish: '#7fd1e8',
 };
 
 export const FONTS = {

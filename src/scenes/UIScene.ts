@@ -1,29 +1,39 @@
 import Phaser from 'phaser';
+import { adBreaks } from '../adBreaks';
 import { audio } from '../audio';
-import { cats, getLevel, type ElementId, type LevelConfig } from '../data';
+import { ads, cats, getLevel, levels, type ElementId, type LevelConfig } from '../data';
 import { ANNOUNCE_FEEL, BANNER_FEEL, COIN_FEEL, METEOR_FEEL, RESULT_FEEL, STAT_FEEL, WAVE_BANNER_FEEL, type SoundId } from '../feel';
 import { t, type StringKey } from '../i18n';
 import {
   BOARD_H,
   BOARD_Y,
+  COIN_AD_W,
+  COIN_AD_X,
   COLORS,
+  CONTROLS_CENTER_Y,
   CONTROLS_H,
-  CONTROLS_PAD,
   CONTROLS_Y,
   FONTS,
   GAME_H,
   GAME_W,
   HUD_H,
   HUD_PAD,
+  METEOR_W,
+  METEOR_X,
   MIN_TOUCH,
   PAUSE_MENU,
   pauseButtonCenter,
   pauseMenuButtonCenter,
+  RESULT,
+  RESULT_Y,
+  resultAdCenter,
+  resultButtonCenter,
   SUMMON_W,
   SUMMON_X,
   TEXT_COLORS,
 } from '../layout';
 import { progress } from '../progress';
+import { nextLevelId } from '../systems/Campaign';
 import { Pool } from '../systems/Pool';
 import { MAX_STARS } from '../systems/Progress';
 import type { UpcomingWave } from '../systems/Waves';
@@ -31,7 +41,7 @@ import type { GameScene } from './GameScene';
 import { GameEvent, SceneKey, type LevelResult, type LevelSceneData, type RewardDrop } from './keys';
 import { bakeTexture } from './textures';
 import { fadeIn, fadeOut } from './transitions';
-import { addButton, addCoinIcon, addCrystalIcon, addPressFeel, addSoundToggle } from './widgets';
+import { addAdButton, addButton, addCoinIcon, addCrystalIcon, addFishIcon, addPressFeel, addSoundToggle } from './widgets';
 
 const STAT_GAP = 6;
 const STAT_COUNT = 4;
@@ -51,11 +61,8 @@ function statX(index: number): number {
 /** Значок паузы: две полоски. */
 const PAUSE_BAR = { width: 5, height: 16, gap: 6 };
 
-const CONTROLS_GAP = 8;
 const SUMMON_H = 44;
-const SUMMON_PAD = 16;
-const METEOR_W = GAME_W - CONTROLS_PAD * 2 - CONTROLS_GAP - SUMMON_W;
-const METEOR_X = GAME_W - CONTROLS_PAD - METEOR_W / 2;
+const SUMMON_PAD = 12;
 const METEOR_LABEL_Y = -8;
 const METEOR_STATUS_Y = 11;
 const COIN_RADIUS = 5;
@@ -72,12 +79,15 @@ const WAVE_BANNER_SUBTITLE_Y = 16;
 /** Куда в счётчике прилетает монета: левый край числа. */
 const COIN_TARGET_X = 6;
 
-const RESULT_Y = BOARD_Y + BOARD_H / 2;
-const RESULT_TEXT_W = 280;
-const RESULT_BUTTON_W = 130;
-const RESULT_BUTTON_H = 46;
-const RESULT_BUTTON_GAP = 12;
 const STAR_STEP = 44;
+/** Строка награды на экране победы: подпись, рыбка, число. */
+const REWARD_ICON = 22;
+const REWARD_GAP = 6;
+
+/** Кнопка «монеты за рекламу»: сверху награда с монетой, снизу — «за рекламу» или секунды до следующего показа. */
+const COIN_AD_TOP_Y = -8;
+const COIN_AD_BOTTOM_Y = 11;
+const COIN_AD_ICON = 11;
 
 const ANNOUNCE_BG = `rgba(27, 34, 51, ${ANNOUNCE_FEEL.bgAlpha})`;
 
@@ -118,6 +128,18 @@ export class UIScene extends Phaser.Scene {
   private crystalPool!: Pool<Phaser.GameObjects.Image>;
   /** Меню паузы, пока оно открыто. */
   private pauseMenu: Phaser.GameObjects.Container | null = null;
+  private coinAdBg!: Phaser.GameObjects.Rectangle;
+  private coinAdAmount!: Phaser.GameObjects.Text;
+  private coinAdStatus!: Phaser.GameObjects.Text;
+  /** Состояние кнопки рекламы, уже показанное на экране. */
+  private shownCoinAd = '';
+  /** Экран победы или поражения, пока он открыт. */
+  private resultOverlay: Phaser.GameObjects.Container | null = null;
+  /** Идёт ролик с наградой: второй не запускаем. */
+  private adBusy = false;
+  private resultWon = false;
+  /** Игрок уже уходит с экрана итога: кнопки больше не действуют. */
+  private leaving = false;
 
   constructor() {
     super(SceneKey.UI);
@@ -168,8 +190,12 @@ export class UIScene extends Phaser.Scene {
     this.crystalPool = new Pool(() => addCrystalIcon(this, 0, 0, COIN_FEEL.crystalSize));
     this.addSummonButton();
     this.addMeteorButton();
+    this.addCoinAdButton();
     this.addPauseButton();
     this.pauseMenu = null;
+    this.resultOverlay = null;
+    this.adBusy = false;
+    this.leaving = false;
 
     this.gameScene.events.on(GameEvent.Changed, this.refresh, this);
     this.gameScene.events.on(GameEvent.Discovered, this.showDiscovered, this);
@@ -190,6 +216,7 @@ export class UIScene extends Phaser.Scene {
     this.banner = null;
     this.refresh();
     this.refreshMeteor();
+    this.refreshCoinAd();
 
     // Ветка и сам модуль вырезаются из сборки для игроков.
     if (import.meta.env.DEV) {
@@ -223,7 +250,7 @@ export class UIScene extends Phaser.Scene {
 
     this.summonCoin = this.add.circle(0, 0, COIN_RADIUS, COLORS.bg);
 
-    this.summonButton = this.add.container(SUMMON_X, CONTROLS_Y + CONTROLS_H / 2, [
+    this.summonButton = this.add.container(SUMMON_X, CONTROLS_CENTER_Y, [
       this.summonBg,
       this.summonLabel,
       this.summonCost,
@@ -306,7 +333,7 @@ export class UIScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.meteorButton = this.add.container(METEOR_X, CONTROLS_Y + CONTROLS_H / 2, [
+    this.meteorButton = this.add.container(METEOR_X, CONTROLS_CENTER_Y, [
       this.meteorBg,
       this.meteorFill,
       this.meteorLabel,
@@ -324,8 +351,75 @@ export class UIScene extends Phaser.Scene {
     });
   }
 
+  /** Кнопка «монеты за рекламу»: ролик идёт на паузе боя, монеты приходят, только если его досмотрели. */
+  private addCoinAdButton(): void {
+    this.coinAdBg = this.add
+      .rectangle(0, 0, COIN_AD_W, SUMMON_H, COLORS.reward)
+      .setName('coinAd')
+      .setInteractive({ useHandCursor: true });
+    this.coinAdAmount = this.add
+      .text(0, COIN_AD_TOP_Y, t('ad.coins', { gold: ads.coins.gold }), {
+        fontFamily: FONTS.display,
+        fontSize: '15px',
+        color: TEXT_COLORS.fg,
+      })
+      .setOrigin(0, 0.5);
+    // Число и монета вместе стоят по центру кнопки.
+    const width = this.coinAdAmount.width + 4 + COIN_AD_ICON;
+    this.coinAdAmount.setX(-width / 2);
+    const coin = addCoinIcon(this, width / 2 - COIN_AD_ICON / 2, COIN_AD_TOP_Y, COIN_AD_ICON);
+    this.coinAdStatus = this.add
+      .text(0, COIN_AD_BOTTOM_Y, '', { fontFamily: FONTS.body, fontSize: '11px', color: TEXT_COLORS.fg })
+      .setOrigin(0.5);
+    const button = this.add.container(COIN_AD_X, CONTROLS_CENTER_Y, [this.coinAdBg, this.coinAdAmount, coin, this.coinAdStatus]);
+    this.shownCoinAd = '';
+
+    addPressFeel(this, this.coinAdBg, button, () => this.gameScene.coinAdState().ready);
+    this.coinAdBg.on('pointerup', () => void this.watchCoinAd());
+  }
+
+  private async watchCoinAd(): Promise<void> {
+    if (this.adBusy || !this.gameScene.coinAdState().ready) return;
+    audio.play('click');
+    // Бой стоит с момента нажатия: площадка открывает ролик не сразу.
+    const held = this.gameScene.pauseBattle();
+    const rewarded = await this.watchAd();
+    if (held) this.gameScene.resumeBattle();
+    if (!rewarded) return;
+
+    const gold = this.gameScene.claimCoinAd();
+    if (gold > 0) this.flyReward({ x: COIN_AD_X, y: CONTROLS_CENTER_Y - BOARD_Y, gold, crystals: 0 });
+  }
+
+  /** Показывает ролик с наградой; true — досмотрен. Пока идёт один ролик или игрок уходит с экрана, второй не начинается. */
+  private async watchAd(): Promise<boolean> {
+    if (this.adBusy || this.leaving) return false;
+    this.adBusy = true;
+    try {
+      return await adBreaks.rewarded();
+    } finally {
+      this.adBusy = false;
+    }
+  }
+
+  private refreshCoinAd(): void {
+    const { ready, remaining } = this.gameScene.coinAdState();
+    const seconds = Math.ceil(remaining);
+    const shown = `${ready}:${seconds}`;
+    if (shown === this.shownCoinAd) return;
+    this.shownCoinAd = shown;
+
+    this.coinAdBg.setFillStyle(ready ? COLORS.reward : COLORS.panel);
+    this.coinAdBg.setStrokeStyle(1, COLORS.line, ready ? 0 : 1);
+    this.coinAdAmount.setColor(ready ? TEXT_COLORS.fg : TEXT_COLORS.muted);
+    this.coinAdStatus
+      .setColor(ready ? TEXT_COLORS.fg : TEXT_COLORS.muted)
+      .setText(seconds > 0 ? t('meteor.cooldown', { seconds }) : t('ad.watch'));
+  }
+
   update(): void {
     this.refreshMeteor();
+    this.refreshCoinAd();
   }
 
   /** Кнопка метеора: готов, идёт перезарядка (полоса и секунды) или прицеливание. */
@@ -524,7 +618,14 @@ export class UIScene extends Phaser.Scene {
     this.time.delayedCall(RESULT_FEEL.delayMs, () => this.buildResult(result));
   }
 
+  /** Какой экран итога сейчас открыт; читает смоук-проверка (src/smoke.ts). */
+  resultShown(): 'win' | 'lose' | null {
+    if (!this.resultOverlay) return null;
+    return this.resultWon ? 'win' : 'lose';
+  }
+
   private buildResult(result: LevelResult): void {
+    this.resultWon = result.won;
     audio.play(result.won ? 'win' : 'lose');
     // Затемнение перехватывает касания, чтобы под экраном ничего не нажималось.
     const dim = this.add
@@ -532,7 +633,7 @@ export class UIScene extends Phaser.Scene {
       .setInteractive();
 
     const title = this.add
-      .text(GAME_W / 2, RESULT_Y - 96, t(result.won ? 'result.win' : 'result.lose'), {
+      .text(GAME_W / 2, RESULT_Y + RESULT.titleY, t(result.won ? 'result.win' : 'result.lose'), {
         fontFamily: FONTS.display,
         fontSize: '26px',
         color: TEXT_COLORS.fg,
@@ -544,29 +645,50 @@ export class UIScene extends Phaser.Scene {
       for (let i = 0; i < MAX_STARS; i++) {
         const earned = i < result.stars;
         const x = GAME_W / 2 + (i - (MAX_STARS - 1) / 2) * STAR_STEP;
-        stars.push(this.add.star(x, RESULT_Y - 44, 5, 8, 17, earned ? COLORS.brass : COLORS.line));
+        stars.push(this.add.star(x, RESULT_Y + RESULT.starsY, 5, 8, 17, earned ? COLORS.brass : COLORS.line));
       }
     }
 
     const detail = this.add
-      .text(GAME_W / 2, RESULT_Y + 6, this.resultText(result), {
+      .text(GAME_W / 2, RESULT_Y + RESULT.detailY, this.resultText(result), {
         fontFamily: FONTS.body,
         fontSize: '14px',
         color: TEXT_COLORS.muted,
         align: 'center',
-        wordWrap: { width: RESULT_TEXT_W },
+        wordWrap: { width: RESULT.textW },
       })
       .setOrigin(0.5);
 
-    const data: LevelSceneData = { levelId: this.level.id };
-    const offset = (RESULT_BUTTON_W + RESULT_BUTTON_GAP) / 2;
-    const menu = this.addResultButton(GAME_W / 2 - offset, 'result.menu', false, () => this.leaveToMenu());
-    // GameScene при запуске сама перезапускает HUD.
-    const retry = this.addResultButton(GAME_W / 2 + offset, 'result.retry', true, () => {
-      fadeOut(this, () => this.gameScene.scene.restart(data));
-    });
+    const overlay = this.add.container(0, 0, [dim, title, ...stars, detail]).setAlpha(0);
+    this.resultOverlay = overlay;
+    if (result.won) this.addWinReward(overlay, result);
+    else if (result.canRevive) this.addReviveOffer(overlay, result);
 
-    const overlay = this.add.container(0, 0, [dim, title, ...stars, detail, menu, retry]).setAlpha(0);
+    const data: LevelSceneData = { levelId: this.level.id };
+    const next = result.won ? nextLevelId(levels.levels.map((level) => level.id), this.level.id) : null;
+    overlay.add(
+      addButton(this, ...resultButtonCenter('left'), RESULT.buttonW, RESULT.buttonH, t('result.menu'), false, () => {
+        this.leaveAfterResult(() => {
+          this.scene.stop(SceneKey.Game);
+          this.scene.start(SceneKey.Menu);
+        });
+      }),
+    );
+    overlay.add(
+      next
+        ? addButton(this, ...resultButtonCenter('right'), RESULT.buttonW, RESULT.buttonH, t('result.next'), true, () => {
+            const nextData: LevelSceneData = { levelId: next };
+            this.leaveAfterResult(() => {
+              this.scene.stop(SceneKey.Game);
+              this.scene.start(SceneKey.Gear, nextData);
+            });
+          })
+        : addButton(this, ...resultButtonCenter('right'), RESULT.buttonW, RESULT.buttonH, t('result.retry'), true, () => {
+            // GameScene при запуске сама перезапускает HUD.
+            this.leaveAfterResult(() => this.gameScene.scene.restart(data));
+          }),
+    );
+
     this.tweens.add({ targets: overlay, alpha: 1, duration: RESULT_FEEL.showMs });
 
     // Заработанные звёзды выскакивают по одной.
@@ -582,6 +704,67 @@ export class UIScene extends Phaser.Scene {
     });
   }
 
+  /** Победа: строка «Награда: рыбки» и кнопка, удваивающая её за ролик. */
+  private addWinReward(overlay: Phaser.GameObjects.Container, result: LevelResult): void {
+    const y = RESULT_Y + RESULT.rewardY;
+    const label = this.add
+      .text(0, y, t('result.reward'), { fontFamily: FONTS.body, fontSize: '15px', color: TEXT_COLORS.muted })
+      .setOrigin(0, 0.5);
+    const amount = this.add
+      .text(0, y, String(result.fish), { fontFamily: FONTS.display, fontSize: '20px', color: TEXT_COLORS.fish })
+      .setOrigin(0, 0.5);
+    // Подпись, рыбка и число вместе стоят по центру; место под число считаем по удвоенной награде.
+    const doubled = result.fish * ads.doubleReward.mult;
+    const amountW = amount.setText(String(doubled)).width;
+    amount.setText(String(result.fish));
+    const left = GAME_W / 2 - (label.width + REWARD_GAP + REWARD_ICON + REWARD_GAP + amountW) / 2;
+    label.setX(left);
+    const icon = addFishIcon(this, left + label.width + REWARD_GAP + REWARD_ICON / 2, y, REWARD_ICON);
+    amount.setX(icon.x + REWARD_ICON / 2 + REWARD_GAP);
+    overlay.add([label, icon, amount]);
+
+    const button = addAdButton(this, ...resultAdCenter(), RESULT.adW, RESULT.buttonH, t('ad.double'), () => {
+      void this.watchAd().then((rewarded) => {
+        if (!rewarded || !button.active) return;
+        progress.addFish(doubled - result.fish);
+        progress.flush();
+        button.destroy();
+        amount.setText(String(doubled));
+        this.pulseStat(amount);
+        audio.play('coins');
+      });
+    });
+    overlay.add(button);
+  }
+
+  /** Поражение: один раз за уровень ролик возвращает жизни, и бой идёт дальше с того же места. */
+  private addReviveOffer(overlay: Phaser.GameObjects.Container, result: LevelResult): void {
+    const hint = this.add
+      .text(GAME_W / 2, RESULT_Y + RESULT.rewardY, t('ad.reviveHint', { lives: result.reviveLives }), {
+        fontFamily: FONTS.body,
+        fontSize: '14px',
+        color: TEXT_COLORS.fg,
+      })
+      .setOrigin(0.5);
+    const button = addAdButton(this, ...resultAdCenter(), RESULT.adW, RESULT.buttonH, t('ad.revive'), () => {
+      void this.watchAd().then((rewarded) => {
+        if (!rewarded || this.leaving || this.resultOverlay !== overlay || !this.gameScene.revive()) return;
+        this.tweens.killTweensOf(overlay);
+        overlay.destroy();
+        this.resultOverlay = null;
+      });
+    });
+    overlay.add([hint, button]);
+  }
+
+  /** Уход с экрана итога. Это пауза между уровнями — единственное место, где показывается полноэкранная реклама. */
+  private leaveAfterResult(go: () => void): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    progress.flush();
+    void adBreaks.betweenLevels().then(() => fadeOut(this, go));
+  }
+
   private leaveToMenu(): void {
     progress.flush();
     fadeOut(this, () => {
@@ -595,10 +778,6 @@ export class UIScene extends Phaser.Scene {
     const lines = [result.livesLost === 0 ? t('result.noLosses') : t('result.livesLost', { lost: result.livesLost })];
     if (result.stars < MAX_STARS) lines.push(t('result.starsHint'));
     return lines.join('\n');
-  }
-
-  private addResultButton(x: number, label: StringKey, primary: boolean, onClick: () => void): Phaser.GameObjects.Container {
-    return addButton(this, x, RESULT_Y + 78, RESULT_BUTTON_W, RESULT_BUTTON_H, t(label), primary, onClick);
   }
 
   /** Уведомление вверху поля: игрок впервые получил гибрида. */
