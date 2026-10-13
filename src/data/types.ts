@@ -186,7 +186,77 @@ export interface GearItem extends GearStats {
   upgrades?: GearStats[];
 }
 
+export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+/** Виды бонусов, из которых собирается предмет. */
+export type BonusKind =
+  | 'summonChance'
+  | 'summonLimit'
+  | 'overLimitCost'
+  | 'elementDamage'
+  | 'meteorCooldown'
+  | 'ritualTime'
+  | 'gold'
+  | 'crystals'
+  | 'buildingIncome'
+  | 'level2Chance';
+
+/**
+ * Правило бонуса в пуле. Значение бонуса — его сила: у шанса стихии это вес стихии при призыве (1 — как у остальных),
+ * у скидок и прибавок — доля (0.2 — на двадцать процентов), у монет, кристаллов и лимита — штуки.
+ */
+export interface BonusRule {
+  /** В каких слотах бонус может выпасть. */
+  slots: GearSlot[];
+  min: number;
+  max: number;
+  /** Значение округляется до кратного шагу. */
+  step: number;
+  /** Растёт ли бонус с уровнем предмета. */
+  scales: boolean;
+  /** Выше этого бонус не поднимается даже с прокачкой. */
+  cap?: number;
+  /** Бонус привязан к базовой стихии, она выбирается случайно. */
+  element?: boolean;
+  /** Бонус выпадает только у этих редкостей; без списка — у любой. */
+  rarities?: Rarity[];
+}
+
+export interface RarityRule {
+  /** Сколько бонусов у предмета. */
+  bonuses: number;
+  /** Из какой части диапазона бонуса берётся значение: 0 — минимум, 1 — максимум. */
+  roll: [number, number];
+  /** Шанс выпадения из сундука; по всем редкостям в сумме 1. */
+  chance: number;
+  /** Сколько осколков даёт разбор. */
+  shards: number;
+}
+
+/** Легендарный предмет: слот и уникальное правило с его числами. */
+export interface LegendaryRule {
+  id: string;
+  slot: GearSlot;
+  unique: 'burningGround' | 'freeSummon';
+  /** Горящая зона метеора: доля урона взрыва в секунду и сколько секунд горит. */
+  burnDps?: number;
+  time?: number;
+  /** Каждый какой по счёту призыв бесплатный. */
+  every?: number;
+}
+
+export interface ItemsConfig {
+  inventoryLimit: number;
+  rarities: Record<Rarity, RarityRule>;
+  pool: Record<BonusKind, BonusRule>;
+  /** Прокачка: каждый уровень усиливает растущие бонусы на долю `power`; цены — до 2-го уровня, до 3-го и так далее. */
+  upgrade: { maxLevel: number; power: number; shards: number[]; fish: number[] };
+  legendaries: LegendaryRule[];
+}
+
 export interface GearConfig extends Record<GearSlot, GearItem[]> {
+  /** Предметы со случайными бонусами: редкости, пул бонусов, прокачка, легендарные. */
+  items: ItemsConfig;
   ritual: { time: number; crystalCost: number };
   meteor: {
     cooldown: number;
