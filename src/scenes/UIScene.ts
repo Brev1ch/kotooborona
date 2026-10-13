@@ -229,7 +229,11 @@ export class UIScene extends Phaser.Scene {
 
     // Ветка и сам модуль вырезаются из сборки для игроков.
     if (import.meta.env.DEV) {
+      // Модуль догружается не сразу: если бой за это время закрыли, ставить кнопки уже некуда.
+      let open = true;
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => (open = false));
       void import('../debug').then(({ addDebugButtons, addFpsCounter }) => {
+        if (!open) return;
         addDebugButtons(this, this.gameScene);
         addFpsCounter(this);
       });

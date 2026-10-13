@@ -106,7 +106,7 @@ export function addFpsCounter(ui: Phaser.Scene): void {
   let worst = 0;
   let frames = 0;
   let since = last;
-  ui.events.on('update', () => {
+  const onUpdate = (): void => {
     const now = performance.now();
     worst = Math.max(worst, now - last);
     last = now;
@@ -116,5 +116,8 @@ export function addFpsCounter(ui: Phaser.Scene): void {
     worst = 0;
     frames = 0;
     since = now;
-  });
+  };
+  ui.events.on('update', onUpdate);
+  // События сцены переживают её перезапуск: без отписки счётчик прошлого боя писал бы в уничтоженную надпись.
+  ui.events.once('shutdown', () => ui.events.off('update', onUpdate));
 }

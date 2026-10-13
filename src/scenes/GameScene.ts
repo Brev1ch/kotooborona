@@ -390,6 +390,10 @@ export class GameScene extends Phaser.Scene {
     return view;
   }
 
+  get levelId(): string {
+    return this.level.id;
+  }
+
   get slotCount(): number {
     return this.level.slots.length;
   }

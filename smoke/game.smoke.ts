@@ -65,13 +65,15 @@ async function waitFor(
   timeout: number,
   ready: (s: SmokeState) => boolean,
   message: (s: SmokeState | null) => string,
+  /** Не ждать, пока экран проявится: так его видит игрок, который жмёт сразу. */
+  early = false,
 ): Promise<void> {
   const deadline = Date.now() + timeout;
   let last: SmokeState | null = null;
   while (Date.now() < deadline) {
     last = await state(page);
     // Пока экран гаснет или проявляется, он ещё не готов: ни к снимку, ни к нажатию.
-    if (last && !last.fading && ready(last)) return;
+    if (last && (early || !last.fading) && ready(last)) return;
     // Ошибка в консоли обычно и есть причина, по которой экран не появился.
     if (errors.length > 0) break;
     await page.waitForTimeout(100);
@@ -801,5 +803,115 @@ test('обучение: призыв → слияние → гибрид → м�
     const hint = (await state(page))?.tutorial ?? null;
     if (hint !== null) throw new Error(`На пройденном уровне появилась подсказка «${hint}»`);
     checkConsole('обучение: пройденный уровень');
+  });
+});
+
+/** Как часто нетерпеливый игрок повторяет касание, мс. */
+const HURRY_TAP_MS = 120;
+
+/**
+ * Нетерпеливый игрок: жмёт в точку, не дожидаясь, пока экран проявится, и повторяет, пока экран `from` не сменится.
+ * Падает, если экран так и не сменился.
+ */
+async function hurry(page: Page, from: string, x: number, y: number, step: string): Promise<void> {
+  const deadline = Date.now() + SCREEN_TIMEOUT;
+  let last: SmokeState | null = null;
+  while (Date.now() < deadline) {
+    last = await state(page);
+    if (last && !last.scenes.includes(from)) return;
+    if (errors.length > 0) break;
+    await tap(page, x, y);
+    await page.waitForTimeout(HURRY_TAP_MS);
+  }
+  checkConsole(step);
+  throw new Error(`${step}: экран не сменился, ${scenesText(last)}`);
+}
+
+/** Бой на уровне `id` идёт и слушается: экран проявился, итога нет, кот призывается. */
+async function expectBattle(page: Page, id: string, step: string): Promise<void> {
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.Game) && s.scenes.includes(SceneKey.UI) && s.level === id && s.result === null,
+    (s) => `${step}: бой на уровне ${id} не начался, ${scenesText(s)}, уровень ${s?.level ?? 'нет'}`,
+  );
+  const before = (await state(page))?.cats ?? 0;
+  await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
+  await waitFor(
+    page,
+    SUMMON_TIMEOUT,
+    (s) => s.cats > before,
+    () => `${step}: бой на уровне ${id} не слушается касаний — кот не призван`,
+  );
+  checkConsole(step);
+}
+
+/** Побеждает в идущем бою и ждёт экран победы с кнопками. */
+async function winBattle(page: Page, step: string): Promise<void> {
+  await page.evaluate(() => window.__smoke?.win());
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.result === 'win',
+    () => `${step}: не появился экран победы`,
+  );
+}
+
+/** С экрана снаряжения — в бой; сценку, если она есть, пропускает. Всё — не дожидаясь проявления экранов. */
+async function hurryIntoBattle(page: Page, step: string): Promise<void> {
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.Gear),
+    (s) => `${step}: не открылось снаряжение, ${scenesText(s)}`,
+    true,
+  );
+  await hurry(page, SceneKey.Gear, ...gearButtonCenter('start'), `${step}: «В бой»`);
+  if ((await state(page))?.scenes.includes(SceneKey.Story)) {
+    await hurry(page, SceneKey.Story, ...storySkipCenter(), `${step}: «Пропустить»`);
+  }
+}
+
+test('уровень за уровнем: победа → следующий уровень пять раз подряд, затем победа → меню → уровень', async ({ page }) => {
+  await page.goto('/?smoke');
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.Menu),
+    (s) => `Игра не дошла до меню: ${scenesText(s)}`,
+  );
+  const ids = (await page.evaluate(() => window.__smoke?.levelIds())) ?? [];
+  const REPEATS = 5;
+
+  await page.evaluate((levelId) => window.__smoke?.startLevel(levelId), ids[0]);
+  await expectBattle(page, ids[0], 'первый уровень');
+
+  for (let n = 1; n <= REPEATS; n++) {
+    await test.step(`победа → следующий уровень, раз ${n}`, async () => {
+      const step = `переход ${n}: ${ids[n - 1]} → ${ids[n]}`;
+      await winBattle(page, step);
+      // Кнопка итога нажимается сразу, как появилась, и ещё раз следом: второй переход начаться не должен.
+      await tap(page, ...resultButtonCenter('right'));
+      await tap(page, ...resultButtonCenter('right'));
+      await hurryIntoBattle(page, step);
+      await expectBattle(page, ids[n], step);
+    });
+  }
+
+  await test.step('победа → в меню → уровень', async () => {
+    const step = 'победа → меню → уровень';
+    await winBattle(page, step);
+    await tap(page, ...resultButtonCenter('left'));
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Menu),
+      (s) => `${step}: игра не вернулась в меню, ${scenesText(s)}`,
+      true,
+    );
+    // Только что открытый уровень — следующий за пройденным.
+    await hurry(page, SceneKey.Menu, ...menuCardCenter(REPEATS + 1), `${step}: карточка уровня`);
+    await hurryIntoBattle(page, step);
+    await expectBattle(page, ids[REPEATS + 1], step);
   });
 });
