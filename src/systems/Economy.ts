@@ -1,4 +1,5 @@
 import type { GearConfig, LevelConfig, LevelsConfig } from '../data/types';
+import { noBonuses, type GearBonuses } from './Loadout';
 
 /** Звёзды за пройденный уровень по числу потерянных жизней. */
 export function starsFor(livesLost: number, rules: LevelsConfig['stars']): 1 | 2 | 3 {
@@ -7,7 +8,7 @@ export function starsFor(livesLost: number, rules: LevelsConfig['stars']): 1 | 2
   return 1;
 }
 
-/** Монеты, кристаллы, жизни и цена призыва. */
+/** Монеты, кристаллы, жизни и цена призыва; снаряжение меняет стартовые запасы и цену. */
 export class Economy {
   gold: number;
   crystals: number;
@@ -17,15 +18,16 @@ export class Economy {
   constructor(
     level: LevelConfig,
     private readonly summonConfig: GearConfig['summon'],
+    private readonly bonuses: GearBonuses = noBonuses(),
   ) {
-    this.gold = level.startGold;
-    this.crystals = level.startCrystals;
+    this.gold = level.startGold + bonuses.bonusGold;
+    this.crystals = level.startCrystals + bonuses.bonusCrystals;
     this.lives = level.startLives;
   }
 
   get summonCost(): number {
     const { baseCost, costGrowth } = this.summonConfig;
-    return Math.round(baseCost * Math.pow(costGrowth, this.summons));
+    return Math.round(baseCost * Math.pow(costGrowth, this.summons) * this.bonuses.summonCostMult);
   }
 
   canAffordSummon(): boolean {

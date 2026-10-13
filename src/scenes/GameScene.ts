@@ -12,16 +12,13 @@ import { BOARD_H, BOARD_W, BOARD_Y, COLORS, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEX
 import { progress } from '../progress';
 import { catRange, Combat, type Blast, type CombatEvent } from '../systems/Combat';
 import { Economy, starsFor } from '../systems/Economy';
+import { gearBonuses } from '../systems/Loadout';
 import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
 import { Meteor } from '../systems/Meteor';
 import { buildPath, positionAt, type Path } from '../systems/Path';
 import { Summon } from '../systems/Summon';
 import { Waves } from '../systems/Waves';
 import { GameEvent, SceneKey, type HudState, type LevelResult, type LevelSceneData, type MeteorState } from './keys';
-
-// Пока снаряжение не выбирается игроком, посох и мантия берутся из умолчаний.
-const STAFF_ID = gear.defaults.staff;
-const MANTLE_ID = gear.defaults.mantle;
 
 const BLOCK_TEXT: Record<MergeBlock, StringKey> = {
   maxLevel: 'merge.maxLevel',
@@ -93,14 +90,16 @@ export class GameScene extends Phaser.Scene {
     this.drawGate(g, this.level.path[this.level.path.length - 1]);
     this.drawSlots(g, this.level.slots);
 
-    this.economy = new Economy(this.level, gear.summon);
-    const staff = gear.staff.find((item) => item.id === STAFF_ID);
-    this.summoner = new Summon(cats, staff);
-    this.meteor = new Meteor(gear.meteor, gear.mantle.find((item) => item.id === MANTLE_ID));
+    const worn = progress.gear;
+    const bonuses = gearBonuses(gear, worn);
+    this.economy = new Economy(this.level, gear.summon, bonuses);
+    this.summoner = new Summon(cats, bonuses.summonWeights);
+    this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult);
+    const staff = gear.staff.find((item) => item.id === worn.staff);
     this.hero = new HeroView(this, ...this.level.hero, staff?.element ? elementColor(staff.element) : COLORS.meteor);
     this.merger = new Merge(cats, {
       maxCatLevel: this.level.maxCatLevel,
-      ritualTime: gear.ritual.time,
+      ritualTime: gear.ritual.time * bonuses.ritualTimeMult,
       crystalCost: gear.ritual.crystalCost,
     });
     this.path = buildPath(this.level.path);
@@ -184,7 +183,7 @@ export class GameScene extends Phaser.Scene {
       if (!cat || cat.ritual <= 0) return;
       const view = this.views[slot];
       if (!this.merger.advanceRitual(cat, dt)) {
-        view?.setRitualProgress(1 - cat.ritual / gear.ritual.time);
+        view?.setRitualProgress(1 - cat.ritual / this.merger.ritualTime);
         return;
       }
       view?.finishRitual();

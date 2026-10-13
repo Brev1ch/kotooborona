@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { cats } from '../data';
-import type { GearItem } from '../data';
 import type { Cat } from '../entities/Cat';
 import { Summon } from './Summon';
 
@@ -14,12 +13,12 @@ function cat(): Cat {
   return { element: 'fire', level: 1, cooldown: 0, ritual: 0 };
 }
 
-const fireStaff: GearItem = { id: 'fire', element: 'fire', summonWeight: 3 };
+const fireStaff = { fire: 3 };
 
 describe('Summon.rollElement', () => {
   it('без посоха базовые стихии выпадают равновероятно', () => {
     const rolls = [0, 0.24, 0.25, 0.5, 0.75, 0.99];
-    const summon = new Summon(cats, undefined, sequence(...rolls));
+    const summon = new Summon(cats, {}, sequence(...rolls));
 
     expect(rolls.map(() => summon.rollElement())).toEqual(['fire', 'fire', 'water', 'earth', 'air', 'air']);
   });
@@ -41,16 +40,9 @@ describe('Summon.rollElement', () => {
     expect(rolls.map(() => summon.rollElement())).toEqual(['fire', 'fire', 'water', 'earth', 'air']);
   });
 
-  it('посох без стихии не меняет шансы', () => {
+  it('вес гибрида в снаряжении не добавляет его в призыв', () => {
     const rolls = [0, 0.25, 0.5, 0.75];
-    const summon = new Summon(cats, { id: 'none' }, sequence(...rolls));
-
-    expect(rolls.map(() => summon.rollElement())).toEqual(['fire', 'water', 'earth', 'air']);
-  });
-
-  it('посох со стихией, но без веса, не меняет шансы', () => {
-    const rolls = [0, 0.25, 0.5, 0.75];
-    const summon = new Summon(cats, { id: 'fire', element: 'fire' }, sequence(...rolls));
+    const summon = new Summon(cats, { steam: 5 }, sequence(...rolls));
 
     expect(rolls.map(() => summon.rollElement())).toEqual(['fire', 'water', 'earth', 'air']);
   });
@@ -61,20 +53,20 @@ describe('Summon.pickFreeSlot', () => {
 
   it('выбирает только свободные клетки', () => {
     const rolls = [0, 0.49, 0.5, 0.99];
-    const summon = new Summon(cats, undefined, sequence(...rolls));
+    const summon = new Summon(cats, {}, sequence(...rolls));
 
     expect(rolls.map(() => summon.pickFreeSlot(board))).toEqual([1, 1, 3, 3]);
   });
 
   it('возвращает null, если поле занято', () => {
-    const summon = new Summon(cats, undefined, sequence(0));
+    const summon = new Summon(cats, {}, sequence(0));
 
     expect(summon.pickFreeSlot([cat(), cat()])).toBeNull();
     expect(summon.pickFreeSlot([])).toBeNull();
   });
 
   it('не выходит за границы, даже если генератор вернул 1', () => {
-    const summon = new Summon(cats, undefined, sequence(1));
+    const summon = new Summon(cats, {}, sequence(1));
 
     expect(summon.pickFreeSlot(board)).toBe(3);
   });
@@ -83,7 +75,7 @@ describe('Summon.pickFreeSlot', () => {
 describe('Summon.summon', () => {
   it('выдаёт кота 1-го уровня в строю для свободной клетки', () => {
     // Первое число — клетка, второе — стихия.
-    const summon = new Summon(cats, undefined, sequence(0.5, 0.25));
+    const summon = new Summon(cats, {}, sequence(0.5, 0.25));
 
     expect(summon.summon([cat(), null, cat(), null])).toEqual({
       slot: 3,
@@ -95,13 +87,13 @@ describe('Summon.summon', () => {
     const board = [null, cat(), null];
     const before = [...board];
 
-    new Summon(cats, undefined, sequence(0)).summon(board);
+    new Summon(cats, {}, sequence(0)).summon(board);
 
     expect(board).toEqual(before);
   });
 
   it('возвращает null, если поле занято', () => {
-    const summon = new Summon(cats, undefined, sequence(0));
+    const summon = new Summon(cats, {}, sequence(0));
 
     expect(summon.summon([cat(), cat()])).toBeNull();
   });

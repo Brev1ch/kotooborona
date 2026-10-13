@@ -1,4 +1,4 @@
-import type { CatsConfig, ElementId, GearItem } from '../data/types';
+import type { CatsConfig, ElementId } from '../data/types';
 import type { Cat } from '../entities/Cat';
 
 export interface SummonResult {
@@ -11,15 +11,18 @@ export class Summon {
   private readonly elements: ElementId[];
   private readonly weights: number[];
 
-  /** `rng` возвращает число в [0, 1); подменяется в тестах. */
+  /**
+   * `summonWeights` — веса стихий от снаряжения, у остальных вес 1.
+   * `rng` возвращает число в [0, 1); подменяется в тестах.
+   */
   constructor(
     cats: CatsConfig,
-    staff: GearItem | undefined,
+    summonWeights: Partial<Record<ElementId, number>> = {},
     private readonly rng: () => number = Math.random,
   ) {
     // Базовые стихии — те, что не получаются смешением.
     this.elements = (Object.keys(cats.elements) as ElementId[]).filter((id) => !cats.elements[id].from);
-    this.weights = this.elements.map((id) => (id === staff?.element ? (staff.summonWeight ?? 1) : 1));
+    this.weights = this.elements.map((id) => summonWeights[id] ?? 1);
   }
 
   rollElement(): ElementId {

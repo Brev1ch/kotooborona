@@ -92,11 +92,14 @@ export class UIScene extends Phaser.Scene {
     g.fillRect(0, 0, GAME_W, HUD_H);
     g.fillRect(0, CONTROLS_Y, GAME_W, CONTROLS_H);
 
-    const { startGold, startCrystals, startLives, waves } = this.level;
-    this.goldText = this.addStat(g, 0, 'hud.gold', String(startGold), TEXT_COLORS.brass);
-    this.crystalsText = this.addStat(g, 1, 'hud.crystals', String(startCrystals), TEXT_COLORS.crystal);
-    this.waveText = this.addStat(g, 2, 'hud.wave', t('hud.waveValue', { current: 0, total: waves }), TEXT_COLORS.fg);
-    this.livesText = this.addStat(g, 3, 'hud.lives', String(startLives), TEXT_COLORS.danger);
+    // Стартовые запасы берутся из боя, а не из уровня: снаряжение их меняет.
+    this.gameScene = this.scene.get(SceneKey.Game) as GameScene;
+    const { gold, crystals, lives, wave, totalWaves } = this.gameScene.hudState();
+    this.goldText = this.addStat(g, 0, 'hud.gold', String(gold), TEXT_COLORS.brass);
+    this.crystalsText = this.addStat(g, 1, 'hud.crystals', String(crystals), TEXT_COLORS.crystal);
+    const waveValue = t('hud.waveValue', { current: wave, total: totalWaves });
+    this.waveText = this.addStat(g, 2, 'hud.wave', waveValue, TEXT_COLORS.fg);
+    this.livesText = this.addStat(g, 3, 'hud.lives', String(lives), TEXT_COLORS.danger);
 
     this.announcedWave = 0;
     this.announce = this.add
@@ -111,7 +114,6 @@ export class UIScene extends Phaser.Scene {
     this.addSummonButton();
     this.addMeteorButton();
 
-    this.gameScene = this.scene.get(SceneKey.Game) as GameScene;
     this.gameScene.events.on(GameEvent.Changed, this.refresh, this);
     this.gameScene.events.on(GameEvent.Discovered, this.showDiscovered, this);
     this.gameScene.events.on(GameEvent.Finished, this.showResult, this);

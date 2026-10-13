@@ -1,4 +1,4 @@
-import type { GearConfig, GearItem } from '../data/types';
+import type { GearConfig } from '../data/types';
 import type { Blast } from './Combat';
 
 /** Умение героя: перезарядка, прицеливание и сила удара. */
@@ -8,14 +8,15 @@ export class Meteor {
   /** Игрок выбирает точку удара. */
   aiming = false;
 
+  /** `cooldownMult` — множитель перезарядки от снаряжения. */
   constructor(
     private readonly config: GearConfig['meteor'],
-    private readonly mantle?: GearItem,
+    private readonly cooldownMult = 1,
   ) {}
 
-  /** Полная перезарядка с учётом мантии. */
+  /** Полная перезарядка с учётом снаряжения. */
   get cooldown(): number {
-    return this.config.cooldown * (this.mantle?.meteorCooldownMult ?? 1);
+    return this.config.cooldown * this.cooldownMult;
   }
 
   get ready(): boolean {

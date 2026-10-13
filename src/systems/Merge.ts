@@ -42,6 +42,11 @@ export class Merge {
     }
   }
 
+  /** Полная длительность ритуала, секунды. */
+  get ritualTime(): number {
+    return this.rules.ritualTime;
+  }
+
   isHybrid(element: ElementId): boolean {
     return !!this.cats.elements[element].from;
   }

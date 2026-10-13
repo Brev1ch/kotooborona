@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { levels } from '../data';
 import type { LevelConfig } from '../data';
 import { Economy, starsFor } from './Economy';
+import { noBonuses } from './Loadout';
 
 // Числа зафиксированы здесь, чтобы тесты не зависели от правок баланса в JSON.
 const level: LevelConfig = { ...levels.levels[0], startGold: 25, startCrystals: 2, startLives: 10 };
@@ -97,6 +98,36 @@ describe('Economy', () => {
     economy.loseLives(5);
 
     expect(economy.lives).toBe(0);
+  });
+});
+
+describe('Economy: снаряжение', () => {
+  it('кошель и амулет кристаллов добавляют стартовые запасы', () => {
+    const economy = new Economy(level, summon, { ...noBonuses(), bonusGold: 20, bonusCrystals: 1 });
+
+    expect(economy.gold).toBe(45);
+    expect(economy.crystals).toBe(3);
+    expect(economy.lives).toBe(10);
+  });
+
+  it('скидка действует на каждый призыв и округляется вместе с ценой', () => {
+    const economy = new Economy({ ...level, startGold: 1000 }, summon, { ...noBonuses(), summonCostMult: 0.9 });
+    const costs: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      costs.push(economy.summonCost);
+      economy.paySummon();
+    }
+
+    // 10, 15, 22.5, 33.75 со скидкой 10%.
+    expect(costs).toEqual([9, 14, 20, 30]);
+    expect(economy.gold).toBe(1000 - 73);
+  });
+
+  it('со скидкой хватает монет, которых не хватило бы на полную цену', () => {
+    const economy = new Economy({ ...level, startGold: 9 }, summon, { ...noBonuses(), summonCostMult: 0.9 });
+
+    expect(economy.paySummon()).toBe(true);
+    expect(economy.gold).toBe(0);
   });
 });
 

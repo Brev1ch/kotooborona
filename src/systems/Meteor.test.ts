@@ -45,16 +45,22 @@ describe('Meteor: перезарядка', () => {
     expect(meteor.cast(1, 1)).not.toBeNull();
   });
 
-  it('мантия чародея сокращает перезарядку', () => {
-    const meteor = new Meteor(config, { id: 'sorc', meteorCooldownMult: 0.8 });
+  it('снаряжение сокращает перезарядку', () => {
+    const meteor = new Meteor(config, 0.8);
     meteor.cast(1, 1);
 
     expect(meteor.cooldown).toBe(16);
     expect(meteor.remaining).toBe(16);
   });
 
-  it('мантия без множителя перезарядку не меняет', () => {
-    expect(new Meteor(config, { id: 'thrift', summonCostMult: 0.9 }).cooldown).toBe(20);
+  it('с сокращённой перезарядкой умение готово раньше', () => {
+    const meteor = new Meteor(config, 0.8);
+    meteor.cast(1, 1);
+    meteor.update(8);
+    expect(meteor.progress).toBeCloseTo(0.5);
+
+    meteor.update(8);
+    expect(meteor.ready).toBe(true);
   });
 });
 
