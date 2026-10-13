@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { cats, gear, type GearItem, type GearSlot } from '../data';
 import { BUTTON_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
-import { COLORS, FONTS, GAME_W, GEAR, gearButtonCenter, TEXT_COLORS } from '../layout';
+import { COLORS, FONTS, GAME_W, GEAR, gearButtonCenter, MIN_TOUCH, TEXT_COLORS } from '../layout';
 import { progress } from '../progress';
 import { itemBonuses, type BonusLine } from '../systems/Loadout';
 import { GEAR_SLOTS } from '../systems/Progress';
@@ -74,12 +74,16 @@ export class GearScene extends Phaser.Scene {
       const label = this.add
         .text(0, 0, t(`gear.${slot}.${item.id}` as StringKey), { fontFamily: FONTS.body, fontSize: '14px' })
         .setOrigin(0.5);
-      const width = Math.ceil(label.width) + chipPadX * 2;
+      const width = Math.max(MIN_TOUCH, Math.ceil(label.width) + chipPadX * 2);
       if (x + width > GAME_W - pad) {
         x = pad;
         y += chipH + chipGap;
       }
-      const bg = this.add.rectangle(0, 0, width, chipH, COLORS.panel).setInteractive({ useHandCursor: true });
+      const bg = this.add
+        .rectangle(0, 0, width, chipH, COLORS.panel)
+        // По имени плашку находит смоук-проверка.
+        .setName(`gear:${slot}:${item.id}`)
+        .setInteractive({ useHandCursor: true });
       const chip = this.add.container(x + width / 2, y + chipH / 2, [bg, label]);
       chips.push({ id: item.id, bg, label });
       x += width + chipGap;

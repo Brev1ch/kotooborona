@@ -21,18 +21,21 @@ export function menuCardCenter(index: number): [number, number] {
   return [left + col * (cardW + gap) + cardW / 2, gridY + row * (cardH + gap) + cardH / 2];
 }
 
+/** Наименьший размер нажимаемого элемента по каждой стороне: меньше пальцем не попасть. */
+export const MIN_TOUCH = 44;
+
 // Экран снаряжения: заголовок, три слота с предметами-плашками, кнопки внизу.
 export const GEAR = {
   titleY: 56,
   subtitleY: 88,
-  listY: 126,
+  listY: 122,
   pad: 14,
   headH: 22,
-  chipH: 38,
+  chipH: MIN_TOUCH,
   chipGap: 8,
   chipPadX: 14,
   descH: 22,
-  blockGap: 18,
+  blockGap: 16,
   buttonY: 588,
   buttonH: 50,
   backW: 120,

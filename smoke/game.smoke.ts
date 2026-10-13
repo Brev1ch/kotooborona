@@ -1,7 +1,8 @@
 import { test, type Page } from '@playwright/test';
-import { CONTROLS_H, CONTROLS_Y, GAME_H, GAME_W, gearButtonCenter, menuCardCenter, SUMMON_X } from '../src/layout';
+import { CONTROLS_H, CONTROLS_Y, GAME_H, GAME_W, gearButtonCenter, menuCardCenter, MIN_TOUCH, SUMMON_X } from '../src/layout';
 import { SceneKey } from '../src/scenes/keys';
-import type { SmokeState } from '../src/smoke';
+import type { SmokeState, SmokeTarget } from '../src/smoke';
+import { GEAR_SLOTS } from '../src/systems/Progress';
 
 const SHOTS = 'screenshots';
 const CATS = 3;
@@ -12,6 +13,11 @@ const WAVE_TIMEOUT = 15_000;
 /** Пауза перед снимком: анимация появления кота, выход мышей на видимую часть дороги. */
 const SPAWN_SETTLE_MS = 400;
 const WAVE_SETTLE_MS = 1500;
+
+/** Отступ касания от угла внутрь элемента: проверяем, что нажимается вся видимая площадь. */
+const CORNER_INSET = 2;
+/** Анимация нажатия на время сжимает элемент — ждём, пока он вернётся к своему размеру. */
+const PRESS_SETTLE_MS = 250;
 
 const errors: string[] = [];
 
@@ -51,6 +57,32 @@ async function tap(page: Page, x: number, y: number): Promise<void> {
   await page.touchscreen.tap(box.x + (x / GAME_W) * box.width, box.y + (y / GAME_H) * box.height);
 }
 
+function targetText(target: SmokeTarget): string {
+  const { name, x, y, width, height } = target;
+  return `«${name || 'без имени'}» ${Math.round(width)}×${Math.round(height)} в точке (${Math.round(x)}, ${Math.round(y)})`;
+}
+
+/** Все нажимаемые элементы экрана должны быть не меньше MIN_TOUCH по обеим сторонам. */
+async function checkTouchSizes(page: Page, step: string): Promise<void> {
+  await page.waitForTimeout(PRESS_SETTLE_MS);
+  const targets = (await state(page))?.targets ?? [];
+  if (targets.length === 0) throw new Error(`На экране «${step}» нет ни одного нажимаемого элемента`);
+  // Полпикселя запаса на дробные координаты.
+  const small = targets.filter((target) => Math.min(target.width, target.height) < MIN_TOUCH - 0.5);
+  if (small.length === 0) return;
+  throw new Error(
+    `Нажимаемые элементы меньше ${MIN_TOUCH}×${MIN_TOUCH} (${step}):\n${small.map((s) => `  • ${targetText(s)}`).join('\n')}`,
+  );
+}
+
+/** Точка у самого угла элемента; `right` и `bottom` выбирают угол. */
+function corner(target: SmokeTarget, right: boolean, bottom: boolean): [number, number] {
+  return [
+    right ? target.x + target.width - CORNER_INSET : target.x + CORNER_INSET,
+    bottom ? target.y + target.height - CORNER_INSET : target.y + CORNER_INSET,
+  ];
+}
+
 function scenesText(s: SmokeState | null): string {
   if (!s) return 'зонд window.__smoke не появился — игра не запустилась';
   return `активные сцены: [${s.scenes.join(', ')}]`;
@@ -82,6 +114,7 @@ test('меню → первый уровень → снаряжение → тр
       (s) => `Игра не дошла до экрана «Меню» за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
     );
     await page.screenshot({ path: `${SHOTS}/01-menu.png` });
+    await checkTouchSizes(page, 'меню');
     checkConsole('меню');
   });
 
@@ -93,8 +126,49 @@ test('меню → первый уровень → снаряжение → тр
       (s) => s.scenes.includes(SceneKey.Gear),
       (s) => `После нажатия на первый уровень игра не дошла до экрана снаряжения за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
     );
-    await page.screenshot({ path: `${SHOTS}/02-gear.png` });
+    await checkTouchSizes(page, 'снаряжение');
     checkConsole('снаряжение');
+  });
+
+  for (const slot of GEAR_SLOTS) {
+    await test.step(`снаряжение: ${slot}`, async () => {
+      const before = await state(page);
+      const prefix = `gear:${slot}:`;
+      const chips = (before?.targets ?? []).filter((target) => target.name.startsWith(prefix));
+      if (chips.length < 2) throw new Error(`В слоте ${slot} плашек: ${chips.length}, выбирать не из чего`);
+
+      // Нажимаем у самых углов: ненадетый предмет, обратно надетый, затем последний в слоте.
+      const worn = chips.find((chip) => chip.name === prefix + before?.gear[slot]) ?? chips[0];
+      const other = chips.find((chip) => chip !== worn) ?? chips[1];
+      const last = chips[chips.length - 1] === worn ? other : chips[chips.length - 1];
+      const taps: [SmokeTarget, boolean, boolean][] = [
+        [other, false, false],
+        [worn, true, true],
+        [last, true, false],
+        [worn, false, true],
+        [last, false, false],
+      ];
+      for (const [chip, right, bottom] of taps) {
+        const id = chip.name.slice(prefix.length);
+        const [x, y] = corner(chip, right, bottom);
+        await tap(page, x, y);
+        await waitFor(
+          page,
+          SUMMON_TIMEOUT,
+          (s) => s.gear[slot] === id,
+          (s) =>
+            `Нажатие в точку (${Math.round(x)}, ${Math.round(y)}) у угла плашки ${targetText(chip)} не надело предмет: ` +
+            `в слоте ${slot} остался «${s?.gear[slot] ?? '?'}»`,
+        );
+        await page.waitForTimeout(PRESS_SETTLE_MS);
+      }
+      checkConsole(`снаряжение: ${slot}`);
+    });
+  }
+
+  await test.step('снаряжение выбрано', async () => {
+    await page.screenshot({ path: `${SHOTS}/02-gear.png` });
+    checkConsole('снаряжение выбрано');
   });
 
   await test.step('«В бой»', async () => {
@@ -106,6 +180,7 @@ test('меню → первый уровень → снаряжение → тр
       (s) => `После нажатия «В бой» игра не дошла до игрового поля за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
     );
     await page.screenshot({ path: `${SHOTS}/03-game.png` });
+    await checkTouchSizes(page, 'игровое поле');
     checkConsole('игровое поле');
   });
 
