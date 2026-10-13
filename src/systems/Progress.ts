@@ -1,5 +1,5 @@
 import type { CatsConfig, ElementId, EnemiesConfig, EnemyTypeId, GearConfig, GearSlot } from '../data/types';
-import type { ChestLoot } from './Chests';
+import type { ChestLoot, ChestSource, PendingChests } from './Chests';
 import { GEAR_SLOTS, gearKey } from './Gear';
 import { legacyItem, RARITIES, salvageShards, upgradePrice, type Item, type ItemBonus } from './Items';
 
@@ -36,6 +36,12 @@ export interface SaveData {
   chests: number;
   /** Враги, которых игрок уже побеждал: они открыты в бестиарии. В сохранении новее кода здесь могут быть и незнакомые типы. */
   bestiary: string[];
+  /** Уровни, за первое прохождение которых на три звезды сундук уже выдан. */
+  perfect: string[];
+  /** Заработанные, но ещё не открытые сундуки. */
+  pending: PendingChests;
+  /** Когда взят последний сундук за рекламу: время в миллисекундах; 0 — ещё не брали. */
+  adChestAt: number;
 }
 
 type RawSave = Record<string, unknown>;
@@ -56,7 +62,15 @@ const MIGRATIONS: readonly Migration[] = [
   (save) => ({ ...save, bestiary: enemiesMetBeforeBestiary(save.stars) }),
   // 4 → 5: появился инвентарь. Каждый предмет старого снаряжения становится предметом инвентаря с теми же бонусами, надетое остаётся надетым.
   ({ gear, owned, gearLevels, ...save }, rules) => ({ ...save, ...inventoryFromOldGear(rules, gear, owned, gearLevels) }),
+  // 5 → 6: сундук за первое прохождение уровня на три звезды, малые сундуки и сундук за рекламу. За уже пройденные на три звезды уровни сундуки выдаются сразу.
+  (save) => ({ ...save, ...chestsForPerfectLevels(save.stars) }),
 ];
+
+/** Сундуки за уровни, пройденные на три звезды до того, как за это стали давать сундук: по одному за каждый. */
+function chestsForPerfectLevels(stars: unknown): Pick<SaveData, 'perfect' | 'pending' | 'adChestAt'> {
+  const perfect = isRecord(stars) ? Object.keys(stars).filter((id) => typeof stars[id] === 'number' && (stars[id] as number) >= MAX_STARS) : [];
+  return { perfect, pending: { big: perfect.length, small: 0 }, adChestAt: 0 };
+}
 
 /**
  * Инвентарь из снаряжения версий 1–4: у игрока были предметы из списка (`owned`, ключи `слот:id`) с уровнями прокачки
@@ -143,7 +157,7 @@ export interface SaveStorage {
   save<T>(key: string, value: T): Promise<void>;
 }
 
-const KNOWN_FIELDS = ['version', 'stars', 'items', 'worn', 'shards', 'nextItem', 'book', 'sound', 'fish', 'chests', 'bestiary'];
+const KNOWN_FIELDS = ['version', 'stars', 'items', 'worn', 'shards', 'nextItem', 'book', 'sound', 'fish', 'chests', 'bestiary', 'perfect', 'pending', 'adChestAt'];
 
 function isRecord(value: unknown): value is RawSave {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -201,6 +215,9 @@ export function defaultSave(rules: SaveRules, version = MIGRATIONS.length + 1): 
     fish: 0,
     chests: 0,
     bestiary: [],
+    perfect: [],
+    pending: { big: 0, small: 0 },
+    adChestAt: 0,
   };
 }
 
@@ -278,6 +295,13 @@ export function parseSave(raw: unknown, rules: SaveRules, migrations: readonly M
     data.bestiary = [...new Set(newer ? types : types.filter((id) => id in rules.enemies.types))];
   }
 
+  if (Array.isArray(save.perfect)) data.perfect = [...new Set(save.perfect.filter((id): id is string => typeof id === 'string'))];
+  if (isRecord(save.pending)) {
+    const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0);
+    data.pending = { big: count(save.pending.big), small: count(save.pending.small) };
+  }
+  if (typeof save.adChestAt === 'number' && Number.isFinite(save.adChestAt)) data.adChestAt = Math.max(0, Math.floor(save.adChestAt));
+
   const extra: RawSave = {};
   if (newer) {
     for (const [field, value] of Object.entries(save)) {
@@ -314,11 +338,20 @@ export class Progress {
     return this.data.stars[levelId] ?? 0;
   }
 
-  /** Запоминает результат уровня, если он лучше прежнего. */
-  recordStars(levelId: string, stars: number): void {
-    if (stars <= this.stars(levelId)) return;
+  /**
+   * Запоминает результат уровня, если он лучше прежнего. Первое прохождение уровня на три звезды приносит сундук:
+   * он ждёт открытия в меню. Возвращает true, если сундук заработан этим прохождением.
+   */
+  recordStars(levelId: string, stars: number): boolean {
+    if (stars <= this.stars(levelId)) return false;
     this.data.stars[levelId] = Math.min(MAX_STARS, stars);
+    const perfect = stars >= MAX_STARS && !this.data.perfect.includes(levelId);
+    if (perfect) {
+      this.data.perfect.push(levelId);
+      this.data.pending.big++;
+    }
     this.touch();
+    return perfect;
   }
 
   /** Сумма лучших результатов по всем уровням: за неё открываются сундуки. */
@@ -412,12 +445,31 @@ export class Progress {
     return this.data.chests;
   }
 
+  /** Заработанные, но ещё не открытые сундуки: за три звезды и малые. */
+  get pendingChests(): Readonly<PendingChests> {
+    return this.data.pending;
+  }
+
+  /** После победы найден малый сундук: он ждёт открытия в меню. */
+  addSmallChest(): void {
+    this.data.pending.small++;
+    this.touch();
+  }
+
+  /** Когда взят последний сундук за рекламу, миллисекунды; 0 — ещё не брали. */
+  get adChestAt(): number {
+    return this.data.adChestAt;
+  }
+
   /**
-   * Забирает содержимое сундука: счёт открытых сундуков растёт, рыбки переходят игроку, предмет ложится в инвентарь.
+   * Забирает содержимое сундука: рыбки переходят игроку, предмет ложится в инвентарь. По источнику сундука (`source`)
+   * растёт счёт открытых сундуков за звёзды, убывает запас заработанных или запоминается время сундука за рекламу (`now`, мс).
    * Если инвентарь полон, предмет сразу разбирается на осколки. Возвращает, сколько осколков получено вместо предмета.
    */
-  claimChest(loot: ChestLoot): number {
-    this.data.chests++;
+  claimChest(loot: ChestLoot, source: ChestSource = 'stars', now = 0): number {
+    if (source === 'stars') this.data.chests++;
+    else if (source === 'ad') this.data.adChestAt = Math.max(0, Math.floor(now));
+    else this.data.pending[source] = Math.max(0, this.data.pending[source] - 1);
     this.data.fish += Math.max(0, Math.floor(loot.fish));
     let shards = 0;
     if (loot.item && !this.addItem(loot.item)) {
@@ -495,7 +547,7 @@ export class Progress {
     this.timer = null;
     if (!this.dirty) return;
     this.dirty = false;
-    const { version, stars, items, worn, shards, nextItem, book, sound, fish, chests, bestiary } = this.data;
+    const { version, stars, items, worn, shards, nextItem, book, sound, fish, chests, bestiary, perfect, pending, adChestAt } = this.data;
     const snapshot = {
       ...this.extra,
       version,
@@ -509,6 +561,9 @@ export class Progress {
       fish,
       chests,
       bestiary: [...bestiary],
+      perfect: [...perfect],
+      pending: { ...pending },
+      adChestAt,
     };
     // Не записалось — изменения уйдут со следующей записью.
     this.storage.save(SAVE_KEY, snapshot).catch(() => {

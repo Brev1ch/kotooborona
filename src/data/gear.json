@@ -1,7 +1,11 @@
 {
   "ritual": { "time": 4, "crystalCost": 1 },
   "meteor": { "cooldown": 25, "damage": 40, "damageGrowthPerWave": 1.32, "radius": 60, "burnDps": 0.1, "burnTime": 2 },
-  "chests": { "stars": [2, 5, 8, 11, 14, 18, 22, 26, 30], "fish": 15 },
+  "chests": {
+    "stars": [2, 5, 8, 11, 14, 18, 22, 26, 30],
+    "fish": 15,
+    "small": { "chance": 0.25, "fish": 5, "rarities": { "common": 0.8, "rare": 0.17, "epic": 0.03, "legendary": 0 } }
+  },
   "items": {
     "inventoryLimit": 30,
     "rarities": {

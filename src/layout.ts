@@ -16,10 +16,14 @@ export const MIN_TOUCH = 44;
 // Меню: рыбки, название игры, сундук и сетка уровней главы.
 export const MENU = {
   titleY: 68,
-  /** Полоса сундука между названием и уровнями. */
+  /** Полоса сундука между названием и уровнями; справа от неё — кнопка сундука за рекламу. */
   chestY: 120,
-  chestW: 332,
+  chestW: 216,
   chestH: MIN_TOUCH,
+  chestPad: 14,
+  adChestW: 108,
+  /** Пока сундук за рекламу отдыхает, в его плашке две строки: подпись и отсчёт; это сдвиг каждой от середины. */
+  adChestLine: 9,
   gridY: 152,
   cols: 2,
   cardW: 160,
@@ -38,7 +42,12 @@ export const MENU = {
 
 /** Центр полосы сундука в меню. */
 export function menuChestCenter(): [number, number] {
-  return [GAME_W / 2, MENU.chestY];
+  return [MENU.chestPad + MENU.chestW / 2, MENU.chestY];
+}
+
+/** Центр кнопки сундука за рекламу: справа от полосы сундука. */
+export function menuAdChestCenter(): [number, number] {
+  return [GAME_W - MENU.chestPad - MENU.adChestW / 2, MENU.chestY];
 }
 
 // Окно открытого сундука поверх меню: заголовок, предмет с редкостью и бонусами, рыбки, шансы редкостей, кнопка «Забрать».

@@ -1012,6 +1012,8 @@ export class UIScene extends Phaser.Scene {
     if (!result.won) return t('result.reached', { wave: result.wave, total: result.totalWaves });
     const lines = [result.livesLost === 0 ? t('result.noLosses') : t('result.livesLost', { lost: result.livesLost })];
     if (result.stars < MAX_STARS) lines.push(t('result.starsHint'));
+    if (result.perfectChest) lines.push(t('result.perfectChest'));
+    if (result.smallChest) lines.push(t('result.smallChest'));
     return lines.join('\n');
   }
 

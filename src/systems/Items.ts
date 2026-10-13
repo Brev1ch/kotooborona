@@ -35,11 +35,17 @@ function pick<T>(list: readonly T[], roll: number): T {
   return list[Math.min(Math.floor(roll * list.length), list.length - 1)];
 }
 
-/** Редкость по шансам из конфига. */
-export function rollRarity(config: ItemsConfig, rng: () => number): Rarity {
+/** Шансы редкостей обычного сундука: из правил редкостей. */
+export function rarityChances(config: ItemsConfig): Record<Rarity, number> {
+  const { common, rare, epic, legendary } = config.rarities;
+  return { common: common.chance, rare: rare.chance, epic: epic.chance, legendary: legendary.chance };
+}
+
+/** Редкость по шансам из конфига; `chances` — свои шансы (у малого сундука). */
+export function rollRarity(config: ItemsConfig, rng: () => number, chances: Record<Rarity, number> = rarityChances(config)): Rarity {
   let roll = rng();
   for (const rarity of RARITIES) {
-    roll -= config.rarities[rarity].chance;
+    roll -= chances[rarity];
     if (roll < 0) return rarity;
   }
   return RARITIES[0];

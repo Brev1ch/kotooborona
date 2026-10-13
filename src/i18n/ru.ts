@@ -30,6 +30,8 @@ export const ru = {
   'result.menu': 'В меню',
   'result.next': 'Дальше',
   'result.reward': 'Награда:',
+  'result.perfectChest': 'Сундук за три звезды!',
+  'result.smallChest': 'Найден малый сундук!',
 
   'ad.coins': '+{gold}',
   'ad.watch': 'за рекламу',
@@ -104,6 +106,10 @@ export const ru = {
 
   'chest.progress': 'Сундук — звёзд: {have} из {need}',
   'chest.open': 'Открыть сундук',
+  'chest.openSmall': 'Малый сундук',
+  'chest.count': '{label} ×{count}',
+  'chest.titleSmall': 'Малый сундук открыт!',
+  'chest.ad': 'Сундук',
   'chest.allOpened': 'Все сундуки открыты',
   'chest.title': 'Сундук открыт!',
   'chest.fish': '+{fish}',

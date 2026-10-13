@@ -1,4 +1,4 @@
-import { test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
   bestiaryBackCenter,
   bestiaryRowCenter,
@@ -18,6 +18,7 @@ import {
   menuBestiaryCenter,
   menuBookCenter,
   menuCardCenter,
+  menuAdChestCenter,
   menuChestCenter,
   menuSoundCenter,
   METEOR_X,
@@ -670,14 +671,23 @@ test('новый игрок: стартовое снаряжение → поб�
       (s) => s.scenes.includes(SceneKey.UI),
       (s) => `После «Пропустить» бой не начался: ${scenesText(s)}`,
     );
-    await page.evaluate(() => window.__smoke?.win());
+    // Победа без потерь — сундук за три звезды; малый сундук в проверке выпадает по заказу.
+    await page.evaluate(() => {
+      window.__smoke?.smallChest(true);
+      window.__smoke?.win();
+    });
     await waitFor(
       page,
       SCREEN_TIMEOUT,
       (s) => s.result === 'win',
       () => 'Не появился экран победы',
     );
+    await page.evaluate(() => window.__smoke?.smallChest(false));
     await page.waitForTimeout(RESULT_SETTLE_MS);
+    const won = await state(page);
+    expect(won?.pending, 'За первую победу на три звезды положен сундук, заказанный малый — тоже').toEqual({ big: 1, small: 1 });
+    await page.screenshot({ path: `${SHOTS}/${shot('new-win-chests')}` });
+    await checkTouchSizes(page, 'победа с сундуками');
     await tap(page, ...resultAdCenter());
     await page.waitForTimeout(PRESS_SETTLE_MS);
     await tap(page, ...resultButtonCenter('left'));
@@ -695,19 +705,65 @@ test('новый игрок: стартовое снаряжение → поб�
     await page.screenshot({ path: `${SHOTS}/${shot('new-chest-ready')}` });
     await checkTouchSizes(page, 'меню с сундуком');
 
+    // Ждут три сундука; открываются по одному: за три звезды, за сумму звёзд, малый.
     await tap(page, ...menuChestCenter());
     await waitFor(
       page,
       SUMMON_TIMEOUT,
-      (s) => s.chests === 1 && s.fish > (before?.fish ?? 0),
-      (s) => `Сундук не открылся: открыто ${s?.chests ?? '?'}, рыбок ${s?.fish ?? '?'}`,
+      (s) => s.pending.big === 0 && s.chests === 0 && s.bag.length === 1 && s.fish > (before?.fish ?? 0),
+      (s) => `Сундук за три звезды не открылся: ждёт ${s?.pending.big ?? '?'}, предметов ${s?.bag.length ?? '?'}, рыбок ${s?.fish ?? '?'}`,
     );
     await page.waitForTimeout(SPAWN_SETTLE_MS);
     await page.screenshot({ path: `${SHOTS}/${shot('new-chest-loot')}` });
     await checkTouchSizes(page, 'окно сундука');
-
     await tap(page, ...chestTakeCenter());
     await page.waitForTimeout(PRESS_SETTLE_MS);
+
+    await tap(page, ...menuChestCenter());
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.chests === 1 && s.bag.length === 2,
+      (s) => `Сундук за звёзды не открылся: открыто ${s?.chests ?? '?'}, предметов ${s?.bag.length ?? '?'}`,
+    );
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await tap(page, ...chestTakeCenter());
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${shot('new-chest-small-ready')}` });
+    await checkTouchSizes(page, 'меню с малым сундуком');
+
+    await tap(page, ...menuChestCenter());
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.pending.small === 0 && s.bag.length === 3,
+      (s) => `Малый сундук не открылся: ждёт ${s?.pending.small ?? '?'}, предметов ${s?.bag.length ?? '?'}`,
+    );
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${shot('new-chest-small-loot')}` });
+    await checkTouchSizes(page, 'окно малого сундука');
+    await tap(page, ...chestTakeCenter());
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+
+    // Сундук за рекламу: предмет сразу, на месте кнопки — отсчёт до следующего.
+    const noAd = await state(page);
+    expect(noAd?.adChestWait, 'Сундук за рекламу должен быть доступен сразу').toBe(0);
+    await tap(page, ...menuAdChestCenter());
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.adChestWait > 0 && s.bag.length === 4,
+      (s) => `Сундук за рекламу не открылся: ждать ${s?.adChestWait ?? '?'} с, предметов ${s?.bag.length ?? '?'}`,
+    );
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await tap(page, ...chestTakeCenter());
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${shot('new-chest-ad-wait')}` });
+    await checkTouchSizes(page, 'меню с отсчётом до сундука за рекламу');
+    // Пока идёт отсчёт, второй сундук за рекламу не взять.
+    await tap(page, ...menuAdChestCenter());
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    expect((await state(page))?.bag.length, 'Сундук за рекламу открылся раньше срока').toBe(4);
     // Окно закрыто: уровни снова нажимаются.
     await tap(page, ...menuCardCenter(0));
     await waitFor(
@@ -736,7 +792,7 @@ test('новый игрок: стартовое снаряжение → поб�
     await waitFor(
       page,
       SUMMON_TIMEOUT,
-      (s) => s.bag.length === 0 && s.shards > 0,
+      (s) => s.bag.length === before.bag.length - 1 && s.shards > 0,
       (s) => `Предмет из сундука не разобран: предметов ${s?.bag.length ?? '?'}, осколков ${s?.shards ?? '?'}`,
     );
 

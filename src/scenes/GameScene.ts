@@ -37,6 +37,7 @@ import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
 import { Meteor } from '../systems/Meteor';
 import { Pool } from '../systems/Pool';
 import { levelFish } from '../systems/Rewards';
+import { smallChestDrops } from '../systems/Chests';
 import { buildPath, positionAt, type Path } from '../systems/Path';
 import { random, restartRandom } from '../systems/Random';
 import { Summon } from '../systems/Summon';
@@ -82,6 +83,9 @@ interface RewardLabel {
 const REWARD_STYLE = { fontFamily: FONTS.display, fontSize: '13px' };
 /** Имя всплывающих надписей поля: наград и слов над врагами. Они живут меньше секунды и могут всплыть рядом, когда двое гибнут разом. */
 export const FLOAT_NAME = 'float';
+
+/** Удача после боя: бросок на малый сундук. Смоук-проверка подменяет его, чтобы сундук не зависел от случая. */
+export const luck: { smallChest: () => number } = { smallChest: random };
 const NOTE_STYLE = { fontFamily: FONTS.display, fontSize: '11px', stroke: TEXT_COLORS.dark, strokeThickness: 3 };
 
 interface Drag {
@@ -328,11 +332,15 @@ export class GameScene extends Phaser.Scene {
       wave: this.waves.wave,
       totalWaves: this.level.waves,
       fish: won ? levelFish(this.level.fish, stars, firstClear, levels.rewards) : 0,
+      perfectChest: false,
+      smallChest: false,
       canRevive: !won && this.secondChance.available,
       reviveLives: this.secondChance.lives,
     };
     if (won) {
-      progress.recordStars(this.level.id, stars);
+      result.perfectChest = progress.recordStars(this.level.id, stars);
+      result.smallChest = smallChestDrops(gear, luck.smallChest);
+      if (result.smallChest) progress.addSmallChest();
       progress.addFish(result.fish);
       progress.flush();
     }

@@ -1,16 +1,17 @@
 import type Phaser from 'phaser';
 import { audio } from './audio';
-import { cats, enemies, gear, levels, type ElementId, type EnemyTypeId, type GearSlot, type Rarity } from './data';
+import { ads, cats, enemies, gear, levels, type ElementId, type EnemyTypeId, type GearSlot, type Rarity } from './data';
 import type { Enemy } from './entities/Enemy';
 import { BOARD_Y, GAME_H, GAME_W } from './layout';
 import { debugEnemy, parade, stress } from './debug';
 import { progress } from './progress';
-import { FLOAT_NAME, type GameScene } from './scenes/GameScene';
+import { FLOAT_NAME, luck, type GameScene } from './scenes/GameScene';
 import type { GearScene } from './scenes/GearScene';
 import type { IntroScene } from './scenes/IntroScene';
 import type { StoryScene } from './scenes/StoryScene';
 import type { UIScene } from './scenes/UIScene';
 import { GameEvent, SceneKey, type HudState, type LevelSceneData, type StorySceneData } from './scenes/keys';
+import { adChestWait } from './systems/Chests';
 import { rollItem } from './systems/Items';
 import { seededRandom, seedRandom } from './systems/Random';
 
@@ -68,6 +69,10 @@ export interface SmokeState {
   fish: number;
   /** Сколько сундуков открыто. */
   chests: number;
+  /** Заработанные, но не открытые сундуки: за три звезды и малые. */
+  pending: { big: number; small: number };
+  /** Секунд до следующего сундука за рекламу; 0 — доступен. */
+  adChestWait: number;
 }
 
 /** Предмет игрока глазами проверки. */
@@ -118,6 +123,8 @@ export interface SmokeProbe {
   lose(): void;
   /** Заканчивает бой победой с теми жизнями, что есть. */
   win(): void;
+  /** Следующая победа приносит малый сундук (`true`) или не приносит; без вызова малые сундуки в проверке не выпадают. */
+  smallChest(drops: boolean): void;
   /** Стресс-проверка из src/debug.ts: поле гибридов и толпа врагов. */
   stress(): void;
   /** Ставит на дорогу живучего врага типа `type`, уже прошедшего `distance`. */
@@ -245,6 +252,8 @@ const ITEMS_SEED = 500;
 
 export function installSmokeProbe(game: Phaser.Game): void {
   seedRandom(SMOKE_SEED);
+  // Малый сундук в проверке не выпадает сам: его включает `smallChest`.
+  luck.smallChest = () => 1;
   const steps: number[] = [];
   let stepStart = 0;
   let enemiesPeak = 0;
@@ -359,6 +368,9 @@ export function installSmokeProbe(game: Phaser.Game): void {
     win() {
       (game.scene.getScene(SceneKey.Game) as GameScene).finish(true);
     },
+    smallChest(drops) {
+      luck.smallChest = () => (drops ? 0 : 1);
+    },
     frozen() {
       return game.isPaused;
     },
@@ -410,7 +422,7 @@ export function installSmokeProbe(game: Phaser.Game): void {
       const story = scenes.includes(SceneKey.Story)
         ? (game.scene.getScene(SceneKey.Story) as StoryScene).progressState()
         : null;
-      const common = { scenes, fading, targets, sound: audio.on, worn, bag, shards: progress.shards, story, fish: progress.fish, chests: progress.chestsOpened };
+      const common = { scenes, fading, targets, sound: audio.on, worn, bag, shards: progress.shards, story, fish: progress.fish, chests: progress.chestsOpened, pending: { ...progress.pendingChests }, adChestWait: adChestWait(progress.adChestAt, Date.now(), ads.chest.cooldown) };
 
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);

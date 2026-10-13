@@ -129,6 +129,10 @@ export interface LevelResult {
   totalWaves: number;
   /** Рыбки за победу, уже зачисленные игроку; 0 при поражении. */
   fish: number;
+  /** Этой победой заработан сундук за первое прохождение уровня на три звезды. */
+  perfectChest: boolean;
+  /** После победы найден малый сундук. */
+  smallChest: boolean;
   /** После поражения доступен «Второй шанс»; `reviveLives` — сколько жизней он вернёт. */
   canRevive: boolean;
   reviveLives: number;

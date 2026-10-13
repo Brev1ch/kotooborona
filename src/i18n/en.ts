@@ -32,6 +32,8 @@ export const en: Record<StringKey, string> = {
   'result.menu': 'Menu',
   'result.next': 'Next',
   'result.reward': 'Reward:',
+  'result.perfectChest': 'A chest for three stars!',
+  'result.smallChest': 'Small chest found!',
 
   'ad.coins': '+{gold}',
   'ad.watch': 'watch ad',
@@ -106,6 +108,10 @@ export const en: Record<StringKey, string> = {
 
   'chest.progress': 'Chest — stars: {have} of {need}',
   'chest.open': 'Open chest',
+  'chest.openSmall': 'Small chest',
+  'chest.count': '{label} ×{count}',
+  'chest.titleSmall': 'Small chest opened!',
+  'chest.ad': 'Chest',
   'chest.allOpened': 'All chests opened',
   'chest.title': 'Chest opened!',
   'chest.fish': '+{fish}',

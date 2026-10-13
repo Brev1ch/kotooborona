@@ -49,6 +49,9 @@ const defaults = {
   fish: 0,
   chests: 0,
   bestiary: [] as string[],
+  perfect: [] as string[],
+  pending: { big: 0, small: 0 },
+  adChestAt: 0,
 };
 
 /** Предмет инвентаря для тестов. */
@@ -100,6 +103,9 @@ describe('parseSave: чтение сохранения', () => {
       fish: 9,
       chests: 3,
       bestiary: ['mouse', 'boots'],
+      perfect: ['opushka'],
+      pending: { big: 1, small: 2 },
+      adChestAt: 1700000000000,
     };
 
     expect(parseSave(raw, rules)).toEqual({ data: raw, extra: {}, foreignItems: [] });
@@ -271,7 +277,7 @@ describe('parseSave: настоящие миграции с версии 1', () 
     progress.flush();
 
     expect(saves).toEqual([
-      { ...defaults, ...{ stars: v1.stars, book: v1.book, sound: false }, fish: 5, items: ALL, worn: { staff: 'i4', mantle: 'i5', amulet: 'i6' }, nextItem: 7, bestiary: ['mouse', 'rat', 'boss'] },
+      { ...defaults, ...{ stars: v1.stars, book: v1.book, sound: false }, fish: 5, items: ALL, worn: { staff: 'i4', mantle: 'i5', amulet: 'i6' }, nextItem: 7, bestiary: ['mouse', 'rat', 'boss'], perfect: ['opushka'], pending: { big: 1, small: 0 } },
     ]);
     expect(Object.keys(saves[0] as object)).not.toEqual(expect.arrayContaining(['gear', 'owned', 'gearLevels']));
   });
@@ -607,6 +613,146 @@ describe('Progress: сундуки', () => {
   });
 });
 
+describe('Progress: сундук за три звезды, малый сундук, сундук за рекламу', () => {
+  it('первое прохождение уровня на три звезды приносит один сундук', () => {
+    const progress = new Progress(memoryStorage().storage, rules);
+
+    expect(progress.recordStars('opushka', 2)).toBe(false);
+    expect(progress.pendingChests).toEqual({ big: 0, small: 0 });
+    expect(progress.recordStars('opushka', 3)).toBe(true);
+    expect(progress.pendingChests).toEqual({ big: 1, small: 0 });
+  });
+
+  it('повторное прохождение на три звезды сундука не даёт', () => {
+    const progress = new Progress(memoryStorage().storage, rules);
+    progress.recordStars('opushka', 3);
+
+    expect(progress.recordStars('opushka', 3)).toBe(false);
+    expect(progress.pendingChests.big).toBe(1);
+  });
+
+  it('у каждого уровня свой сундук', () => {
+    const progress = new Progress(memoryStorage().storage, rules);
+    progress.recordStars('opushka', 3);
+    progress.recordStars('tropinka', 3);
+
+    expect(progress.pendingChests.big).toBe(2);
+  });
+
+  it('уровень, за который сундук уже выдан, второго не даёт, даже если звёзды в сохранении пропали', async () => {
+    const { progress } = await loaded({ version: V, stars: {}, perfect: ['opushka'] });
+
+    expect(progress.recordStars('opushka', 3)).toBe(false);
+    expect(progress.pendingChests.big).toBe(0);
+  });
+
+  it('открытый сундук за три звезды убывает из запаса, счёт сундуков за звёзды не растёт', () => {
+    const progress = new Progress(memoryStorage().storage, rules);
+    progress.recordStars('opushka', 3);
+
+    progress.claimChest({ item: item('i4'), fish: 15 }, 'big');
+
+    expect(progress.pendingChests.big).toBe(0);
+    expect(progress.chestsOpened).toBe(0);
+    expect(progress.fish).toBe(15);
+    expect(progress.item('i4')).not.toBeNull();
+  });
+
+  it('малый сундук копится и открывается по одному', () => {
+    const progress = new Progress(memoryStorage().storage, rules);
+    progress.addSmallChest();
+    progress.addSmallChest();
+
+    progress.claimChest({ item: null, fish: 5 }, 'small');
+
+    expect(progress.pendingChests).toEqual({ big: 0, small: 1 });
+    expect(progress.chestsOpened).toBe(0);
+  });
+
+  it('запас сундуков не уходит ниже нуля', () => {
+    const progress = new Progress(memoryStorage().storage, rules);
+
+    progress.claimChest({ item: null, fish: 5 }, 'small');
+
+    expect(progress.pendingChests.small).toBe(0);
+  });
+
+  it('сундук за рекламу запоминает время и других счётчиков не трогает', () => {
+    const progress = new Progress(memoryStorage().storage, rules);
+    progress.recordStars('opushka', 3);
+
+    progress.claimChest({ item: item('i4'), fish: 15 }, 'ad', 1700000000123.7);
+
+    expect(progress.adChestAt).toBe(1700000000123);
+    expect(progress.pendingChests.big).toBe(1);
+    expect(progress.chestsOpened).toBe(0);
+  });
+
+  it('запас сундуков и время рекламного сундука уходят в сохранение и читаются обратно', async () => {
+    const { storage, saves } = memoryStorage();
+    const progress = new Progress(storage, rules);
+    progress.recordStars('opushka', 3);
+    progress.addSmallChest();
+    progress.claimChest({ item: null, fish: 0 }, 'ad', 5000);
+    progress.flush();
+
+    const { data } = parseSave(saves[0], rules);
+
+    expect(data).toMatchObject({ perfect: ['opushka'], pending: { big: 1, small: 1 }, adChestAt: 5000 });
+  });
+});
+
+describe('parseSave: версия 5 → 6, сундуки за три звезды задним числом', () => {
+  const v5 = (stars: unknown) => ({ version: 5, stars, items: STARTER, worn: defaults.worn, shards: 3, nextItem: 4, book: [], sound: true, fish: 30, chests: 2, bestiary: ['mouse'] });
+
+  it('за каждый уровень, уже пройденный на три звезды, выдаётся сундук', () => {
+    const { data } = parseSave(v5({ opushka: 3, tropinka: 2, ruchey: 3 }), rules);
+
+    expect(data.perfect).toEqual(['opushka', 'ruchey']);
+    expect(data.pending).toEqual({ big: 2, small: 0 });
+    expect(data.adChestAt).toBe(0);
+  });
+
+  it('остальное сохранение не меняется', () => {
+    const { data } = parseSave(v5({ opushka: 3 }), rules);
+
+    expect(data).toEqual({ ...defaults, stars: { opushka: 3 }, shards: 3, fish: 30, chests: 2, bestiary: ['mouse'], perfect: ['opushka'], pending: { big: 1, small: 0 } });
+  });
+
+  it('без уровней на три звезды сундуков нет', () => {
+    expect(parseSave(v5({ opushka: 2 }), rules).data).toMatchObject({ perfect: [], pending: { big: 0, small: 0 } });
+    expect(parseSave(v5('мусор'), rules).data).toMatchObject({ perfect: [], pending: { big: 0, small: 0 } });
+  });
+
+  it('после переноса эти уровни второго сундука не дают', async () => {
+    const { progress } = await loaded(v5({ opushka: 3, tropinka: 2 }));
+
+    expect(progress.recordStars('opushka', 3)).toBe(false);
+    expect(progress.recordStars('tropinka', 3)).toBe(true);
+    expect(progress.pendingChests.big).toBe(2);
+  });
+
+  it('сохранение версии 1 доходит до сундуков через все миграции', () => {
+    const { data } = parseSave({ version: 1, stars: { opushka: 3, tropinka: 3 }, gear: {}, book: [], sound: true }, rules);
+
+    expect(data.pending.big).toBe(2);
+  });
+
+  it.each([[{ big: -2, small: 1.9 }, { big: 0, small: 1 }], [{ big: 'много' }, { big: 0, small: 0 }], ['мусор', { big: 0, small: 0 }]])(
+    'мусор в запасе сундуков %j не ломает сохранение',
+    (pending, expected) => {
+      expect(parseSave({ version: V, pending }, rules).data.pending).toEqual(expected);
+    },
+  );
+
+  it('мусор во времени рекламного сундука и в списке уровней отбрасывается', () => {
+    const { data } = parseSave({ version: V, adChestAt: -5, perfect: ['opushka', 7, 'opushka'] }, rules);
+
+    expect(data.adChestAt).toBe(0);
+    expect(data.perfect).toEqual(['opushka']);
+  });
+});
+
 describe('parseSave: сохранение новее кода', () => {
   const mythic = { id: 'i9', slot: 'staff', rarity: 'mythic', bonuses: [{ kind: 'luck', value: 3 }], level: 2 };
   const raw = {
@@ -751,7 +897,7 @@ describe('Progress: запись', () => {
     vi.advanceTimersByTime(5000);
 
     expect(saves).toEqual([
-      { ...defaults, stars: { opushka: 3 }, items: [...STARTER, item('i4')], worn: { ...defaults.worn, amulet: 'i4' }, nextItem: 5, book: ['steam'] },
+      { ...defaults, stars: { opushka: 3 }, items: [...STARTER, item('i4')], worn: { ...defaults.worn, amulet: 'i4' }, nextItem: 5, book: ['steam'], perfect: ['opushka'], pending: { big: 1, small: 0 } },
     ]);
   });
 
@@ -838,6 +984,8 @@ describe('Progress: запись', () => {
         nextItem: 10,
         book: ['dragon', 'steam'],
         fish: 7,
+        perfect: ['opushka'],
+        pending: { big: 1, small: 0 },
         guild: 120,
         pets: [{ id: 'owl' }],
       },

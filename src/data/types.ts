@@ -266,8 +266,11 @@ export interface GearConfig extends Record<GearSlot, GearItem[]> {
     burnDps: number;
     burnTime: number;
   };
-  /** Сундуки: сколько всего звёзд нужно для каждого по порядку и сколько рыбок лежит в сундуке вместе с предметом. */
-  chests: { stars: number[]; fish: number };
+  /**
+   * Сундуки: сколько всего звёзд нужно для каждого по порядку и сколько рыбок лежит в сундуке вместе с предметом.
+   * `small` — малый сундук: шанс найти его за победу, рыбки в нём и свои шансы редкости предмета.
+   */
+  chests: { stars: number[]; fish: number; small: { chance: number; fish: number; rarities: Record<Rarity, number> } };
   /**
    * Списки `staff`, `mantle`, `amulet` — снаряжение до инвентаря: по ним старые сохранения переводятся в предметы.
    * `defaults` — три предмета из этих списков, с которыми начинает новый игрок.
@@ -323,6 +326,8 @@ export interface AdsConfig {
   doubleReward: { mult: number };
   /** Полноэкранная реклама между уровнями: наименьший промежуток между показами, секунды. */
   interstitial: { minInterval: number };
+  /** Сундук за наградной ролик в меню: пауза до следующего, секунды настоящего времени. */
+  chest: { cooldown: number };
 }
 
 export type StorySpeaker = 'archmage' | 'king' | 'mouse';
