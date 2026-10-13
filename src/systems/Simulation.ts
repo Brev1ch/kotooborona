@@ -1,4 +1,4 @@
-import type { CatsConfig, EnemiesConfig, GearConfig, LevelConfig, LevelsConfig, Point } from '../data/types';
+import type { CatsConfig, EconomyConfig, EnemiesConfig, GearConfig, LevelConfig, LevelsConfig, Point } from '../data/types';
 import type { Cat } from '../entities/Cat';
 import type { Enemy } from '../entities/Enemy';
 import { catRange, Combat, type CombatEvent } from './Combat';
@@ -14,6 +14,7 @@ import { Waves } from './Waves';
 export interface BattleConfigs {
   cats: CatsConfig;
   enemies: EnemiesConfig;
+  economy: EconomyConfig;
   gear: GearConfig;
   levels: LevelsConfig;
   /** Размер игрового поля: врагов за его краем коты не видят. */
@@ -67,11 +68,11 @@ export class Simulation {
     rng: () => number = Math.random,
     bonuses: GearBonuses = gearBonuses(configs.gear, configs.gear.defaults),
   ) {
-    const { cats, enemies, gear, levels, board } = configs;
+    const { cats, enemies, economy, gear, levels, board } = configs;
     const half = levels.slotSize / 2;
     this.slots = level.slots.map(([x, y]) => [x + half, y + half]);
     this.path = buildPath(level.path);
-    this.economy = new Economy(level, gear.summon, bonuses);
+    this.economy = new Economy(level, economy, bonuses);
     this.summoner = new Summon(cats, bonuses.summonWeights, rng);
     this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult);
     this.merger = new Merge(cats, {
@@ -104,7 +105,9 @@ export class Simulation {
     for (const cat of this.board) {
       if (cat) this.merger.advanceRitual(cat, dt);
     }
+    const wave = this.waves.wave;
     for (const enemy of this.waves.update(dt, this.combat.enemies.length === 0)) this.combat.add(enemy);
+    if (this.waves.wave !== wave) this.economy.startWave();
     this.apply(this.combat.update(dt, this.board));
 
     if (this.economy.lives <= 0 || this.time >= TIME_LIMIT) this.outcome = false;

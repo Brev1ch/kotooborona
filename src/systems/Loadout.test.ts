@@ -6,15 +6,15 @@ import { gearBonuses, itemBonuses, noBonuses } from './Loadout';
 const config = {
   staff: [{ id: 'none' }, { id: 'fire', element: 'fire', summonWeight: 1.5 }, { id: 'dull', element: 'water' }],
   mantle: [
-    { id: 'thrift', summonCostMult: 0.9 },
+    { id: 'thrift', overLimitCostMult: 0.9 },
     { id: 'sorc', meteorCooldownMult: 0.8 },
-    { id: 'ember', element: 'fire', summonWeight: 2, summonCostMult: 0.5 },
+    { id: 'ember', element: 'fire', summonWeight: 2, overLimitCostMult: 0.5 },
   ],
   amulet: [
     { id: 'alch', ritualTimeMult: 0.7 },
     { id: 'cry', bonusCrystals: 1 },
     { id: 'purse', bonusGold: 20 },
-    { id: 'hoard', bonusGold: 5, bonusCrystals: 2, summonCostMult: 0.8 },
+    { id: 'hoard', bonusGold: 5, bonusCrystals: 2, overLimitCostMult: 0.8 },
   ],
 } as unknown as GearConfig;
 
@@ -38,7 +38,7 @@ describe('gearBonuses', () => {
   it('мантия бережливости удешевляет призыв', () => {
     const bonuses = gearBonuses(config, { staff: 'none', mantle: 'thrift', amulet: 'x' });
 
-    expect(bonuses).toEqual({ ...noBonuses(), summonCostMult: 0.9 });
+    expect(bonuses).toEqual({ ...noBonuses(), overLimitCostMult: 0.9 });
   });
 
   it('мантия чародея ускоряет перезарядку метеора', () => {
@@ -71,7 +71,7 @@ describe('gearBonuses', () => {
     const bonuses = gearBonuses(config, { staff: 'fire', mantle: 'ember', amulet: 'hoard' });
 
     expect(bonuses.summonWeights).toEqual({ fire: 3 });
-    expect(bonuses.summonCostMult).toBeCloseTo(0.4);
+    expect(bonuses.overLimitCostMult).toBeCloseTo(0.4);
     expect(bonuses.bonusGold).toBe(5);
     expect(bonuses.bonusCrystals).toBe(2);
   });
@@ -111,7 +111,7 @@ describe('itemBonuses', () => {
   });
 
   it('множители переводит в проценты выгоды', () => {
-    expect(itemBonuses({ id: 'thrift', summonCostMult: 0.9 }, cats)).toEqual([{ kind: 'summonCost', percent: 10 }]);
+    expect(itemBonuses({ id: 'thrift', overLimitCostMult: 0.9 }, cats)).toEqual([{ kind: 'overLimitCost', percent: 10 }]);
     expect(itemBonuses({ id: 'sorc', meteorCooldownMult: 0.8 }, cats)).toEqual([
       { kind: 'meteorCooldown', percent: 20 },
     ]);
@@ -124,8 +124,8 @@ describe('itemBonuses', () => {
   });
 
   it('у предмета с несколькими бонусами перечисляет все', () => {
-    expect(itemBonuses({ id: 'hoard', bonusGold: 5, bonusCrystals: 2, summonCostMult: 0.8 }, cats)).toEqual([
-      { kind: 'summonCost', percent: 20 },
+    expect(itemBonuses({ id: 'hoard', bonusGold: 5, bonusCrystals: 2, overLimitCostMult: 0.8 }, cats)).toEqual([
+      { kind: 'overLimitCost', percent: 20 },
       { kind: 'crystals', count: 2 },
       { kind: 'gold', count: 5 },
     ]);
@@ -135,7 +135,7 @@ describe('itemBonuses', () => {
 describe('gearBonuses: прокачка', () => {
   const leveled = {
     staff: [{ id: 'fire', element: 'fire', summonWeight: 1.5, upgrades: [{ summonWeight: 2 }, { summonWeight: 3 }] }],
-    mantle: [{ id: 'thrift', summonCostMult: 0.9, upgrades: [{ summonCostMult: 0.8 }] }],
+    mantle: [{ id: 'thrift', overLimitCostMult: 0.9, upgrades: [{ overLimitCostMult: 0.8 }] }],
     amulet: [{ id: 'purse', bonusGold: 20, upgrades: [{ bonusGold: 30 }] }],
   } as unknown as GearConfig;
   const worn = { staff: 'fire', mantle: 'thrift', amulet: 'purse' };
@@ -144,7 +144,7 @@ describe('gearBonuses: прокачка', () => {
     const bonuses = gearBonuses(leveled, worn);
 
     expect(bonuses.summonWeights).toEqual({ fire: 1.5 });
-    expect(bonuses.summonCostMult).toBe(0.9);
+    expect(bonuses.overLimitCostMult).toBe(0.9);
     expect(bonuses.bonusGold).toBe(20);
   });
 
@@ -153,7 +153,7 @@ describe('gearBonuses: прокачка', () => {
     const bonuses = gearBonuses(leveled, worn, (slot, id) => levels[`${slot}:${id}`]);
 
     expect(bonuses.summonWeights).toEqual({ fire: 3 });
-    expect(bonuses.summonCostMult).toBe(0.8);
+    expect(bonuses.overLimitCostMult).toBe(0.8);
     expect(bonuses.bonusGold).toBe(20);
   });
 });

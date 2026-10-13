@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { cats, enemies, gear, levels } from '../data';
+import { cats, economy, enemies, gear, levels } from '../data';
 import type { LevelConfig } from '../data';
 import { Bot, DEFAULT_BOT, playLevel, reportLevel } from './Bot';
 import { noBonuses } from './Loadout';
 import { seededRandom } from './Random';
 import { Simulation, type BattleConfigs } from './Simulation';
 
-const configs: BattleConfigs = { cats, enemies, gear, levels, board: { width: 360, height: 540 } };
+const configs: BattleConfigs = { cats, enemies, economy, gear, levels, board: { width: 360, height: 540 } };
 const first = levels.levels[0];
 const DT = DEFAULT_BOT.dt;
 
@@ -24,7 +24,7 @@ function run(sim: Simulation, bot: Bot, seconds: number): void {
 
 describe('Bot: стратегия', () => {
   it('призывает котов, пока хватает монет, по одному действию за раз', () => {
-    const { sim, bot } = create({ startGold: 30 });
+    const { sim, bot } = create({ startGold: 25 });
     bot.update(DT);
     expect(sim.result().summons).toBe(1);
 
@@ -32,7 +32,7 @@ describe('Bot: стратегия', () => {
     bot.update(DT);
     expect(sim.result().summons).toBe(1);
     run(sim, bot, 1.5);
-    // 10 + 11 = 21 монета на двух котов; на третьего (13) не хватает.
+    // Два кота по 10 монет; на третьего не хватает.
     expect(sim.result().summons).toBe(2);
   });
 

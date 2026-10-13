@@ -6,7 +6,8 @@ import type { GearSelection } from './Progress';
 export interface GearBonuses {
   /** Вес стихии при призыве; у стихий, которых здесь нет, вес 1. */
   summonWeights: Partial<Record<ElementId, number>>;
-  summonCostMult: number;
+  /** Множитель цены призыва сверх лимита волны. */
+  overLimitCostMult: number;
   meteorCooldownMult: number;
   ritualTimeMult: number;
   /** Кристаллы и монеты сверх стартовых запасов уровня. */
@@ -18,7 +19,7 @@ export interface GearBonuses {
 export function noBonuses(): GearBonuses {
   return {
     summonWeights: {},
-    summonCostMult: 1,
+    overLimitCostMult: 1,
     meteorCooldownMult: 1,
     ritualTimeMult: 1,
     bonusCrystals: 0,
@@ -45,7 +46,7 @@ export function gearBonuses(
     if (item.element && item.summonWeight !== undefined) {
       bonuses.summonWeights[item.element] = (bonuses.summonWeights[item.element] ?? 1) * item.summonWeight;
     }
-    bonuses.summonCostMult *= item.summonCostMult ?? 1;
+    bonuses.overLimitCostMult *= item.overLimitCostMult ?? 1;
     bonuses.meteorCooldownMult *= item.meteorCooldownMult ?? 1;
     bonuses.ritualTimeMult *= item.ritualTimeMult ?? 1;
     bonuses.bonusCrystals += item.bonusCrystals ?? 0;
@@ -58,8 +59,8 @@ export function gearBonuses(
 export type BonusLine =
   /** Шанс призвать кота стихии с этим предметом и без него. */
   | { kind: 'summonChance'; element: ElementId; chance: number; base: number }
-  /** На сколько процентов дешевле призыв. */
-  | { kind: 'summonCost'; percent: number }
+  /** На сколько процентов дешевле призыв сверх лимита волны. */
+  | { kind: 'overLimitCost'; percent: number }
   /** На сколько процентов короче перезарядка метеора. */
   | { kind: 'meteorCooldown'; percent: number }
   /** На сколько процентов короче ритуал. */
@@ -84,7 +85,9 @@ export function itemBonuses(item: GearItem, cats: CatsConfig): BonusLine[] {
       base: Math.round(100 / (others + 1)),
     });
   }
-  if (item.summonCostMult !== undefined) lines.push({ kind: 'summonCost', percent: percentOff(item.summonCostMult) });
+  if (item.overLimitCostMult !== undefined) {
+    lines.push({ kind: 'overLimitCost', percent: percentOff(item.overLimitCostMult) });
+  }
   if (item.meteorCooldownMult !== undefined) {
     lines.push({ kind: 'meteorCooldown', percent: percentOff(item.meteorCooldownMult) });
   }

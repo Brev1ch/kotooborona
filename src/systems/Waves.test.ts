@@ -30,8 +30,6 @@ const enemies: EnemiesConfig = {
   ...enemiesJson,
   baseHp: 10,
   hpGrowthPerWave: 2,
-  speedPerWave: 1,
-  bonusGoldEveryWaves: 2,
   types: {
     mouse: { ...type, hp: 1, speed: 44, gold: 2, shield: 0 },
     rat: { ...type, hp: 3, speed: 32, gold: 5, shield: 0 },
@@ -172,11 +170,11 @@ describe('Waves: объявление следующей волны', () => {
 });
 
 describe('Waves: враги', () => {
-  it('мышь первой волны: HP, скорость и монеты по формулам', () => {
+  it('мышь первой волны: HP по формуле, скорость и монеты — из типа', () => {
     const [mouse] = nextWave(create());
 
-    // HP: 10 × 2^0 × hpMult 2 × 1; скорость: 44 + 1 за волну; монеты: 2 + ⌊1/2⌋.
-    expect(mouse).toMatchObject({ type: 'mouse', distance: 0, hp: 20, maxHp: 20, speed: 45, gold: 2, shield: 0 });
+    // HP: 10 × 2^0 × hpMult 2 × 1.
+    expect(mouse).toMatchObject({ type: 'mouse', distance: 0, hp: 20, maxHp: 20, speed: 44, gold: 2, shield: 0 });
   });
 
   it('враг появляется без замедления, огня и яда', () => {
@@ -185,13 +183,13 @@ describe('Waves: враги', () => {
     expect(mouse).toMatchObject({ slowFactor: 1, slowTime: 0, burnDps: 0, burnTime: 0, poisonDps: 0, poisonTime: 0 });
   });
 
-  it('с каждой волной враги крепче, быстрее и дороже', () => {
+  it('с каждой волной враги крепче, но не быстрее и не дороже', () => {
     const waves = create();
     skipWaves(waves, 2);
     const [mouse] = nextWave(waves);
 
-    // HP: 10 × 2^2 × 2; скорость: 44 + 3; монеты: 2 + ⌊3/2⌋.
-    expect(mouse).toMatchObject({ hp: 80, maxHp: 80, speed: 47, gold: 3 });
+    // HP: 10 × 2^2 × 2.
+    expect(mouse).toMatchObject({ hp: 80, maxHp: 80, speed: 44, gold: 2 });
   });
 
   it('крысы появляются только с заданной волны', () => {
@@ -206,8 +204,8 @@ describe('Waves: враги', () => {
     skipWaves(waves, 1);
     const [rat] = nextWave(waves);
 
-    // HP: 10 × 2^1 × 2 × 3; монеты: 5 + ⌊2/2⌋.
-    expect(rat).toMatchObject({ type: 'rat', hp: 120, speed: 34, gold: 6 });
+    // HP: 10 × 2^1 × 2 × 3.
+    expect(rat).toMatchObject({ type: 'rat', hp: 120, speed: 32, gold: 5 });
   });
 
   it('щитоносцы появляются только с заданной волны и несут щит', () => {
@@ -248,9 +246,9 @@ describe('Waves: враги', () => {
     skipWaves(waves, 3);
     const bosses = nextWave(waves);
 
-    // HP: 10 × 2^3 × 2 × 14; монеты: 30 + ⌊4/2⌋.
+    // HP: 10 × 2^3 × 2 × 14.
     expect(bosses.map((enemy) => enemy.type)).toEqual(['boss', 'boss', 'boss']);
-    expect(bosses[0]).toMatchObject({ hp: 2240, speed: 30, gold: 32 });
+    expect(bosses[0]).toMatchObject({ hp: 2240, speed: 26, gold: 30 });
   });
 });
 
@@ -286,7 +284,7 @@ describe('Waves: Крысиный король', () => {
     // База 10 × рост 2² × живучесть уровня 2 = 80; у короля ×50, у мыши ×1.
     expect(king.hp).toBe(4000);
     expect(king.summon).toMatchObject({ timer: 6, interval: 6, count: 2, spread: 14 });
-    expect(king.summon?.minion).toMatchObject({ type: 'mouse', hp: 80, speed: 47, distance: 0 });
+    expect(king.summon?.minion).toMatchObject({ type: 'mouse', hp: 80, speed: 44, distance: 0 });
     expect(king.summon?.minion.summon).toBeUndefined();
   });
 

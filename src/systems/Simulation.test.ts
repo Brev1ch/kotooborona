@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { cats, enemies, gear, levels } from '../data';
+import { cats, economy, enemies, gear, levels } from '../data';
 import type { LevelConfig } from '../data';
 import { noBonuses } from './Loadout';
 import { seededRandom } from './Random';
 import { Simulation, type BattleConfigs } from './Simulation';
 
-const configs: BattleConfigs = { cats, enemies, gear, levels, board: { width: 360, height: 540 } };
+const configs: BattleConfigs = { cats, enemies, economy, gear, levels, board: { width: 360, height: 540 } };
 // Короткий уровень с фиксированными числами: две волны мышей, много монет и кристаллов.
 const level: LevelConfig = {
   ...levels.levels[0],
@@ -52,6 +52,21 @@ describe('Simulation: действия игрока', () => {
     expect(sim.summon()).toBe(true);
     expect(sim.board.filter((cat) => cat !== null)).toHaveLength(1);
     expect(sim.economy.gold).toBe(490);
+  });
+
+  it('сверх лимита волны призыв дороже, с началом волны лимит обновляется', () => {
+    const sim = create();
+    const { cost, beforeFirstWave, perWave, overLimitMult } = economy.summon;
+    for (let i = 0; i < beforeFirstWave; i++) sim.summon();
+    expect(sim.economy.summonsLeft).toBe(0);
+    expect(sim.economy.summonCost).toBe(cost * overLimitMult[0]);
+
+    // Первая волна начинается через firstWaveDelay секунд.
+    run(sim, levels.waves.firstWaveDelay + 0.5);
+
+    expect(sim.waves.wave).toBe(1);
+    expect(sim.economy.summonsLeft).toBe(perWave);
+    expect(sim.economy.summonCost).toBe(cost);
   });
 
   it('без монет и без свободных клеток призыва нет', () => {

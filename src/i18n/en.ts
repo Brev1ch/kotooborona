@@ -43,6 +43,8 @@ export const en: Record<StringKey, string> = {
   'sound.off': 'Sound: off',
 
   'summon.button': 'Summon',
+  'summon.left': '{left} of {limit} left',
+  'summon.over': 'Over limit ×{mult}',
 
   'meteor.button': 'Meteor',
   'meteor.ready': 'ready',
@@ -144,7 +146,7 @@ export const en: Record<StringKey, string> = {
   'gear.locked': 'From a chest',
   'gear.bonus.none': 'No bonus',
   'gear.bonus.summonChance': '{element} cat: {chance}% chance instead of {base}%',
-  'gear.bonus.summonCost': 'Summon costs {percent}% less',
+  'gear.bonus.overLimitCost': 'Summons over the limit cost {percent}% less',
   'gear.bonus.meteorCooldown': 'Meteor cooldown {percent}% shorter',
   'gear.bonus.ritualTime': 'Ritual {percent}% shorter',
   'gear.bonus.crystals': 'Starting crystals: +{count}',

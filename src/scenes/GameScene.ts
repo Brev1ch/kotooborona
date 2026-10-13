@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
-import { ads, cats, elementColor, enemies, gear, getLevel, levels, type ElementId, type LevelConfig, type Point } from '../data';
+import { ads, cats, economy, elementColor, enemies, gear, getLevel, levels, type ElementId, type LevelConfig, type Point } from '../data';
 import type { Cat } from '../entities/Cat';
 import { CatView } from '../entities/CatView';
 import type { Enemy } from '../entities/Enemy';
@@ -148,7 +148,7 @@ export class GameScene extends Phaser.Scene {
 
     const worn = progress.gear;
     const bonuses = gearBonuses(gear, worn, (slot, id) => progress.gearLevel(slot, id));
-    this.economy = new Economy(this.level, gear.summon, bonuses);
+    this.economy = new Economy(this.level, economy, bonuses);
     this.summoner = new Summon(cats, bonuses.summonWeights);
     this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult);
     this.coinAd = new CoinAd(ads.coins);
@@ -340,7 +340,9 @@ export class GameScene extends Phaser.Scene {
   private updateBattle(dt: number): void {
     let changed = false;
 
+    const before = this.waves.wave;
     for (const enemy of this.waves.update(dt, this.combat.enemies.length === 0)) this.addEnemy(enemy);
+    if (this.waves.wave !== before) this.economy.startWave();
 
     for (const event of this.combat.update(dt, this.board)) {
       if (this.handleCombatEvent(event)) changed = true;
@@ -597,6 +599,9 @@ export class GameScene extends Phaser.Scene {
       gold: this.economy.gold,
       crystals: this.economy.crystals,
       summonCost: this.economy.summonCost,
+      summonsLeft: this.economy.summonsLeft,
+      summonLimit: this.economy.summonLimit,
+      overLimitMult: this.economy.overLimitMult,
       canSummon: !this.finished && this.economy.canAffordSummon() && this.board.includes(null),
       lives: this.economy.lives,
       wave: this.waves.wave,

@@ -41,6 +41,8 @@ export const ru = {
   'sound.off': 'Звук: выкл',
 
   'summon.button': 'Призвать',
+  'summon.left': 'Осталось {left} из {limit}',
+  'summon.over': 'Сверх лимита ×{mult}',
 
   'meteor.button': 'Метеор',
   'meteor.ready': 'готов',
@@ -142,7 +144,7 @@ export const ru = {
   'gear.locked': 'Из сундука',
   'gear.bonus.none': 'Без бонуса',
   'gear.bonus.summonChance': '{element} кот: шанс {chance}% вместо {base}%',
-  'gear.bonus.summonCost': 'Призыв на {percent}% дешевле',
+  'gear.bonus.overLimitCost': 'Призыв сверх лимита на {percent}% дешевле',
   'gear.bonus.meteorCooldown': 'Перезарядка метеора на {percent}% короче',
   'gear.bonus.ritualTime': 'Ритуал на {percent}% короче',
   'gear.bonus.crystals': 'Кристаллы на старте: +{count}',

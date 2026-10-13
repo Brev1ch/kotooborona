@@ -72,8 +72,6 @@ export interface EnemyTypeConfig {
 export interface EnemiesConfig {
   baseHp: number;
   hpGrowthPerWave: number;
-  speedPerWave: number;
-  bonusGoldEveryWaves: number;
   bossSlowResist: number;
   types: Record<EnemyTypeId, EnemyTypeConfig>;
 }
@@ -149,7 +147,8 @@ export type GearSlot = 'staff' | 'mantle' | 'amulet';
 /** Бонусы предмета; с уровнем предмета меняются только они. */
 export interface GearStats {
   summonWeight?: number;
-  summonCostMult?: number;
+  /** Множитель цены призыва сверх лимита волны. */
+  overLimitCostMult?: number;
   meteorCooldownMult?: number;
   ritualTimeMult?: number;
   bonusCrystals?: number;
@@ -167,7 +166,6 @@ export interface GearItem extends GearStats {
 }
 
 export interface GearConfig extends Record<GearSlot, GearItem[]> {
-  summon: { baseCost: number; costGrowth: number };
   ritual: { time: number; crystalCost: number };
   meteor: {
     cooldown: number;
@@ -186,6 +184,19 @@ export interface GearConfig extends Record<GearSlot, GearItem[]> {
   chests: { stars: number[]; fish: number; fishInstead: number };
   /** Предметы, которые есть у игрока с начала игры и надеты по умолчанию. */
   defaults: Record<GearSlot, string>;
+}
+
+export interface EconomyConfig {
+  summon: {
+    /** Цена кота: одна и та же весь бой. */
+    cost: number;
+    /** Сколько призывов по обычной цене даёт каждая волна; остаток на следующую волну не переходит. */
+    perWave: number;
+    /** Лимит до начала первой волны. */
+    beforeFirstWave: number;
+    /** Во сколько раз дороже первый, второй и следующие призывы сверх лимита; дальше действует последний множитель. */
+    overLimitMult: number[];
+  };
 }
 
 export interface AdsConfig {

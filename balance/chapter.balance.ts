@@ -1,5 +1,5 @@
 import { it } from 'vitest';
-import { cats, enemies, gear, levels } from '../src/data';
+import { cats, economy, enemies, gear, levels } from '../src/data';
 import type { LevelConfig } from '../src/data';
 import { BOARD_H, BOARD_W } from '../src/layout';
 import { reportLevel, type LevelReport } from '../src/systems/Bot';
@@ -14,7 +14,7 @@ import type { BattleConfigs } from '../src/systems/Simulation';
 const RUNS = Number(process.env.RUNS ?? 60);
 /** Первое зерно: другое число — другие бои, так проверяется, что подбор не подогнан под одни и те же прогоны. */
 const SEED = Number(process.env.SEED ?? 1);
-const configs: BattleConfigs = { cats, enemies, gear, levels, board: { width: BOARD_W, height: BOARD_H } };
+const configs: BattleConfigs = { cats, enemies, economy, gear, levels, board: { width: BOARD_W, height: BOARD_H } };
 
 /** Среднее число звёзд бота по уровням главы: от «почти всегда три» до «чаще одна-две, иногда поражение». */
 const TARGET_STARS = [2.85, 2.7, 2.55, 2.4, 2.25, 2.1, 1.95, 1.8, 1.65, 1.5];

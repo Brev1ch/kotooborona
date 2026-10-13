@@ -358,6 +358,24 @@ test('старое сохранение: меню → книга → снаря�
     checkConsole('монеты за рекламу');
   });
 
+  await test.step('призыв сверх лимита волны', async () => {
+    // Монет после ролика хватает: жмём «Призвать», пока призывы волны не кончатся и цена не вырастет.
+    const TAPS = 8;
+    for (let n = 0; n < TAPS && ((await state(page))?.hud?.overLimitMult ?? 1) === 1; n++) {
+      await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
+      await page.waitForTimeout(PRESS_SETTLE_MS);
+    }
+    const hud = (await state(page))?.hud;
+    if (!hud || hud.overLimitMult <= 1 || hud.summonsLeft !== 0 || hud.summonCost <= 10) {
+      throw new Error(
+        `Лимит призывов не сработал: осталось ${hud?.summonsLeft ?? '?'} из ${hud?.summonLimit ?? '?'}, цена ${hud?.summonCost ?? '?'}`,
+      );
+    }
+    await page.screenshot({ path: `${SHOTS}/${shot('summon-over-limit')}` });
+    await checkTouchSizes(page, 'призыв сверх лимита');
+    checkConsole('призыв сверх лимита волны');
+  });
+
   /** На паузе враги стоят; «Продолжить» возвращает в бой. */
   async function checkPausedAndResume(step: string, shot?: string): Promise<void> {
     await waitFor(

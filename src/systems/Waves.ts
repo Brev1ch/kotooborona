@@ -99,7 +99,7 @@ export class Waves {
   }
 
   private createEnemy(type: EnemyTypeId): Enemy {
-    const { baseHp, hpGrowthPerWave, speedPerWave, bonusGoldEveryWaves, types } = this.enemies;
+    const { baseHp, hpGrowthPerWave, types } = this.enemies;
     const config = types[type];
     const hp = baseHp * Math.pow(hpGrowthPerWave, this.wave - 1) * this.level.hpMult * config.hp;
     // Подмога призывающего врага — обычные враги этой же волны.
@@ -116,8 +116,9 @@ export class Waves {
       distance: 0,
       hp,
       maxHp: hp,
-      speed: config.speed + this.wave * speedPerWave,
-      gold: config.gold + Math.floor(this.wave / bonusGoldEveryWaves),
+      // Скорость и награда от номера волны не зависят: сложность растёт здоровьем и числом врагов.
+      speed: config.speed,
+      gold: config.gold,
       shield: config.shield,
       slowFactor: 1,
       slowTime: 0,

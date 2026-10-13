@@ -44,6 +44,11 @@ export interface HudState {
   gold: number;
   crystals: number;
   summonCost: number;
+  /** Сколько призывов по обычной цене осталось в этой волне и сколько их всего. */
+  summonsLeft: number;
+  summonLimit: number;
+  /** Во сколько раз дороже следующий призыв; 1 — лимит ещё не исчерпан. */
+  overLimitMult: number;
   canSummon: boolean;
   lives: number;
   wave: number;

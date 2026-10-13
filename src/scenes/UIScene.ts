@@ -65,6 +65,9 @@ const PAUSE_BAR = { width: 5, height: 16, gap: 6 };
 
 const SUMMON_H = 44;
 const SUMMON_PAD = 12;
+// Две строки кнопки призыва: название и остаток лимита под ним.
+const SUMMON_LABEL_Y = -8;
+const SUMMON_LIMIT_Y = 11;
 const METEOR_LABEL_Y = -8;
 const METEOR_STATUS_Y = 11;
 const COIN_RADIUS = 5;
@@ -112,6 +115,8 @@ export class UIScene extends Phaser.Scene {
   private summonBg!: Phaser.GameObjects.Rectangle;
   private summonLabel!: Phaser.GameObjects.Text;
   private summonCost!: Phaser.GameObjects.Text;
+  /** Вторая строка кнопки: остаток призывов волны или штраф за призыв сверх лимита. */
+  private summonLimit!: Phaser.GameObjects.Text;
   private summonCoin!: Phaser.GameObjects.Arc;
   private canSummon = false;
   private meteorButton!: Phaser.GameObjects.Container;
@@ -246,9 +251,17 @@ export class UIScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
 
     this.summonLabel = this.add
-      .text(-SUMMON_W / 2 + SUMMON_PAD, 0, t('summon.button'), {
+      .text(-SUMMON_W / 2 + SUMMON_PAD, SUMMON_LABEL_Y, t('summon.button'), {
         fontFamily: FONTS.display,
         fontSize: '16px',
+        color: TEXT_COLORS.dark,
+      })
+      .setOrigin(0, 0.5);
+
+    this.summonLimit = this.add
+      .text(-SUMMON_W / 2 + SUMMON_PAD, SUMMON_LIMIT_Y, '', {
+        fontFamily: FONTS.body,
+        fontSize: '11px',
         color: TEXT_COLORS.dark,
       })
       .setOrigin(0, 0.5);
@@ -266,6 +279,7 @@ export class UIScene extends Phaser.Scene {
     this.summonButton = this.add.container(SUMMON_X, CONTROLS_CENTER_Y, [
       this.summonBg,
       this.summonLabel,
+      this.summonLimit,
       this.summonCost,
       this.summonCoin,
     ]);
@@ -468,7 +482,8 @@ export class UIScene extends Phaser.Scene {
   }
 
   private refresh(): void {
-    const { gold, crystals, summonCost, canSummon, lives, wave, totalWaves, upcoming } = this.gameScene.hudState();
+    const { gold, crystals, summonCost, summonsLeft, summonLimit, overLimitMult, canSummon, lives, wave, totalWaves, upcoming } =
+      this.gameScene.hudState();
     this.canSummon = canSummon;
 
     this.goldText.setText(String(gold));
@@ -478,6 +493,9 @@ export class UIScene extends Phaser.Scene {
     this.setStat(this.livesText, String(lives));
     this.showUpcoming(upcoming);
     this.summonCost.setText(String(summonCost));
+    this.summonLimit.setText(
+      overLimitMult > 1 ? t('summon.over', { mult: overLimitMult }) : t('summon.left', { left: summonsLeft, limit: summonLimit }),
+    );
     this.summonCoin.setX(this.summonCost.x - this.summonCost.width - COIN_RADIUS - 4);
 
     const textColor = canSummon ? TEXT_COLORS.dark : TEXT_COLORS.muted;
@@ -485,6 +503,7 @@ export class UIScene extends Phaser.Scene {
     this.summonBg.setStrokeStyle(1, COLORS.line, canSummon ? 0 : 1);
     this.summonLabel.setColor(textColor);
     this.summonCost.setColor(textColor);
+    this.summonLimit.setColor(textColor);
     this.summonCoin.setFillStyle(canSummon ? COLORS.bg : COLORS.line);
   }
 

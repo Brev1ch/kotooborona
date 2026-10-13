@@ -1,47 +1,88 @@
 import { describe, expect, it } from 'vitest';
 import { levels } from '../data';
-import type { LevelConfig } from '../data';
+import type { EconomyConfig, LevelConfig } from '../data';
 import { Economy, starsFor } from './Economy';
 import { noBonuses } from './Loadout';
 
 // Числа зафиксированы здесь, чтобы тесты не зависели от правок баланса в JSON.
 const level: LevelConfig = { ...levels.levels[0], startGold: 25, startCrystals: 2, startLives: 10 };
-const summon = { baseCost: 10, costGrowth: 1.5 };
+const config: EconomyConfig = { summon: { cost: 10, perWave: 2, beforeFirstWave: 3, overLimitMult: [2, 3, 4] } };
 
 describe('Economy', () => {
   it('берёт стартовые монеты, кристаллы и жизни из уровня', () => {
-    const economy = new Economy(level, summon);
+    const economy = new Economy(level, config);
 
     expect(economy.gold).toBe(25);
     expect(economy.crystals).toBe(2);
     expect(economy.lives).toBe(10);
   });
 
-  it('первый призыв стоит базовую цену', () => {
-    expect(new Economy(level, summon).summonCost).toBe(10);
-  });
-
-  it('цена растёт с каждым призывом и округляется до целого', () => {
-    const economy = new Economy({ ...level, startGold: 1000 }, summon);
+  it('кот стоит одинаково, пока лимит волны не исчерпан', () => {
+    const economy = new Economy({ ...level, startGold: 1000 }, config);
     const costs: number[] = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       costs.push(economy.summonCost);
       economy.paySummon();
     }
 
-    // 10, 15, 22.5 → 23, 33.75 → 34
-    expect(costs).toEqual([10, 15, 23, 34]);
+    expect(costs).toEqual([10, 10, 10]);
+  });
+
+  it('до первой волны лимит свой, остаток убывает с каждым призывом', () => {
+    const economy = new Economy({ ...level, startGold: 1000 }, config);
+    expect(economy.summonLimit).toBe(3);
+    expect(economy.summonsLeft).toBe(3);
+
+    economy.paySummon();
+
+    expect(economy.summonsLeft).toBe(2);
+    expect(economy.overLimitMult).toBe(1);
+  });
+
+  it('сверх лимита каждый призыв дороже предыдущего, после списка множитель не растёт', () => {
+    const economy = new Economy({ ...level, startGold: 1000 }, config);
+    for (let i = 0; i < 3; i++) economy.paySummon();
+    expect(economy.summonsLeft).toBe(0);
+
+    const costs: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      costs.push(economy.summonCost);
+      economy.paySummon();
+    }
+
+    expect(costs).toEqual([20, 30, 40, 40, 40]);
+    expect(economy.gold).toBe(1000 - 30 - 170);
+  });
+
+  it('новая волна обновляет лимит и снимает штраф', () => {
+    const economy = new Economy({ ...level, startGold: 1000 }, config);
+    for (let i = 0; i < 5; i++) economy.paySummon();
+    expect(economy.summonCost).toBe(40);
+
+    economy.startWave();
+
+    expect(economy.summonLimit).toBe(2);
+    expect(economy.summonsLeft).toBe(2);
+    expect(economy.summonCost).toBe(10);
+  });
+
+  it('неистраченные призывы на следующую волну не переходят', () => {
+    const economy = new Economy({ ...level, startGold: 1000 }, config);
+    economy.startWave();
+    economy.startWave();
+
+    expect(economy.summonsLeft).toBe(2);
   });
 
   it('оплата списывает текущую цену', () => {
-    const economy = new Economy(level, summon);
+    const economy = new Economy(level, config);
 
     expect(economy.paySummon()).toBe(true);
     expect(economy.gold).toBe(15);
   });
 
   it('хватает монет ровно на цену — призыв доступен', () => {
-    const economy = new Economy({ ...level, startGold: 10 }, summon);
+    const economy = new Economy({ ...level, startGold: 10 }, config);
 
     expect(economy.canAffordSummon()).toBe(true);
     expect(economy.paySummon()).toBe(true);
@@ -49,19 +90,19 @@ describe('Economy', () => {
   });
 
   it('без монет оплата не проходит и ничего не меняет', () => {
-    const economy = new Economy(level, summon);
+    const economy = new Economy(level, config);
     economy.paySummon();
     economy.paySummon();
-    expect(economy.gold).toBe(0);
+    expect(economy.gold).toBe(5);
 
     expect(economy.canAffordSummon()).toBe(false);
     expect(economy.paySummon()).toBe(false);
-    expect(economy.gold).toBe(0);
-    expect(economy.summonCost).toBe(23);
+    expect(economy.gold).toBe(5);
+    expect(economy.summonsLeft).toBe(1);
   });
 
   it('призыв снова доступен, когда монеты появились', () => {
-    const economy = new Economy({ ...level, startGold: 0 }, summon);
+    const economy = new Economy({ ...level, startGold: 0 }, config);
     expect(economy.canAffordSummon()).toBe(false);
 
     economy.gold += 10;
@@ -70,7 +111,7 @@ describe('Economy', () => {
   });
 
   it('оплата призыва не трогает кристаллы и жизни', () => {
-    const economy = new Economy(level, summon);
+    const economy = new Economy(level, config);
     economy.paySummon();
 
     expect(economy.crystals).toBe(2);
@@ -78,7 +119,7 @@ describe('Economy', () => {
   });
 
   it('награда за врага прибавляет монеты и кристаллы', () => {
-    const economy = new Economy(level, summon);
+    const economy = new Economy(level, config);
     economy.reward(7, 2);
 
     expect(economy.gold).toBe(32);
@@ -86,14 +127,14 @@ describe('Economy', () => {
   });
 
   it('прошедший враг отнимает жизни', () => {
-    const economy = new Economy(level, summon);
+    const economy = new Economy(level, config);
     economy.loseLives(2);
 
     expect(economy.lives).toBe(8);
   });
 
   it('жизни не уходят ниже нуля', () => {
-    const economy = new Economy(level, summon);
+    const economy = new Economy(level, config);
     economy.loseLives(7);
     economy.loseLives(5);
 
@@ -103,37 +144,29 @@ describe('Economy', () => {
 
 describe('Economy: снаряжение', () => {
   it('кошель и амулет кристаллов добавляют стартовые запасы', () => {
-    const economy = new Economy(level, summon, { ...noBonuses(), bonusGold: 20, bonusCrystals: 1 });
+    const economy = new Economy(level, config, { ...noBonuses(), bonusGold: 20, bonusCrystals: 1 });
 
     expect(economy.gold).toBe(45);
     expect(economy.crystals).toBe(3);
     expect(economy.lives).toBe(10);
   });
 
-  it('скидка действует на каждый призыв и округляется вместе с ценой', () => {
-    const economy = new Economy({ ...level, startGold: 1000 }, summon, { ...noBonuses(), summonCostMult: 0.9 });
+  it('скидка мантии действует только на призыв сверх лимита', () => {
+    const economy = new Economy({ ...level, startGold: 1000 }, config, { ...noBonuses(), overLimitCostMult: 0.75 });
     const costs: number[] = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       costs.push(economy.summonCost);
       economy.paySummon();
     }
 
-    // 10, 15, 22.5, 33.75 со скидкой 10%.
-    expect(costs).toEqual([9, 14, 20, 30]);
-    expect(economy.gold).toBe(1000 - 73);
-  });
-
-  it('со скидкой хватает монет, которых не хватило бы на полную цену', () => {
-    const economy = new Economy({ ...level, startGold: 9 }, summon, { ...noBonuses(), summonCostMult: 0.9 });
-
-    expect(economy.paySummon()).toBe(true);
-    expect(economy.gold).toBe(0);
+    // Три призыва по обычной цене, затем 20, 30 и 40 со скидкой 25%.
+    expect(costs).toEqual([10, 10, 10, 15, 23, 30]);
   });
 });
 
 describe('Economy: жизни', () => {
   it('считает потерянные жизни и не уходит ниже нуля', () => {
-    const economy = new Economy(level, summon);
+    const economy = new Economy(level, config);
     economy.loseLives(3);
     expect(economy.lives).toBe(7);
     expect(economy.livesLost).toBe(3);
@@ -144,7 +177,7 @@ describe('Economy: жизни', () => {
   });
 
   it('второй шанс возвращает жизни, но счёт потерь для звёзд не сбрасывает', () => {
-    const economy = new Economy(level, summon);
+    const economy = new Economy(level, config);
     economy.loseLives(10);
     economy.revive(6);
     expect(economy.lives).toBe(6);
