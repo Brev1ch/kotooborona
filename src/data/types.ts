@@ -66,6 +66,8 @@ export interface EnemyTypeConfig {
   shield: number;
   crystalChance: number;
   crystalDrop: number;
+  /** С какой волны уровня выходит; до неё вместо него идут мыши. Без поля — с первой. */
+  fromWave?: number;
   /** Замедляется слабее остальных: командиры и король. */
   slowResist?: boolean;
   /** Эти эффекты на врага не ложатся. */
@@ -107,8 +109,8 @@ export interface LevelConfig {
   startCrystals: number;
   startLives: number;
   hpMult: number;
-  ratChance: number;
-  shieldChance: number;
+  /** Состав обычных волн: доля каждого типа от 0 до 1, остальные — мыши. Порядок записи важен: бросок сверяется с долями по очереди. */
+  enemies: Partial<Record<EnemyTypeId, number>>;
   /** Рыбки за первое прохождение на одну звезду. */
   fish: number;
   /** Строения, которые можно ставить на уровне; нет списка — строить нельзя. */
@@ -139,8 +141,6 @@ export interface WavesConfig {
   bossSpawnInterval: number;
   firstWaveDelay: number;
   waveDelay: number;
-  ratFromWave: number;
-  shieldFromWave: number;
 }
 
 export interface RewardRules {

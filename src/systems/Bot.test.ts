@@ -302,8 +302,8 @@ describe('баланс главы 1 глазами бота', () => {
   });
 
   it('щитоносцев нет в начале главы, король — только на последнем уровне', () => {
-    expect(levels.levels.slice(0, 4).every((level) => level.shieldChance === 0)).toBe(true);
-    expect(levels.levels.slice(4).every((level) => level.shieldChance > 0)).toBe(true);
+    expect(levels.levels.slice(0, 4).every((level) => level.enemies.shield === undefined)).toBe(true);
+    expect(levels.levels.slice(4).every((level) => (level.enemies.shield ?? 0) > 0)).toBe(true);
     expect(levels.levels.map((level) => level.kingWave !== undefined)).toEqual([...Array<boolean>(9).fill(false), true]);
     expect(levels.levels[9].kingWave).toBe(levels.levels[9].waves);
   });

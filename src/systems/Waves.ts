@@ -89,12 +89,14 @@ export class Waves {
     return this.level.bossWaves.includes(wave);
   }
 
-  /** Один бросок на врага: сначала доля крыс, за ней доля щитоносцев, остальные — мыши. */
+  /** Один бросок на врага: доли типов идут подряд в порядке записи в уровне, остальные — мыши. Тип, чья волна ещё не пришла, заменяется мышью. */
   private rollType(): EnemyTypeId {
-    const { ratChance, shieldChance } = this.level;
     const roll = this.rng();
-    if (roll < ratChance) return this.wave >= this.config.ratFromWave ? 'rat' : 'mouse';
-    if (roll < ratChance + shieldChance) return this.wave >= this.config.shieldFromWave ? 'shield' : 'mouse';
+    let edge = 0;
+    for (const [type, share] of Object.entries(this.level.enemies) as [EnemyTypeId, number][]) {
+      edge += share;
+      if (roll < edge) return this.wave >= (this.enemies.types[type].fromWave ?? 1) ? type : 'mouse';
+    }
     return 'mouse';
   }
 

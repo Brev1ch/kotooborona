@@ -4,8 +4,8 @@
   "bossSlowResist": 0.5,
   "types": {
     "mouse": { "color": "b8b2a4", "hp": 1, "speed": 50, "gold": 2, "radius": 8, "lifeDamage": 1, "shield": 0, "crystalChance": 0, "crystalDrop": 0 },
-    "rat": { "color": "6e6a7a", "hp": 3, "speed": 38, "gold": 4, "radius": 11, "lifeDamage": 2, "shield": 0, "crystalChance": 0.06, "crystalDrop": 1 },
-    "shield": { "color": "9a9486", "hp": 1.4, "speed": 44, "gold": 3, "radius": 9, "lifeDamage": 1, "shield": 3, "crystalChance": 0, "crystalDrop": 0 },
+    "rat": { "color": "6e6a7a", "fromWave": 2, "hp": 3, "speed": 38, "gold": 4, "radius": 11, "lifeDamage": 2, "shield": 0, "crystalChance": 0.06, "crystalDrop": 1 },
+    "shield": { "color": "9a9486", "fromWave": 3, "hp": 1.4, "speed": 44, "gold": 3, "radius": 9, "lifeDamage": 1, "shield": 3, "crystalChance": 0, "crystalDrop": 0 },
     "boots": { "color": "#7f8794", "hp": 1.6, "speed": 46, "gold": 3, "radius": 9, "lifeDamage": 1, "shield": 0, "crystalChance": 0, "crystalDrop": 0, "immune": ["slow", "freeze"] },
     "fire": { "color": "#c8643c", "hp": 1.8, "speed": 44, "gold": 4, "radius": 10, "lifeDamage": 1, "shield": 0, "crystalChance": 0, "crystalDrop": 0, "immune": ["burn"], "resist": { "fire": 0, "lava": 0.5, "steam": 1, "storm": 1 } },
     "shaman": { "color": "#8a6fb0", "hp": 1.5, "speed": 40, "gold": 5, "radius": 10, "lifeDamage": 1, "shield": 0, "crystalChance": 0, "crystalDrop": 0, "heal": { "radius": 45, "part": 0.06, "interval": 1.5 } },

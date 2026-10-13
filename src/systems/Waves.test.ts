@@ -14,16 +14,13 @@ const config: WavesConfig = {
   bossSpawnInterval: 1,
   firstWaveDelay: 2,
   waveDelay: 3,
-  ratFromWave: 2,
-  shieldFromWave: 3,
 };
 const level: LevelConfig = {
   ...levels.levels[0],
   waves: 4,
   bossWaves: [4],
   hpMult: 2,
-  ratChance: 0.2,
-  shieldChance: 0.3,
+  enemies: { rat: 0.2, shield: 0.3 },
 };
 const type = { color: '#000000', radius: 8, lifeDamage: 1, crystalChance: 0, crystalDrop: 0 };
 const enemies: EnemiesConfig = {
@@ -32,8 +29,8 @@ const enemies: EnemiesConfig = {
   hpGrowthPerWave: 2,
   types: {
     mouse: { ...type, hp: 1, speed: 44, gold: 2, shield: 0 },
-    rat: { ...type, hp: 3, speed: 32, gold: 5, shield: 0 },
-    shield: { ...type, hp: 1.5, speed: 38, gold: 4, shield: 3 },
+    rat: { ...type, hp: 3, speed: 32, gold: 5, shield: 0, fromWave: 2 },
+    shield: { ...type, hp: 1.5, speed: 38, gold: 4, shield: 3, fromWave: 3 },
     boots: { ...type, hp: 1.6, speed: 40, gold: 3, shield: 0 },
     fire: { ...type, hp: 1.8, speed: 40, gold: 4, shield: 0 },
     shaman: { ...type, hp: 1.5, speed: 40, gold: 5, shield: 0 },
@@ -235,6 +232,44 @@ describe('Waves: враги', () => {
     expect(typeAt(0.2)).toBe('shield');
     expect(typeAt(0.49)).toBe('shield');
     expect(typeAt(0.5)).toBe('mouse');
+  });
+
+  it('состав волны задаётся таблицей уровня: доли идут подряд в порядке записи', () => {
+    const mixed: LevelConfig = { ...level, enemies: { boots: 0.1, rat: 0.2, ninja: 0.3 } };
+    const typeAt = (roll: number) => {
+      const waves = new Waves(config, mixed, enemies, () => roll);
+      skipWaves(waves, 2);
+      return nextWave(waves)[0].type;
+    };
+
+    expect(typeAt(0)).toBe('boots');
+    expect(typeAt(0.1)).toBe('rat');
+    expect(typeAt(0.29)).toBe('rat');
+    expect(typeAt(0.31)).toBe('ninja');
+    expect(typeAt(0.59)).toBe('ninja');
+    expect(typeAt(0.61)).toBe('mouse');
+  });
+
+  it('тип без указанной волны выходит с первой', () => {
+    const waves = new Waves(config, { ...level, enemies: { boots: 1 } }, enemies, () => 0.5);
+
+    expect(nextWave(waves).every((enemy) => enemy.type === 'boots')).toBe(true);
+  });
+
+  it('пустая таблица — одни мыши', () => {
+    const waves = new Waves(config, { ...level, enemies: {} }, enemies, () => 0);
+    skipWaves(waves, 2);
+
+    expect(nextWave(waves).every((enemy) => enemy.type === 'mouse')).toBe(true);
+  });
+
+  it('в данных уровней доли в сумме не больше единицы, а командира и короля в таблице нет', () => {
+    for (const { id, enemies: mix } of levels.levels) {
+      const shares = Object.values(mix);
+      expect(shares.every((share) => share > 0), id).toBe(true);
+      expect(shares.reduce((sum, share) => sum + share, 0), id).toBeLessThanOrEqual(1);
+      expect(Object.keys(mix).filter((type) => !(type in enemiesJson.types) || type === 'boss' || type === 'king'), id).toEqual([]);
+    }
   });
 
   it('в волне командира выходят только командиры, реже обычных врагов', () => {

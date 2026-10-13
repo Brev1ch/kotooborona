@@ -19,8 +19,7 @@ const level: LevelConfig = {
   startCrystals: 3,
   startLives: 5,
   hpMult: 1,
-  ratChance: 0,
-  shieldChance: 0,
+  enemies: {},
 };
 const DT = 1 / 30;
 
