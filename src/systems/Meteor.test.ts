@@ -133,3 +133,16 @@ describe('Meteor: сила удара', () => {
     expect(new Meteor(config).cast(2, 1.5)?.damage).toBe(120);
   });
 });
+
+describe('Meteor: горящая зона от снаряжения', () => {
+  it('без снаряжения зоны нет', () => {
+    expect(new Meteor(config).cast(1, 1)?.ground).toBeUndefined();
+  });
+
+  it('сила зоны — доля урона взрыва, растёт вместе с ним', () => {
+    const ground = { burnDps: 0.25, time: 4 };
+
+    expect(new Meteor(config, 1, ground).cast(1, 1)?.ground).toEqual({ burnDps: 10, time: 4 });
+    expect(new Meteor(config, 1, ground).cast(3, 1.5)?.ground).toEqual({ burnDps: 60, time: 4 });
+  });
+});

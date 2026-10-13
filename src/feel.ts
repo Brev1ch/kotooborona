@@ -255,6 +255,8 @@ export const METEOR_FEEL = {
   blastRingWidth: 4,
   blastCoreMs: 160,
   blastCoreRadius: 0.5,
+  /** Горящая зона после метеора (легендарный посох): круг гаснет, пока она горит. */
+  groundAlpha: 0.4,
   flashMs: 220,
   flashAlpha: 0.3,
   shakeMs: 260,

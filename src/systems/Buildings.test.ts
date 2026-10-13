@@ -137,3 +137,37 @@ describe('Buildings: лимит призывов', () => {
     expect(all.summonLimitBonus([building('shop'), cat])).toBe(0);
   });
 });
+
+describe('Buildings: доход со снаряжением', () => {
+  it('множитель снаряжения увеличивает монеты лавки и округляет их', () => {
+    const boosted = new Buildings(config, ['shop', 'mine'], 1.3);
+    const board: (Piece | null)[] = [building('shop'), building('shop', 3), building('mine', 2)];
+
+    expect(boosted.gold('shop', 1)).toBe(10);
+    expect(boosted.startWave(board)).toEqual({
+      gold: 10 + 29,
+      crystals: 1,
+      slots: [
+        { slot: 0, gold: 10, crystals: 0 },
+        { slot: 1, gold: 29, crystals: 0 },
+        { slot: 2, gold: 0, crystals: 1 },
+      ],
+    });
+  });
+
+  it('без снаряжения доход как в данных', () => {
+    expect(all.gold('shop', 2)).toBe(14);
+    expect(all.gold('mine', 1)).toBe(0);
+  });
+});
+
+describe('Buildings: числа для окна стройки', () => {
+  it('монетный доход показан с множителем снаряжения, остальное — как в данных', () => {
+    const boosted = new Buildings(config, ['shop', 'mine', 'altar'], 1.5);
+
+    expect(boosted.shownStats('shop', 1)).toEqual({ cost: 40, gold: 12 });
+    expect(boosted.shownStats('mine', 1)).toEqual({ cost: 60, crystals: 1, everyWaves: 2 });
+    expect(boosted.shownStats('altar', 2)).toEqual({ cost: 60, summonLimit: 2 });
+    expect(all.shownStats('shop', 3)).toEqual({ cost: 40, gold: 22 });
+  });
+});

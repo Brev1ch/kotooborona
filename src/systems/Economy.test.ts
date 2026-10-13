@@ -286,3 +286,52 @@ describe('starsFor', () => {
     expect(starsFor(19, rules)).toBe(1);
   });
 });
+
+describe('Economy: бонусы снаряжения к призыву', () => {
+  const rich = { ...level, startGold: 1000 };
+
+  it('прибавка к лимиту действует и до первой волны, и в каждой волне', () => {
+    const economy = new Economy(rich, config, { ...noBonuses(), summonLimitBonus: 1 });
+    expect(economy.summonLimit).toBe(4);
+
+    economy.startWave();
+    expect(economy.summonLimit).toBe(3);
+    economy.limitBonus = 2;
+    expect(economy.summonLimit).toBe(5);
+  });
+
+  it('каждый пятый призыв за бой бесплатный', () => {
+    const economy = new Economy(rich, config, { ...noBonuses(), freeSummonEvery: 5 });
+    const costs: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      costs.push(economy.summonCost);
+      economy.paySummon();
+      // Новая волна счёт до бесплатного призыва не сбрасывает.
+      if (i === 2) economy.startWave();
+    }
+
+    expect(costs).toEqual([10, 10, 10, 10, 0, 20, 30, 40, 50, 0]);
+    expect(economy.gold).toBe(1000 - 180);
+  });
+
+  it('бесплатный призыв доступен и без монет, но тратит призыв волны', () => {
+    const economy = new Economy({ ...level, startGold: 10 }, config, { ...noBonuses(), freeSummonEvery: 2 });
+    economy.paySummon();
+    expect(economy.gold).toBe(0);
+    expect(economy.nextSummonFree).toBe(true);
+    expect(economy.canAffordSummon()).toBe(true);
+
+    expect(economy.paySummon()).toBe(true);
+    expect(economy.summonsLeft).toBe(1);
+    expect(economy.nextSummonFree).toBe(false);
+  });
+
+  it('без снаряжения бесплатных призывов нет', () => {
+    const economy = new Economy(rich, config);
+    for (let i = 0; i < 12; i++) {
+      expect(economy.nextSummonFree).toBe(false);
+      expect(economy.summonCost).toBeGreaterThan(0);
+      economy.paySummon();
+    }
+  });
+});

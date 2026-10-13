@@ -101,17 +101,17 @@ export class Simulation {
     this.slots = level.slots.map(([x, y]) => [x + half, y + half]);
     this.path = buildPath(level.path);
     this.economy = new Economy(level, economy, bonuses);
-    this.summoner = new Summon(cats, bonuses.summonWeights, rng);
-    this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult);
+    this.summoner = new Summon(cats, bonuses.summonWeights, rng, bonuses.level2Chance);
+    this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult, bonuses.meteorGround);
     this.merger = new Merge(cats, {
       maxCatLevel: level.maxCatLevel,
       ritualTime: gear.ritual.time * bonuses.ritualTimeMult,
       crystalCost: gear.ritual.crystalCost,
     });
     this.waves = new Waves(levels.waves, level, enemies, rng);
-    this.combat = new Combat({ cats, enemies, path: this.path, slots: this.slots, bounds: board, rng });
+    this.combat = new Combat({ cats, enemies, path: this.path, slots: this.slots, bounds: board, rng, damageBonus: bonuses.elementDamage });
     this.board = level.slots.map(() => null);
-    this.buildings = new Buildings(economy.buildings, level.buildings);
+    this.buildings = new Buildings(economy.buildings, level.buildings, bonuses.buildingIncomeMult);
   }
 
   get finished(): boolean {

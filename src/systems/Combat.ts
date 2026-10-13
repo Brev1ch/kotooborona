@@ -9,11 +9,15 @@ export function catRange(config: CatsConfig, cat: Cat): number {
   return config.baseRange + config.rangePerLevel * cat.level;
 }
 
-/** Урон одной атаки. */
-export function catDamage(config: CatsConfig, cat: Cat): number {
+/**
+ * Урон одной атаки. `bonus` — прибавки от снаряжения по стихиям: прибавка стихии действует на её котов
+ * и на гибридов, в которых она есть.
+ */
+export function catDamage(config: CatsConfig, cat: Cat, bonus: Partial<Record<ElementId, number>> = {}): number {
   const element = config.elements[cat.element];
   const hybrid = element.from ? config.hybridDamageMult : 1;
-  return config.baseDamage * Math.pow(config.levelDamageMult, cat.level - 1) * element.dmg * hybrid;
+  const extra = [cat.element, ...(element.from ?? [])].reduce((sum, id) => sum + (bonus[id] ?? 0), 0);
+  return config.baseDamage * Math.pow(config.levelDamageMult, cat.level - 1) * element.dmg * hybrid * (1 + extra);
 }
 
 /** Атак в секунду. */
@@ -39,6 +43,8 @@ export interface CombatSetup {
   bounds: { width: number; height: number };
   /** Возвращает число в [0, 1); подменяется в тестах. */
   rng?: () => number;
+  /** Прибавки к урону котов по стихиям от снаряжения. */
+  damageBonus?: Partial<Record<ElementId, number>>;
 }
 
 /** Взрыв по площади, не привязанный к коту: умение героя. */
@@ -48,6 +54,19 @@ export interface Blast {
   /** Урон от огня в секунду для всех задетых. */
   burnDps: number;
   burnTime: number;
+  /** Горящая зона на месте удара: `time` секунд поджигает всех, кто в ней, с силой `burnDps` в секунду. */
+  ground?: { burnDps: number; time: number };
+}
+
+/** Горящая зона после метеора. */
+export interface BurningGround {
+  x: number;
+  y: number;
+  radius: number;
+  burnDps: number;
+  burnTime: number;
+  /** Сколько секунд ей осталось гореть. */
+  time: number;
 }
 
 /** Что произошло за шаг боя; сцена по этим событиям меняет экономику и картинку. */
@@ -67,6 +86,8 @@ export type CombatEvent =
   | { kind: 'dodged'; enemy: Enemy; x: number; y: number }
   /** Лекарь подлечил соседей в радиусе. */
   | { kind: 'healed'; enemy: Enemy; x: number; y: number; radius: number }
+  /** На месте удара метеора осталась горящая зона. */
+  | { kind: 'ground'; x: number; y: number; radius: number; time: number }
   /** Облако или взрыв: задело всех в радиусе. */
   | { kind: 'splash'; x: number; y: number; radius: number; element: ElementId }
   /** Молния перескочила с врага на врага. */
@@ -78,6 +99,7 @@ export type CombatEvent =
 export class Combat {
   private alive: Enemy[] = [];
   private flying: Projectile[] = [];
+  private grounds: BurningGround[] = [];
   private readonly rng: () => number;
   /** События текущего шага. */
   private events: CombatEvent[] = [];
@@ -93,6 +115,11 @@ export class Combat {
 
   get projectiles(): readonly Projectile[] {
     return this.flying;
+  }
+
+  /** Горящие зоны, которые ещё не погасли. */
+  get burningGrounds(): readonly BurningGround[] {
+    return this.grounds;
   }
 
   add(enemy: Enemy): void {
@@ -115,8 +142,12 @@ export class Combat {
    * Взрыв в точке: урон мимо щита и сопротивлений и поджог всем, кто сейчас в радиусе, — летающим тоже, но не тем, кто под землёй.
    * Возвращает события так же, как update().
    */
-  strike(x: number, y: number, { radius, damage, burnDps, burnTime }: Blast): CombatEvent[] {
+  strike(x: number, y: number, { radius, damage, burnDps, burnTime, ground }: Blast): CombatEvent[] {
     this.events = [];
+    if (ground) {
+      this.grounds.push({ x, y, radius, burnDps: ground.burnDps, burnTime, time: ground.time });
+      this.events.push({ kind: 'ground', x, y, radius, time: ground.time });
+    }
     for (const enemy of this.near(x, y, radius)) {
       const [ex, ey] = positionAt(this.setup.path, enemy.distance);
       this.events.push({ kind: 'hit', enemy, x: ex, y: ey, element: 'fire' });
@@ -127,8 +158,20 @@ export class Combat {
     return this.events;
   }
 
+  /** Горящие зоны поджигают всех, кто в них стоит или вошёл; о невосприимчивых к огню молчат, чтобы не сыпать событиями каждый шаг. */
+  private burnGrounds(dt: number): void {
+    for (const ground of this.grounds) {
+      for (const enemy of this.near(ground.x, ground.y, ground.radius)) {
+        if (!this.setup.enemies.types[enemy.type].immune?.includes('burn')) this.burn(enemy, ground.burnDps, ground.burnTime);
+      }
+      ground.time -= dt;
+    }
+    this.grounds = this.grounds.filter((ground) => ground.time > 0);
+  }
+
   private moveEnemies(dt: number): void {
     const { enemies, path } = this.setup;
+    this.burnGrounds(dt);
     const summoned: Enemy[] = [];
     for (const enemy of this.alive) {
       const [x, y] = positionAt(path, enemy.distance);
@@ -189,7 +232,7 @@ export class Combat {
       if (targets.length === 0) return;
       cat.cooldown = 1 / catRate(cats, cat);
       this.events.push({ kind: 'aura', slot, radius: range, element: cat.element });
-      for (const enemy of targets) this.hurt(enemy, catDamage(cats, cat), cat.element);
+      for (const enemy of targets) this.hurt(enemy, catDamage(cats, cat, this.setup.damageBonus), cat.element);
       return;
     }
 
@@ -197,7 +240,7 @@ export class Combat {
     if (!target) return;
 
     cat.cooldown = 1 / catRate(cats, cat);
-    const projectile: Projectile = { x, y, target, damage: catDamage(cats, cat), element: cat.element };
+    const projectile: Projectile = { x, y, target, damage: catDamage(cats, cat, this.setup.damageBonus), element: cat.element };
     this.flying.push(projectile);
     this.events.push({ kind: 'shot', slot, projectile });
   }

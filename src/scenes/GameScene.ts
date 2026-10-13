@@ -194,8 +194,8 @@ export class GameScene extends Phaser.Scene {
     const worn = progress.gear;
     const bonuses = gearBonuses(gear, worn, (slot, id) => progress.gearLevel(slot, id));
     this.economy = new Economy(this.level, economy, bonuses);
-    this.summoner = new Summon(cats, bonuses.summonWeights, random);
-    this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult);
+    this.summoner = new Summon(cats, bonuses.summonWeights, random, bonuses.level2Chance);
+    this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult, bonuses.meteorGround);
     this.coinAd = new CoinAd(ads.coins);
     this.secondChance = new SecondChance(ads.secondChance);
     const staff = gear.staff.find((item) => item.id === worn.staff);
@@ -214,6 +214,7 @@ export class GameScene extends Phaser.Scene {
       slots: this.level.slots.map((_, slot) => this.slotCenter(slot)),
       bounds: { width: BOARD_W, height: BOARD_H },
       rng: random,
+      damageBonus: bonuses.elementDamage,
     });
     this.enemyViews = new Map();
     this.projectileViews = new Map();
@@ -222,7 +223,7 @@ export class GameScene extends Phaser.Scene {
     this.finished = false;
     this.board = this.level.slots.map(() => null);
     this.setSpeed(1);
-    this.buildings = new Buildings(economy.buildings, this.level.buildings);
+    this.buildings = new Buildings(economy.buildings, this.level.buildings, bonuses.buildingIncomeMult);
     this.views = this.level.slots.map(() => null);
     this.drag = null;
     this.toast = null;
@@ -573,6 +574,13 @@ export class GameScene extends Phaser.Scene {
       case 'blocked':
         this.enemyViews.get(event.enemy)?.playBlock();
         break;
+
+      case 'ground': {
+        // Горящая зона метеора тлеет на месте удара, пока не погаснет.
+        const { x, y, radius, time } = event;
+        this.playCircle(this.discs, x, y, COLORS.meteor, radius, radius, METEOR_FEEL.groundAlpha, time * 1000);
+        break;
+      }
 
       case 'immune':
         this.showNote(this.immuneNotes, event.enemy, event.x, event.y);
@@ -1163,7 +1171,7 @@ export class GameScene extends Phaser.Scene {
       return {
         kind,
         cost,
-        stats: this.buildings.stats(kind, 1),
+        stats: this.buildings.shownStats(kind, 1),
         count: this.buildings.count(this.board, kind),
         max: this.buildings.max(kind),
         block: this.finished ? 'unavailable' : this.buildings.blocked(this.board, kind),
@@ -1198,8 +1206,8 @@ export class GameScene extends Phaser.Scene {
       slot,
       kind: building.kind,
       level: building.level,
-      stats: this.buildings.stats(building.kind, building.level),
-      next: cost === null ? null : { cost, stats: this.buildings.stats(building.kind, building.level + 1) },
+      stats: this.buildings.shownStats(building.kind, building.level),
+      next: cost === null ? null : { cost, stats: this.buildings.shownStats(building.kind, building.level + 1) },
       affordable: cost !== null && this.economy.gold >= cost,
     };
   }

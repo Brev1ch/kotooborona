@@ -13,6 +13,18 @@ export interface GearBonuses {
   /** Кристаллы и монеты сверх стартовых запасов уровня. */
   bonusCrystals: number;
   bonusGold: number;
+  /** Прибавка к лимиту призывов каждой волны. */
+  summonLimitBonus: number;
+  /** Каждый N-й призыв за бой бесплатный; 0 — такого правила нет. */
+  freeSummonEvery: number;
+  /** Шанс от 0 до 1, что призванный кот сразу 2-го уровня. */
+  level2Chance: number;
+  /** Прибавка к урону котов стихии и гибридов с ней: 0.1 — на десять процентов больше. */
+  elementDamage: Partial<Record<ElementId, number>>;
+  /** Множитель монет, которые приносят строения. */
+  buildingIncomeMult: number;
+  /** Метеор оставляет горящую зону: `burnDps` — доля урона взрыва в секунду, `time` — сколько секунд она горит. */
+  meteorGround: { burnDps: number; time: number } | null;
 }
 
 /** Бой без снаряжения. */
@@ -24,6 +36,12 @@ export function noBonuses(): GearBonuses {
     ritualTimeMult: 1,
     bonusCrystals: 0,
     bonusGold: 0,
+    summonLimitBonus: 0,
+    freeSummonEvery: 0,
+    level2Chance: 0,
+    elementDamage: {},
+    buildingIncomeMult: 1,
+    meteorGround: null,
   };
 }
 

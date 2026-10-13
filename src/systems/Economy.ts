@@ -20,6 +20,8 @@ export class Economy {
   livesLost = 0;
   /** Призывы с начала текущей волны (или с начала боя, пока первая не началась). */
   private summonsThisWave = 0;
+  /** Призывы за весь бой: по ним считается бесплатный призыв от снаряжения. */
+  private summonsTotal = 0;
   private limit: number;
   /** Прибавка к лимиту от строений на поле; действует сразу, как только строение поставлено. */
   limitBonus = 0;
@@ -37,7 +39,13 @@ export class Economy {
 
   /** Сколько призывов по обычной цене даёт текущая волна. */
   get summonLimit(): number {
-    return this.limit + this.limitBonus;
+    return this.limit + this.limitBonus + this.bonuses.summonLimitBonus;
+  }
+
+  /** Следующий призыв бесплатный: правило легендарной мантии. */
+  get nextSummonFree(): boolean {
+    const every = this.bonuses.freeSummonEvery;
+    return every > 0 && (this.summonsTotal + 1) % every === 0;
   }
 
   /** Сколько из них ещё не потрачено. */
@@ -56,6 +64,7 @@ export class Economy {
   }
 
   get summonCost(): number {
+    if (this.nextSummonFree) return 0;
     const mult = this.overLimitMult;
     const discount = mult > 1 ? this.bonuses.overLimitCostMult : 1;
     return Math.round(this.config.summon.cost * mult * discount);
@@ -70,6 +79,7 @@ export class Economy {
     if (!this.canAffordSummon()) return false;
     this.gold -= this.summonCost;
     this.summonsThisWave++;
+    this.summonsTotal++;
     return true;
   }
 

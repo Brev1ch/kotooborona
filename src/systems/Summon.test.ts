@@ -99,3 +99,28 @@ describe('Summon.summon', () => {
     expect(summon.summon([cat(), cat()], 10)).toBeNull();
   });
 });
+
+describe('Summon: шанс кота 2-го уровня от снаряжения', () => {
+  it('бросок ниже шанса даёт кота 2-го уровня, выше — 1-го', () => {
+    // Броски: клетка, стихия, уровень.
+    const lucky = new Summon(cats, {}, sequence(0, 0, 0.09), 0.1);
+    const unlucky = new Summon(cats, {}, sequence(0, 0, 0.1), 0.1);
+
+    expect(lucky.summon([null], 10)?.cat).toMatchObject({ level: 2, invested: 10 });
+    expect(unlucky.summon([null], 10)?.cat.level).toBe(1);
+  });
+
+  it('без шанса лишний бросок не делается: последовательность призывов та же, что без снаряжения', () => {
+    let calls = 0;
+    const counting = (): number => {
+      calls++;
+      return 0.5;
+    };
+    new Summon(cats, {}, counting).summon([null], 10);
+    expect(calls).toBe(2);
+
+    calls = 0;
+    new Summon(cats, {}, counting, 0.2).summon([null], 10);
+    expect(calls).toBe(3);
+  });
+});

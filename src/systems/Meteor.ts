@@ -8,10 +8,11 @@ export class Meteor {
   /** Игрок выбирает точку удара. */
   aiming = false;
 
-  /** `cooldownMult` — множитель перезарядки от снаряжения. */
+  /** `cooldownMult` — множитель перезарядки от снаряжения; `ground` — горящая зона после удара от легендарного посоха. */
   constructor(
     private readonly config: GearConfig['meteor'],
     private readonly cooldownMult = 1,
+    private readonly ground: { burnDps: number; time: number } | null = null,
   ) {}
 
   /** Полная перезарядка с учётом снаряжения. */
@@ -58,6 +59,8 @@ export class Meteor {
 
     const { damage, damageGrowthPerWave, radius, burnDps, burnTime } = this.config;
     const dealt = damage * Math.pow(damageGrowthPerWave, Math.max(0, wave - 1)) * hpMult;
-    return { radius, damage: dealt, burnDps: dealt * burnDps, burnTime };
+    const blast: Blast = { radius, damage: dealt, burnDps: dealt * burnDps, burnTime };
+    if (this.ground) blast.ground = { burnDps: dealt * this.ground.burnDps, time: this.ground.time };
+    return blast;
   }
 }

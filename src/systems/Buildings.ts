@@ -16,11 +16,17 @@ export interface BuildingIncome {
 
 /** Правила строений: что можно ставить на уровне, цены, улучшения и доход. Монеты списывает Economy. */
 export class Buildings {
-  /** `available` — виды строений, открытые на уровне; пустой список — строить нельзя. */
+  /** `available` — виды строений, открытые на уровне; пустой список — строить нельзя. `goldMult` — множитель монетного дохода от снаряжения. */
   constructor(
     private readonly config: EconomyConfig['buildings'],
     readonly available: readonly BuildingKind[] = [],
+    private readonly goldMult = 1,
   ) {}
+
+  /** Сколько монет строение приносит за выдачу с учётом снаряжения. */
+  gold(kind: BuildingKind, level: number): number {
+    return Math.round((this.stats(kind, level).gold ?? 0) * this.goldMult);
+  }
 
   /** Сколько строений этого вида уже стоит. */
   count(board: Board, kind: BuildingKind): number {
@@ -51,6 +57,12 @@ export class Buildings {
     return levels[Math.min(level, levels.length) - 1];
   }
 
+  /** Числа строения так, как их видит игрок: монетный доход — уже с учётом снаряжения. */
+  shownStats(kind: BuildingKind, level: number): BuildingLevel {
+    const stats = this.stats(kind, level);
+    return stats.gold === undefined ? stats : { ...stats, gold: this.gold(kind, level) };
+  }
+
   /** Цена следующего улучшения; null — строение уже на последнем уровне. */
   upgradeCost(building: Building): number | null {
     return this.config.kinds[building.kind][building.level]?.cost ?? null;
@@ -78,7 +90,8 @@ export class Buildings {
     const income: BuildingIncome = { gold: 0, crystals: 0, slots: [] };
     board.forEach((piece, slot) => {
       if (!isBuilding(piece)) return;
-      const { gold = 0, crystals = 0, everyWaves = 1 } = this.stats(piece.kind, piece.level);
+      const { crystals = 0, everyWaves = 1 } = this.stats(piece.kind, piece.level);
+      const gold = this.gold(piece.kind, piece.level);
       if (gold === 0 && crystals === 0) return;
       piece.waves++;
       if (piece.waves < everyWaves) return;

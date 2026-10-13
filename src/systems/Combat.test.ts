@@ -1269,3 +1269,98 @@ describe('Combat: подмога короля', () => {
     expect(boss.slowFactor).toBe(0.75);
   });
 });
+
+describe('Combat: бонусы снаряжения', () => {
+  it('прибавка к урону стихии действует на её котов', () => {
+    expect(catDamage(cats, cat('fire'), { fire: 0.2 })).toBeCloseTo(12);
+    expect(catDamage(cats, cat('water'), { fire: 0.2 })).toBe(10);
+    expect(catDamage(cats, cat('fire', 3), { fire: 0.5 })).toBeCloseTo(60);
+  });
+
+  it('и на гибридов, в которых эта стихия есть; прибавки двух стихий складываются', () => {
+    // Пар — огонь и вода: гибрид 1-го уровня бьёт на 15.
+    expect(catDamage(cats, cat('steam'), { fire: 0.2 })).toBeCloseTo(18);
+    expect(catDamage(cats, cat('steam'), { fire: 0.2, water: 0.1 })).toBeCloseTo(19.5);
+    expect(catDamage(cats, cat('sand'), { fire: 0.2 })).toBe(15);
+  });
+
+  it('в бою кот бьёт с прибавкой, заданной при создании боя', () => {
+    const mouse = enemy('mouse', MIDDLE, { hp: 100 });
+    const combat = new Combat({ cats, enemies, path, slots, bounds, damageBonus: { air: 0.5 } });
+    combat.add(mouse);
+    run(combat, [cat('air')], 0.3);
+
+    expect(mouse.hp).toBe(85);
+  });
+});
+
+describe('Combat: горящая зона метеора', () => {
+  const blast = { radius: 20, damage: 30, burnDps: 4, burnTime: 2, ground: { burnDps: 6, time: 3 } };
+
+  it('удар с зоной сообщает о ней и запоминает её', () => {
+    const combat = create([]);
+    const events = combat.strike(50, 50, blast);
+
+    expect(ofKind(events, 'ground')).toEqual([{ kind: 'ground', x: 50, y: 50, radius: 20, time: 3 }]);
+    expect(combat.burningGrounds).toHaveLength(1);
+  });
+
+  it('без зоны удар её не оставляет', () => {
+    const combat = create([]);
+    combat.strike(50, 50, { radius: 20, damage: 30, burnDps: 4, burnTime: 2 });
+
+    expect(combat.burningGrounds).toEqual([]);
+  });
+
+  it('враг, вошедший в зону после удара, загорается', () => {
+    const late = enemy('mouse', MIDDLE - 40, { hp: 100, speed: 40 });
+    const combat = create([late]);
+    combat.strike(50, 50, blast);
+    expect(late.burnTime).toBe(0);
+
+    run(combat, [], 1);
+    expect(late).toMatchObject({ burnDps: 6 });
+    expect(late.burnTime).toBeGreaterThan(0);
+    expect(late.hp).toBeLessThan(100);
+  });
+
+  it('тот, кто в зону не заходил, не горит', () => {
+    const far = enemy('mouse', MIDDLE + 40, { hp: 100 });
+    const combat = create([far]);
+    combat.strike(50, 50, blast);
+    run(combat, [], 3);
+
+    expect(far).toMatchObject({ hp: 100, burnTime: 0 });
+  });
+
+  it('зона гаснет через своё время и больше не поджигает', () => {
+    const combat = create([]);
+    combat.strike(50, 50, blast);
+    run(combat, [], 3.1);
+    expect(combat.burningGrounds).toEqual([]);
+
+    const mouse = enemy('mouse', MIDDLE, { hp: 100 });
+    combat.add(mouse);
+    run(combat, [], 1);
+    expect(mouse).toMatchObject({ hp: 100, burnTime: 0 });
+  });
+
+  it('невосприимчивого к огню зона не поджигает и событиями не сыплет', () => {
+    const fire = enemy('fire', MIDDLE, { hp: 100 });
+    const combat = create([fire]);
+    combat.strike(50, 50, blast);
+    const events = run(combat, [], 1);
+
+    expect(fire.burnTime).toBe(0);
+    expect(ofKind(events, 'immune')).toEqual([]);
+  });
+
+  it('крота под землёй зона не трогает', () => {
+    const mole = enemy('mole', MIDDLE, { hp: 100 });
+    const combat = create([mole]);
+    combat.strike(50, 50, blast);
+    run(combat, [], 1);
+
+    expect(mole).toMatchObject({ hp: 100, burnTime: 0 });
+  });
+});

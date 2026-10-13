@@ -15,11 +15,13 @@ export class Summon {
   /**
    * `summonWeights` — веса стихий от снаряжения, у остальных вес 1.
    * `rng` возвращает число в [0, 1); подменяется в тестах.
+   * `level2Chance` — шанс от снаряжения, что кот придёт сразу 2-го уровня; без него лишний бросок не делается.
    */
   constructor(
     cats: CatsConfig,
     summonWeights: Partial<Record<ElementId, number>> = {},
     private readonly rng: () => number = Math.random,
+    private readonly level2Chance = 0,
   ) {
     // Базовые стихии — те, что не получаются смешением.
     this.elements = (Object.keys(cats.elements) as ElementId[]).filter((id) => !cats.elements[id].from);
@@ -46,10 +48,12 @@ export class Summon {
     return free[Math.min(Math.floor(this.rng() * free.length), free.length - 1)];
   }
 
-  /** Кот 1-го уровня для случайной свободной клетки; поле не меняет. `price` — сколько за него заплачено. */
+  /** Кот 1-го (со снаряжением иногда 2-го) уровня для случайной свободной клетки; поле не меняет. `price` — сколько за него заплачено. */
   summon(board: readonly (Piece | null)[], price: number): SummonResult | null {
     const slot = this.pickFreeSlot(board);
     if (slot === null) return null;
-    return { slot, cat: { element: this.rollElement(), level: 1, cooldown: 0, ritual: 0, invested: price } };
+    const element = this.rollElement();
+    const level = this.level2Chance > 0 && this.rng() < this.level2Chance ? 2 : 1;
+    return { slot, cat: { element, level, cooldown: 0, ritual: 0, invested: price } };
   }
 }
