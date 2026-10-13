@@ -18,6 +18,7 @@ function state(overrides: Partial<TutorialState> = {}): TutorialState {
     builds: 0,
     canSummon: false,
     limitSpent: false,
+    overLimitSummons: 0,
     sellSlot: null,
     dragging: false,
     canBuild: false,
@@ -142,33 +143,49 @@ describe('Tutorial: не мешает тому, кто уже разобралс
 });
 
 describe('Tutorial: лимит, продажа и стройка', () => {
-  it('лимит: показывает на кнопку призыва, когда призывы волны кончились', () => {
+  /** Лимит исчерпан, и на призыв со штрафом хватает монет. */
+  const spent = { limitSpent: true, canSummon: true };
+
+  it('лимит: показывает на кнопку призыва, когда призывы волны кончились и на следующий хватает монет', () => {
     const tutorial = new Tutorial(['limit'], rules);
 
     expect(settled(tutorial, state())).toBeNull();
-    expect(settled(tutorial, state({ limitSpent: true }))).toEqual({ step: 'limit', target: 'summonButton' });
+    expect(settled(tutorial, state(spent))).toEqual({ step: 'limit', target: 'summonButton' });
+  });
+
+  it('пока на призыв со штрафом нет монет, про лимит молчит — и подсказка остаётся впереди', () => {
+    const tutorial = new Tutorial(['limit'], rules);
+
+    expect(settled(tutorial, state({ limitSpent: true, canSummon: false }))).toBeNull();
+    expect(settled(tutorial, state(spent))?.step).toBe('limit');
+  });
+
+  it('игрок призвал кота со штрафом — подсказка про лимит больше не нужна', () => {
+    const tutorial = new Tutorial(['limit'], rules);
+
+    expect(settled(tutorial, state({ ...spent, overLimitSummons: 1 }))).toBeNull();
   });
 
   it('про лимит рассказывает один раз за бой: после новой волны подсказка не возвращается', () => {
     const tutorial = new Tutorial(['limit'], rules);
-    settled(tutorial, state({ limitSpent: true }));
+    settled(tutorial, state(spent));
     // Началась волна — лимит обновился.
-    expect(settled(tutorial, state())).toBeNull();
+    expect(settled(tutorial, state({ canSummon: true }))).toBeNull();
 
-    expect(settled(tutorial, state({ limitSpent: true }))).toBeNull();
+    expect(settled(tutorial, state(spent))).toBeNull();
   });
 
   it('лимит кончился и обновился раньше, чем подсказка появилась, — она ещё впереди', () => {
     const tutorial = new Tutorial(['limit'], rules);
-    tutorial.update(0.5, state({ limitSpent: true }));
+    tutorial.update(0.5, state(spent));
     tutorial.update(0.5, state());
 
-    expect(settled(tutorial, state({ limitSpent: true }))?.step).toBe('limit');
+    expect(settled(tutorial, state(spent))?.step).toBe('limit');
   });
 
   it('слияние важнее лимита: сначала игрок учится сливать', () => {
     const tutorial = new Tutorial(['summon', 'merge', 'limit'], rules);
-    const both = state({ summons: 4, limitSpent: true, mergePair: [0, 1] });
+    const both = state({ ...spent, summons: 4, mergePair: [0, 1] });
 
     expect(settled(tutorial, both)?.step).toBe('merge');
     expect(settled(tutorial, { ...both, merges: 1, mergePair: null })?.step).toBe('limit');

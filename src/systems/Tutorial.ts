@@ -17,6 +17,8 @@ export interface TutorialState {
   canSummon: boolean;
   /** Призывы волны по обычной цене кончились: следующий — со штрафом. */
   limitSpent: boolean;
+  /** Сколько раз игрок уже призвал кота сверх лимита. */
+  overLimitSummons: number;
   /** Клетка кота, которого стоит продать: поле почти занято, а пары ему нет; null — продавать некого. */
   sellSlot: number | null;
   /** Игрок что-то держит в руке: подсказки про перетаскивание не нужны. */
@@ -69,7 +71,8 @@ function applicable(
         if (state.hybrids === 0 && state.hybridPair) return { step, from: state.hybridPair[0], to: state.hybridPair[1] };
         break;
       case 'limit':
-        if (!limitDone && state.limitSpent) return { step, target: 'summonButton' };
+        // Только когда на призыв со штрафом хватает монет: игрок может сразу попробовать. Попробовал — подсказка больше не нужна.
+        if (!limitDone && state.limitSpent && state.canSummon && state.overLimitSummons === 0) return { step, target: 'summonButton' };
         break;
       case 'sell':
         if (state.sales === 0 && state.sellSlot !== null && !state.dragging) return { step, from: state.sellSlot };

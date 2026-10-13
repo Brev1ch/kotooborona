@@ -138,10 +138,12 @@ export function bookBackCenter(): [number, number] {
 // Верхняя полоса: четыре показателя, справа — кнопки скорости боя и паузы.
 export const HUD_PAD = 6;
 export const HUD_GAP = 6;
+/** Между кнопками скорости и паузы зазор больше: промах по одной не должен нажимать другую. */
+export const HUD_BUTTON_GAP = 12;
 
 /** Центр кнопки скорости боя в HUD: слева от паузы. */
 export function speedButtonCenter(): [number, number] {
-  return [GAME_W - HUD_PAD - MIN_TOUCH - HUD_GAP - MIN_TOUCH / 2, HUD_H / 2];
+  return [GAME_W - HUD_PAD - MIN_TOUCH - HUD_BUTTON_GAP - MIN_TOUCH / 2, HUD_H / 2];
 }
 
 /** Центр кнопки паузы в HUD. */

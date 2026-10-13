@@ -140,7 +140,7 @@ export class GameScene extends Phaser.Scene {
   private coinAd!: CoinAd;
   private secondChance!: SecondChance;
   /** Что игрок уже сделал в этом бою; по этому обучение понимает, какие подсказки больше не нужны. */
-  private actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0, builds: 0 };
+  private actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0, builds: 0, overLimitSummons: 0 };
   private hero!: HeroView;
   /** Подсветка поля, пока игрок выбирает точку удара. */
   private aimGlow!: Phaser.GameObjects.Graphics;
@@ -203,7 +203,7 @@ export class GameScene extends Phaser.Scene {
     this.enemyViews = new Map();
     this.projectileViews = new Map();
     this.shownWave = '';
-    this.actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0, builds: 0 };
+    this.actions = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0, builds: 0, overLimitSummons: 0 };
     this.finished = false;
     this.board = this.level.slots.map(() => null);
     this.setSpeed(1);
@@ -882,6 +882,7 @@ export class GameScene extends Phaser.Scene {
     const result = this.summoner.summon(this.board, this.economy.summonCost);
     if (!result) return;
 
+    if (this.economy.overLimitMult > 1) this.actions.overLimitSummons++;
     this.economy.paySummon();
     this.actions.summons++;
     this.placeCat(result.slot, result.cat).playSpawn();

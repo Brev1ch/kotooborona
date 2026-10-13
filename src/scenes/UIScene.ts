@@ -29,6 +29,7 @@ import {
   FONTS,
   GAME_H,
   GAME_W,
+  HUD_BUTTON_GAP,
   HUD_GAP,
   HUD_H,
   HUD_PAD,
@@ -69,7 +70,7 @@ const STAT_GAP = HUD_GAP;
 /** Доли ширины показателей — монеты, кристаллы, волна, жизни: длинной подписи «Кристаллы» и числу волн «10/11» нужно больше места. */
 const STAT_SHARES = [54, 69, 59, 48];
 /** Что остаётся показателям: полоса без краёв, двух кнопок справа и промежутков. */
-const STATS_W = GAME_W - HUD_PAD * 2 - MIN_TOUCH * 2 - STAT_GAP * (STAT_SHARES.length + 1);
+const STATS_W = GAME_W - HUD_PAD * 2 - MIN_TOUCH * 2 - STAT_GAP * STAT_SHARES.length - HUD_BUTTON_GAP;
 const SHARES_SUM = STAT_SHARES.reduce((sum, share) => sum + share, 0);
 
 /** Ширина показателя с номером `index`. */

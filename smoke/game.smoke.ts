@@ -9,6 +9,7 @@ import {
   buildRowCenter,
   GAME_W,
   gearButtonCenter,
+  HUD_BUTTON_GAP,
   HUD_H,
   menuBookCenter,
   menuCardCenter,
@@ -420,6 +421,13 @@ test('старое сохранение: меню → книга → снаря�
         (s) => `Кнопка скорости не переключила бой на ×${expected}: сейчас ×${s?.hud?.speed ?? '?'}`,
       );
     }
+    // Между «×2» и паузой — зазор: промах по одной кнопке не должен нажимать другую.
+    const targets = (await state(page))?.targets ?? [];
+    const speedButton = targets.find((target) => target.name === 'speed');
+    const pauseButton = targets.find((target) => target.name === 'pause');
+    if (!speedButton || !pauseButton) throw new Error('В HUD нет кнопки скорости или паузы');
+    const gap = pauseButton.x - (speedButton.x + speedButton.width);
+    if (gap < HUD_BUTTON_GAP - 0.5) throw new Error(`Между кнопками скорости и паузы ${gap} px, нужно не меньше ${HUD_BUTTON_GAP}`);
     await page.screenshot({ path: `${SHOTS}/${shot('speed')}` });
     await checkTouchSizes(page, 'ускоренный бой');
     checkConsole('ускорение боя');
@@ -951,10 +959,7 @@ test('обучение: призыв → слияние → лимит → пр�
       (window.__smoke?.catSlots() ?? []).forEach((slot, index) => window.__smoke?.placeCat(slot, 'water', index + 2));
     });
     await page.waitForTimeout(TUTORIAL_GONE_MS);
-    const after = await state(page);
-    if (after?.tutorial === 'limit' && (after.hud?.overLimitMult ?? 1) <= 2) {
-      throw new Error('Подсказка про лимит осталась после призыва со штрафом');
-    }
+    if ((await state(page))?.tutorial === 'limit') throw new Error('Подсказка про лимит осталась после призыва со штрафом');
     checkConsole('обучение: лимит');
   });
 
