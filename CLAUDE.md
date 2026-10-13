@@ -19,9 +19,9 @@ src/
   audio.ts           звуки поверх Phaser Sound: `audio.play(id)`, выключатель, паузы (скрытая вкладка, реклама)
   fonts.ts           загрузка веб-шрифтов до меню
   scenes/            Boot, Menu, Book, Gear, Story (сценки перед уровнями), Game, UI (HUD поверх Game)
-  systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy, Progress, Loadout, Gear, Chests, Campaign, Book, Story, Tutorial, Ads, Rewards, Simulation (бой без отрисовки), Bot (бот-игрок для подбора баланса)
-  entities/          Cat, Enemy, Projectile, Hero
-  data/              JSON-конфиги: cats.json, enemies.json, levels.json, economy.json (цена и лимит призывов, продажа), gear.json, ads.json, story.json
+  systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy, Buildings (строения: постройка, улучшение, доход), Progress, Loadout, Gear, Chests, Campaign, Book, Story, Tutorial, Ads, Rewards, Simulation (бой без отрисовки), Bot (бот-игрок для подбора баланса)
+  entities/          Cat, Building (строение в клетке поля), Enemy, Projectile, Hero
+  data/              JSON-конфиги: cats.json, enemies.json, levels.json, economy.json (цена и лимит призывов, продажа, строения), gear.json, ads.json, story.json
   platform/          площадка за интерфейсом `Platform`: `YandexPlatform` (SDK Яндекс Игр: реклама, данные игрока, язык, разметка боя) и `DevPlatform` (заглушка); выбор — при запуске, по наличию `/sdk.js`
   i18n/              строки RU/EN
 public/assets/       спрайты, шрифты (`fonts/`), сжатые звуки (`sfx/`, собираются `npm run sfx`)

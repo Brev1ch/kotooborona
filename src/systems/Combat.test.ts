@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cats as catsJson, enemies as enemiesJson } from '../data';
 import type { CatsConfig, ElementId, EnemiesConfig, EnemyTypeId } from '../data';
+import type { Building, Piece } from '../entities/Building';
 import type { Cat } from '../entities/Cat';
 import type { Enemy } from '../entities/Enemy';
 import { catDamage, catRate, Combat, type CombatEvent } from './Combat';
@@ -99,7 +100,7 @@ function create(list: Enemy[], roll = 0.99): Combat {
 }
 
 /** Прокручивает бой и возвращает все события. */
-function run(combat: Combat, board: (Cat | null)[], seconds: number): CombatEvent[] {
+function run(combat: Combat, board: (Piece | null)[], seconds: number): CombatEvent[] {
   const events: CombatEvent[] = [];
   for (let i = 0; i < Math.round(seconds / DT); i++) events.push(...combat.update(DT, board));
   return events;
@@ -255,6 +256,18 @@ describe('Combat: выстрел', () => {
     const shots = ofKind(combat.update(DT, [cat('fire'), cat('earth')]), 'shot');
 
     expect(shots.map((shot) => shot.slot)).toEqual([0, 1]);
+  });
+});
+
+describe('Combat: строения', () => {
+  it('строение в клетке не стреляет, кот рядом — стреляет', () => {
+    const shop: Building = { kind: 'shop', level: 1, invested: 40, waves: 0 };
+    const alone = run(create([enemy('mouse', MIDDLE)]), [shop], 1);
+    expect(ofKind(alone, 'shot')).toHaveLength(0);
+
+    const withCat = run(create([enemy('mouse', MIDDLE)]), [shop, cat()], 1);
+    expect(ofKind(withCat, 'shot').every((event) => event.slot === 1)).toBe(true);
+    expect(ofKind(withCat, 'shot').length).toBeGreaterThan(0);
   });
 });
 

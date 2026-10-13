@@ -1,6 +1,8 @@
-import type { CatsConfig, EconomyConfig, EnemiesConfig, GearConfig, LevelConfig, LevelsConfig, Point } from '../data/types';
+import type { BuildingKind, CatsConfig, EconomyConfig, EnemiesConfig, GearConfig, LevelConfig, LevelsConfig, Point } from '../data/types';
+import { isBuilding, isCat, type Piece } from '../entities/Building';
 import type { Cat } from '../entities/Cat';
 import type { Enemy } from '../entities/Enemy';
+import { Buildings } from './Buildings';
 import { catRange, Combat, type CombatEvent } from './Combat';
 import { Economy, starsFor } from './Economy';
 import { gearBonuses, type GearBonuses } from './Loadout';
@@ -35,8 +37,11 @@ export interface SimResult {
   merges: number;
   hybrids: number;
   meteors: number;
-  /** Сколько котов продано через корзину. */
+  /** Сколько котов и строений продано через корзину. */
   sales: number;
+  /** Сколько строений каждого вида поставлено и сколько сделано улучшений. */
+  built: Record<BuildingKind, number>;
+  upgrades: number;
   /** Самый высокий уровень кота за бой. */
   topCatLevel: number;
 }
@@ -50,7 +55,8 @@ const TIME_LIMIT = 1200;
  */
 export class Simulation {
   readonly economy: Economy;
-  readonly board: (Cat | null)[];
+  readonly board: (Piece | null)[];
+  readonly buildings: Buildings;
   readonly meteor: Meteor;
   readonly waves: Waves;
   readonly combat: Combat;
@@ -61,7 +67,8 @@ export class Simulation {
   private readonly merger: Merge;
   private readonly summoner: Summon;
   private outcome: boolean | null = null;
-  private counts = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0, topCatLevel: 0 };
+  private counts = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0, upgrades: 0, topCatLevel: 0 };
+  private built: Record<BuildingKind, number> = { shop: 0, mine: 0, altar: 0 };
 
   /** `rng` возвращает число в [0, 1); `bonuses` — снаряжение игрока, по умолчанию стартовое первого уровня. */
   constructor(
@@ -85,6 +92,7 @@ export class Simulation {
     this.waves = new Waves(levels.waves, level, enemies, rng);
     this.combat = new Combat({ cats, enemies, path: this.path, slots: this.slots, bounds: board, rng });
     this.board = level.slots.map(() => null);
+    this.buildings = new Buildings(economy.buildings, level.buildings);
   }
 
   get finished(): boolean {
@@ -105,11 +113,15 @@ export class Simulation {
     this.time += dt;
     this.meteor.update(dt);
     for (const cat of this.board) {
-      if (cat) this.merger.advanceRitual(cat, dt);
+      if (isCat(cat)) this.merger.advanceRitual(cat, dt);
     }
     const wave = this.waves.wave;
     for (const enemy of this.waves.update(dt, this.combat.enemies.length === 0)) this.combat.add(enemy);
-    if (this.waves.wave !== wave) this.economy.startWave();
+    if (this.waves.wave !== wave) {
+      this.economy.startWave();
+      const income = this.buildings.startWave(this.board);
+      this.economy.reward(income.gold, income.crystals);
+    }
     this.apply(this.combat.update(dt, this.board));
 
     if (this.economy.lives <= 0 || this.time >= TIME_LIMIT) this.outcome = false;
@@ -159,13 +171,37 @@ export class Simulation {
     }
   }
 
-  /** Продажа кота из клетки через корзину. Возвращает false, если клетка пуста или кот проводит ритуал. */
+  /** Продажа кота или строения из клетки через корзину. Возвращает false, если клетка пуста или кот проводит ритуал. */
   sell(slot: number): boolean {
-    const cat = this.board[slot];
-    if (this.finished || !cat || cat.ritual > 0) return false;
-    this.economy.sell(cat.invested);
+    const piece = this.board[slot];
+    if (this.finished || !piece || (isCat(piece) && piece.ritual > 0)) return false;
+    this.economy.sell(piece.invested);
     this.board[slot] = null;
     this.counts.sales++;
+    this.syncLimit();
+    return true;
+  }
+
+  /** Ставит строение в случайную свободную клетку. Возвращает false, если строить нельзя или не хватило монет. */
+  build(kind: BuildingKind): boolean {
+    if (this.finished || this.buildings.blocked(this.board, kind)) return false;
+    const slot = this.summoner.pickFreeSlot(this.board);
+    if (slot === null || !this.economy.spend(this.buildings.cost(kind))) return false;
+    this.board[slot] = this.buildings.create(kind);
+    this.built[kind]++;
+    this.syncLimit();
+    return true;
+  }
+
+  /** Улучшает строение в клетке. Возвращает false, если там не строение, оно уже на последнем уровне или не хватило монет. */
+  upgrade(slot: number): boolean {
+    const piece = this.board[slot];
+    if (this.finished || !isBuilding(piece)) return false;
+    const next = this.buildings.upgraded(piece);
+    if (!next || !this.economy.spend(next.invested - piece.invested)) return false;
+    this.board[slot] = next;
+    this.counts.upgrades++;
+    this.syncLimit();
     return true;
   }
 
@@ -199,7 +235,13 @@ export class Simulation {
       wave: this.waves.wave,
       time: this.time,
       ...this.counts,
+      built: { ...this.built },
     };
+  }
+
+  /** Алтари на поле меняют лимит призывов сразу. */
+  private syncLimit(): void {
+    this.economy.limitBonus = this.buildings.summonLimitBonus(this.board);
   }
 
   private apply(events: CombatEvent[]): void {

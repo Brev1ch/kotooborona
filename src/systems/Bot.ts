@@ -1,4 +1,5 @@
 import type { LevelConfig, Point } from '../data/types';
+import { isCat } from '../entities/Building';
 import type { Cat } from '../entities/Cat';
 import { positionAt } from './Path';
 import { seededRandom } from './Random';
@@ -118,7 +119,7 @@ export class Bot {
     const { sim } = this;
     let pick: { from: number; to: number; level: number; gain: number } | null = null;
     sim.board.forEach((cat, from) => {
-      if (!cat || cat.ritual > 0) return;
+      if (!isCat(cat) || cat.ritual > 0) return;
       const here = this.view(from, cat);
       sim.board.forEach((other, to) => {
         if (other) return;

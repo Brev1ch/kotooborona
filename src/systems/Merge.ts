@@ -1,4 +1,5 @@
 import type { CatsConfig, ElementId } from '../data/types';
+import { isCat, type Piece } from '../entities/Building';
 import type { Cat } from '../entities/Cat';
 
 export interface MergeRules {
@@ -68,14 +69,16 @@ export class Merge {
     return { kind: 'merge', cat: { element, level: a.level + 1, cooldown: 0, ritual, invested }, crystalCost };
   }
 
-  /** Исход перетаскивания кота из клетки `from` в клетку `to` (null — мимо клеток); поле не меняет. */
-  drop(board: readonly (Cat | null)[], from: number, to: number | null, crystals: number): DropResult {
+  /** Исход перетаскивания кота или строения из клетки `from` в клетку `to` (null — мимо клеток); поле не меняет. */
+  drop(board: readonly (Piece | null)[], from: number, to: number | null, crystals: number): DropResult {
     const dragged = board[from];
-    if (!dragged || dragged.ritual > 0 || to === null || to === from) return { kind: 'stay' };
+    if (!dragged || inRitual(dragged) || to === null || to === from) return { kind: 'stay' };
 
     const target = board[to];
     if (!target) return { kind: 'move' };
-    if (target.ritual > 0) return { kind: 'busy' };
+    if (inRitual(target)) return { kind: 'busy' };
+    // Строение ни с кем не сливается: оно просто меняется местами.
+    if (!isCat(dragged) || !isCat(target)) return { kind: 'swap' };
 
     const check = this.check(dragged, target, crystals);
     return check.kind === 'none' ? { kind: 'swap' } : check;
@@ -94,6 +97,10 @@ export class Merge {
     // Гибриды смешиваются только с такими же гибридами: в рецептах есть лишь пары базовых стихий.
     return this.recipes.get(recipeKey(a.element, b.element)) ?? null;
   }
+}
+
+function inRitual(piece: Piece): boolean {
+  return isCat(piece) && piece.ritual > 0;
 }
 
 function recipeKey(a: ElementId, b: ElementId): string {

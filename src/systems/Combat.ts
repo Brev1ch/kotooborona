@@ -1,4 +1,5 @@
 import type { CatsConfig, ElementId, EnemiesConfig, Point } from '../data/types';
+import { isCat, type Piece } from '../entities/Building';
 import type { Cat } from '../entities/Cat';
 import type { Enemy } from '../entities/Enemy';
 import type { Projectile } from '../entities/Projectile';
@@ -84,12 +85,12 @@ export class Combat {
     this.alive.push(enemy);
   }
 
-  /** Продвигает бой на `dt` секунд. Кулдауны котов на поле `board` меняются на месте. */
-  update(dt: number, board: readonly (Cat | null)[]): CombatEvent[] {
+  /** Продвигает бой на `dt` секунд. Кулдауны котов на поле `board` меняются на месте; строения не атакуют. */
+  update(dt: number, board: readonly (Piece | null)[]): CombatEvent[] {
     this.events = [];
     this.moveEnemies(dt);
-    board.forEach((cat, slot) => {
-      if (cat) this.attack(cat, slot, dt);
+    board.forEach((piece, slot) => {
+      if (isCat(piece)) this.attack(piece, slot, dt);
     });
     this.moveProjectiles(dt);
     this.alive = this.alive.filter((enemy) => enemy.hp > 0);

@@ -98,6 +98,8 @@ export interface LevelConfig {
   shieldChance: number;
   /** Рыбки за первое прохождение на одну звезду. */
   fish: number;
+  /** Строения, которые можно ставить на уровне; нет списка — строить нельзя. */
+  buildings?: BuildingKind[];
   /** Обучение на этом уровне: какие шаги подсказывать и где на поле стоит текст подсказки (центр и ширина). */
   tutorial?: { steps: TutorialStep[]; at: Point; width: number };
 }
@@ -201,6 +203,27 @@ export interface EconomyConfig {
   };
   /** Продажа через корзину: какая доля вложенных монет возвращается. */
   sell: { refund: number };
+  buildings: {
+    /** Сколько строений одного вида можно поставить на уровне. */
+    maxPerKind: number;
+    /** Уровни каждого строения по порядку: первый — постройка, следующие — улучшения. */
+    kinds: Record<BuildingKind, BuildingLevel[]>;
+  };
+}
+
+/** Рыбная лавка, кристальная шахта, алтарь кошачьей мяты. */
+export type BuildingKind = 'shop' | 'mine' | 'altar';
+
+/** Строение на одном уровне: цена перехода на него и то, что оно даёт. */
+export interface BuildingLevel {
+  /** Цена постройки (у первого уровня) или улучшения до этого уровня. */
+  cost: number;
+  /** Монеты и кристаллы в начале волны — раз в `everyWaves` волн (по умолчанию каждую). */
+  gold?: number;
+  crystals?: number;
+  everyWaves?: number;
+  /** Прибавка к лимиту призывов волны. */
+  summonLimit?: number;
 }
 
 export interface AdsConfig {

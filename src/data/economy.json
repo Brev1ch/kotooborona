@@ -1,4 +1,16 @@
 {
   "summon": { "cost": 10, "perWave": 3, "beforeFirstWave": 4, "overLimitMult": [2, 3, 4] },
-  "sell": { "refund": 0.5 }
+  "sell": { "refund": 0.5 },
+  "buildings": {
+    "maxPerKind": 2,
+    "kinds": {
+      "shop": [{ "cost": 40, "gold": 8 }, { "cost": 30, "gold": 14 }, { "cost": 40, "gold": 22 }],
+      "mine": [
+        { "cost": 60, "crystals": 1, "everyWaves": 2 },
+        { "cost": 50, "crystals": 1, "everyWaves": 1 },
+        { "cost": 70, "crystals": 2, "everyWaves": 1 }
+      ],
+      "altar": [{ "cost": 50, "summonLimit": 1 }, { "cost": 60, "summonLimit": 2 }, { "cost": 70, "summonLimit": 3 }]
+    }
+  }
 }

@@ -1,5 +1,5 @@
 import type { Point, TutorialRules, TutorialStep } from '../data/types';
-import type { Cat } from '../entities/Cat';
+import { isCat, type Piece } from '../entities/Building';
 import type { Merge } from './Merge';
 
 /** Что обучению нужно знать о бое. */
@@ -94,17 +94,17 @@ export class Tutorial {
  * Возвращает клетки «откуда» и «куда».
  */
 export function findMergePair(
-  board: readonly (Cat | null)[],
+  board: readonly (Piece | null)[],
   merger: Merge,
   crystals: number,
   hybrid: boolean,
 ): [number, number] | null {
   for (let from = 0; from < board.length; from++) {
     const dragged = board[from];
-    if (!dragged) continue;
+    if (!isCat(dragged)) continue;
     for (let to = from + 1; to < board.length; to++) {
       const target = board[to];
-      if (!target) continue;
+      if (!isCat(target)) continue;
       const check = merger.check(dragged, target, crystals);
       if (check.kind === 'merge' && check.crystalCost > 0 === hybrid) return [from, to];
     }

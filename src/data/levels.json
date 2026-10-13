@@ -96,7 +96,8 @@
       "hpMult": 2.9,
       "ratChance": 0.3,
       "shieldChance": 0,
-      "fish": 32
+      "fish": 32,
+      "buildings": ["shop", "mine", "altar"]
     },
     {
       "id": "polyana",
@@ -113,7 +114,8 @@
       "hpMult": 2.95,
       "ratChance": 0.25,
       "shieldChance": 0.15,
-      "fish": 36
+      "fish": 36,
+      "buildings": ["shop", "mine", "altar"]
     },
     {
       "id": "ovrag",
@@ -130,7 +132,8 @@
       "hpMult": 1.7,
       "ratChance": 0.3,
       "shieldChance": 0.2,
-      "fish": 40
+      "fish": 40,
+      "buildings": ["shop", "mine", "altar"]
     },
     {
       "id": "burelom",
@@ -147,7 +150,8 @@
       "hpMult": 3.05,
       "ratChance": 0.3,
       "shieldChance": 0.25,
-      "fish": 45
+      "fish": 45,
+      "buildings": ["shop", "mine", "altar"]
     },
     {
       "id": "melnitsa",
@@ -164,7 +168,8 @@
       "hpMult": 3.35,
       "ratChance": 0.35,
       "shieldChance": 0.25,
-      "fish": 50
+      "fish": 50,
+      "buildings": ["shop", "mine", "altar"]
     },
     {
       "id": "most",
@@ -181,7 +186,8 @@
       "hpMult": 1.7,
       "ratChance": 0.35,
       "shieldChance": 0.3,
-      "fish": 55
+      "fish": 55,
+      "buildings": ["shop", "mine", "altar"]
     },
     {
       "id": "lager",
@@ -199,7 +205,8 @@
       "hpMult": 1.65,
       "ratChance": 0.35,
       "shieldChance": 0.3,
-      "fish": 70
+      "fish": 70,
+      "buildings": ["shop", "mine", "altar"]
     }
   ]
 }

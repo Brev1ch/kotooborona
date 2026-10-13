@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { levels } from '../data';
+import { economy as economyJson, levels } from '../data';
 import type { EconomyConfig, LevelConfig } from '../data';
 import { Economy, starsFor } from './Economy';
 import { noBonuses } from './Loadout';
 
 // Числа зафиксированы здесь, чтобы тесты не зависели от правок баланса в JSON.
 const level: LevelConfig = { ...levels.levels[0], startGold: 25, startCrystals: 2, startLives: 10 };
-const config: EconomyConfig = { summon: { cost: 10, perWave: 2, beforeFirstWave: 3, overLimitMult: [2, 3, 4] }, sell: { refund: 0.5 } };
+const config: EconomyConfig = {
+  ...economyJson,
+  summon: { cost: 10, perWave: 2, beforeFirstWave: 3, overLimitMult: [2, 3, 4] },
+  sell: { refund: 0.5 },
+};
 
 describe('Economy', () => {
   it('берёт стартовые монеты, кристаллы и жизни из уровня', () => {
@@ -139,6 +143,50 @@ describe('Economy', () => {
     economy.loseLives(5);
 
     expect(economy.lives).toBe(0);
+  });
+});
+
+describe('Economy: строения', () => {
+  it('списывает монеты за строение, если их хватает', () => {
+    const economy = new Economy(level, config);
+
+    expect(economy.spend(25)).toBe(true);
+    expect(economy.gold).toBe(0);
+  });
+
+  it('без монет ничего не списывает', () => {
+    const economy = new Economy(level, config);
+
+    expect(economy.spend(26)).toBe(false);
+    expect(economy.gold).toBe(25);
+  });
+
+  it('алтарь поднимает лимит призывов сразу и на следующих волнах', () => {
+    const economy = new Economy({ ...level, startGold: 1000 }, config);
+    for (let i = 0; i < 3; i++) economy.paySummon();
+    expect(economy.summonCost).toBe(20);
+
+    economy.limitBonus = 1;
+
+    expect(economy.summonLimit).toBe(4);
+    expect(economy.summonsLeft).toBe(1);
+    expect(economy.summonCost).toBe(10);
+
+    economy.startWave();
+    expect(economy.summonLimit).toBe(3);
+    expect(economy.summonsLeft).toBe(3);
+  });
+
+  it('без алтаря лимит возвращается, а лишние призывы становятся штрафными', () => {
+    const economy = new Economy({ ...level, startGold: 1000 }, config);
+    economy.limitBonus = 1;
+    for (let i = 0; i < 4; i++) economy.paySummon();
+
+    economy.limitBonus = 0;
+
+    // Четыре призыва при лимите три: следующий — уже второй сверх лимита.
+    expect(economy.summonsLeft).toBe(0);
+    expect(economy.summonCost).toBe(30);
   });
 });
 

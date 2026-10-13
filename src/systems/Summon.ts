@@ -1,4 +1,5 @@
 import type { CatsConfig, ElementId } from '../data/types';
+import type { Piece } from '../entities/Building';
 import type { Cat } from '../entities/Cat';
 
 export interface SummonResult {
@@ -36,17 +37,17 @@ export class Summon {
   }
 
   /** Индекс случайной свободной клетки или null, если поле занято. */
-  pickFreeSlot(board: readonly (Cat | null)[]): number | null {
+  pickFreeSlot(board: readonly (Piece | null)[]): number | null {
     const free: number[] = [];
-    board.forEach((cat, slot) => {
-      if (!cat) free.push(slot);
+    board.forEach((piece, slot) => {
+      if (!piece) free.push(slot);
     });
     if (free.length === 0) return null;
     return free[Math.min(Math.floor(this.rng() * free.length), free.length - 1)];
   }
 
   /** Кот 1-го уровня для случайной свободной клетки; поле не меняет. `price` — сколько за него заплачено. */
-  summon(board: readonly (Cat | null)[], price: number): SummonResult | null {
+  summon(board: readonly (Piece | null)[], price: number): SummonResult | null {
     const slot = this.pickFreeSlot(board);
     if (slot === null) return null;
     return { slot, cat: { element: this.rollElement(), level: 1, cooldown: 0, ritual: 0, invested: price } };

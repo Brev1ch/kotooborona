@@ -21,6 +21,8 @@ export class Economy {
   /** Призывы с начала текущей волны (или с начала боя, пока первая не началась). */
   private summonsThisWave = 0;
   private limit: number;
+  /** Прибавка к лимиту от строений на поле; действует сразу, как только строение поставлено. */
+  limitBonus = 0;
 
   constructor(
     level: LevelConfig,
@@ -35,17 +37,17 @@ export class Economy {
 
   /** Сколько призывов по обычной цене даёт текущая волна. */
   get summonLimit(): number {
-    return this.limit;
+    return this.limit + this.limitBonus;
   }
 
   /** Сколько из них ещё не потрачено. */
   get summonsLeft(): number {
-    return Math.max(0, this.limit - this.summonsThisWave);
+    return Math.max(0, this.summonLimit - this.summonsThisWave);
   }
 
   /** Во сколько раз дороже следующий призыв; 1 — лимит ещё не исчерпан. */
   get overLimitMult(): number {
-    const over = this.summonsThisWave - this.limit;
+    const over = this.summonsThisWave - this.summonLimit;
     if (over < 0) return 1;
     const steps = this.config.summon.overLimitMult;
     return steps[Math.min(over, steps.length - 1)] ?? 1;
@@ -66,6 +68,13 @@ export class Economy {
     if (!this.canAffordSummon()) return false;
     this.gold -= this.summonCost;
     this.summonsThisWave++;
+    return true;
+  }
+
+  /** Списывает монеты за строение или улучшение. Возвращает false, если их не хватило. */
+  spend(amount: number): boolean {
+    if (this.gold < amount) return false;
+    this.gold -= amount;
     return true;
   }
 

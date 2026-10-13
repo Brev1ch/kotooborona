@@ -11,6 +11,15 @@ function distanceToSegment([px, py]: Point, [ax, ay]: Point, [bx, by]: Point): n
   return Math.hypot(px - ax - k * dx, py - ay - k * dy);
 }
 
+describe('строения по уровням', () => {
+  it('на обучающих уровнях строить нельзя, дальше открыты все три', () => {
+    const open = levels.levels.map((level) => [...(level.buildings ?? [])].sort());
+
+    expect(open.slice(0, 3)).toEqual([[], [], []]);
+    for (const kinds of open.slice(3)) expect(kinds).toEqual(['altar', 'mine', 'shop']);
+  });
+});
+
 describe.each(levels.levels.map((level) => [level.id, level] as const))('корзина на уровне %s', (_id, level) => {
   const [x, y] = level.trash;
   const half = TRASH.size / 2;

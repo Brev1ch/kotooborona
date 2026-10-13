@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cats } from '../data';
 import type { ElementId } from '../data';
+import type { Building } from '../entities/Building';
 import type { Cat } from '../entities/Cat';
 import { Merge } from './Merge';
 import type { MergeRules } from './Merge';
@@ -73,6 +74,27 @@ describe('Merge.check: вложенные монеты', () => {
     const check = merge.check({ ...cat('fire'), invested: 10 }, { ...cat('water'), invested: 40 }, 1);
 
     expect(check).toMatchObject({ kind: 'merge', cat: { element: 'steam', invested: 50 } });
+  });
+});
+
+describe('Merge.drop: строения', () => {
+  const shop: Building = { kind: 'shop', level: 1, invested: 40, waves: 0 };
+
+  it('строение переезжает в пустую клетку', () => {
+    expect(merge.drop([shop, null], 0, 1, 0)).toEqual({ kind: 'move' });
+  });
+
+  it('строение и кот меняются местами в обе стороны', () => {
+    expect(merge.drop([shop, cat('fire')], 0, 1, 5)).toEqual({ kind: 'swap' });
+    expect(merge.drop([shop, cat('fire')], 1, 0, 5)).toEqual({ kind: 'swap' });
+  });
+
+  it('одинаковые строения не сливаются', () => {
+    expect(merge.drop([shop, { ...shop }], 0, 1, 5)).toEqual({ kind: 'swap' });
+  });
+
+  it('кот в ритуале не уступает место строению', () => {
+    expect(merge.drop([shop, cat('steam', 2, 3)], 0, 1, 0)).toEqual({ kind: 'busy' });
   });
 });
 
