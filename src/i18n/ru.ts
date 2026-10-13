@@ -9,6 +9,8 @@ export const ru = {
   'hud.waveValue': '{current}/{total}',
 
   'wave.soon': 'Волна {wave} скоро',
+  'wave.start': 'Волна {wave}',
+  'wave.boss': 'Крыса-командир!',
   'wave.bossSoon': 'Крыса-командир! Волна {wave} скоро',
 
   'reward.gold': '+{gold}',

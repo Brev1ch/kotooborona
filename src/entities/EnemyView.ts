@@ -9,6 +9,8 @@ export class EnemyView extends Phaser.GameObjects.Container {
   private readonly radius: number;
   /** Поворачивается по ходу движения; полоска здоровья остаётся горизонтальной. */
   private readonly turning: Phaser.GameObjects.Container;
+  /** Белый силуэт поверх тела: вспыхивает при попадании. */
+  private readonly flash: Phaser.GameObjects.Graphics;
   private readonly shield: Phaser.GameObjects.Container;
   private readonly shieldCount: Phaser.GameObjects.Text;
   private readonly bar: Phaser.GameObjects.Graphics;
@@ -38,6 +40,12 @@ export class EnemyView extends Phaser.GameObjects.Container {
       g.fillRect(-r * 0.3, -r * 0.35, r * 0.6, r * 0.7);
     }
 
+    this.flash = scene.add.graphics().setAlpha(0);
+    this.flash.fillStyle(COLORS.flash);
+    this.flash.fillEllipse(0, 0, r * 2.3, r * 1.7);
+    this.flash.fillCircle(r * 0.3, -r * 0.7, r * 0.4);
+    this.flash.fillCircle(r * 0.3, r * 0.7, r * 0.4);
+
     const plate = scene.add.graphics();
     plate.fillStyle(COLORS.shield);
     plate.fillEllipse(0, 0, r * 0.7, r * 1.8);
@@ -47,7 +55,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
       .setOrigin(0.5);
     this.shield = scene.add.container(r * 1.3, 0, [plate, this.shieldCount]);
 
-    this.turning = scene.add.container(0, 0, [g, this.shield]);
+    this.turning = scene.add.container(0, 0, [g, this.flash, this.shield]);
     this.bar = scene.add.graphics();
     this.marks = scene.add.graphics();
     this.add([this.turning, this.marks, this.bar]);
@@ -103,9 +111,12 @@ export class EnemyView extends Phaser.GameObjects.Container {
     }
   }
 
-  /** Попадание прошло: враг вздрагивает. */
+  /** Попадание прошло: враг вздрагивает и на миг белеет. */
   playHit(): void {
     this.pulse(this.turning, ENEMY_FEEL.hitScale, ENEMY_FEEL.hitMs);
+    this.scene.tweens.killTweensOf(this.flash);
+    this.flash.setAlpha(ENEMY_FEEL.flashAlpha);
+    this.scene.tweens.add({ targets: this.flash, alpha: 0, duration: ENEMY_FEEL.flashMs });
   }
 
   /** Щит принял попадание. */
@@ -117,7 +128,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
   playDeath(): void {
     this.bar.setVisible(false);
     this.marks.setVisible(false);
-    this.scene.tweens.killTweensOf(this.turning);
+    this.scene.tweens.killTweensOf([this.turning, this.flash]);
     this.scene.tweens.add({
       targets: this,
       scale: ENEMY_FEEL.deathScale,

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
 import { cats, getLevel, type ElementId, type LevelConfig } from '../data';
-import { ANNOUNCE_FEEL, BANNER_FEEL, BUTTON_FEEL, METEOR_FEEL, RESULT_FEEL, STAT_FEEL } from '../feel';
+import { ANNOUNCE_FEEL, BANNER_FEEL, COIN_FEEL, METEOR_FEEL, RESULT_FEEL, STAT_FEEL, WAVE_BANNER_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import {
   BOARD_H,
@@ -27,8 +27,9 @@ import { progress } from '../progress';
 import { MAX_STARS } from '../systems/Progress';
 import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
-import { GameEvent, SceneKey, type LevelResult, type LevelSceneData } from './keys';
-import { addButton, addSoundToggle, playPress } from './widgets';
+import { GameEvent, SceneKey, type LevelResult, type LevelSceneData, type RewardDrop } from './keys';
+import { fadeIn, fadeOut } from './transitions';
+import { addButton, addCoinIcon, addCrystalIcon, addPressFeel, addSoundToggle } from './widgets';
 
 const STAT_GAP = 6;
 const STAT_COUNT = 4;
@@ -52,6 +53,14 @@ const COIN_RADIUS = 5;
 const BANNER_W = 280;
 const BANNER_H = 46;
 const BANNER_Y = BOARD_Y + 8;
+
+/** Баннер начала волны — над клетками. */
+const WAVE_BANNER_Y = BOARD_Y + 100;
+const WAVE_BANNER_H = 60;
+const WAVE_BANNER_SUBTITLE_Y = 16;
+
+/** Куда в счётчике прилетает монета: левый край числа. */
+const COIN_TARGET_X = 6;
 
 const RESULT_Y = BOARD_Y + BOARD_H / 2;
 const RESULT_TEXT_W = 280;
@@ -91,6 +100,12 @@ export class UIScene extends Phaser.Scene {
   private meteorStatus!: Phaser.GameObjects.Text;
   /** Состояние кнопки метеора, уже показанное на экране. */
   private shownMeteor = '';
+  /** Волна, начало которой уже объявлено баннером. */
+  private startedWave = 0;
+  private waveBanner: Phaser.GameObjects.Container | null = null;
+  /** Награда, которая ещё летит к счётчикам: счётчик вырастет, когда она долетит. */
+  private flyingGold = 0;
+  private flyingCrystals = 0;
   /** Меню паузы, пока оно открыто. */
   private pauseMenu: Phaser.GameObjects.Container | null = null;
 
@@ -103,6 +118,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   create(): void {
+    fadeIn(this);
     const g = this.add.graphics();
     g.fillStyle(COLORS.bg);
     g.fillRect(0, 0, GAME_W, HUD_H);
@@ -118,6 +134,10 @@ export class UIScene extends Phaser.Scene {
     this.livesText = this.addStat(g, 3, 'hud.lives', String(lives), TEXT_COLORS.danger);
 
     this.announcedWave = 0;
+    this.startedWave = wave;
+    this.waveBanner = null;
+    this.flyingGold = 0;
+    this.flyingCrystals = 0;
     this.announce = this.add
       .text(GAME_W / 2, ANNOUNCE_Y, '', {
         fontFamily: FONTS.display,
@@ -135,6 +155,7 @@ export class UIScene extends Phaser.Scene {
     this.gameScene.events.on(GameEvent.Changed, this.refresh, this);
     this.gameScene.events.on(GameEvent.Discovered, this.showDiscovered, this);
     this.gameScene.events.on(GameEvent.Finished, this.showResult, this);
+    this.gameScene.events.on(GameEvent.Reward, this.flyReward, this);
     // Игрок свернул игру или ушёл на другую вкладку: вернётся он в меню паузы, а не в идущий бой.
     const onVisibility = (): void => {
       if (document.hidden) this.openPause();
@@ -145,6 +166,7 @@ export class UIScene extends Phaser.Scene {
       this.gameScene.events.off(GameEvent.Changed, this.refresh, this);
       this.gameScene.events.off(GameEvent.Discovered, this.showDiscovered, this);
       this.gameScene.events.off(GameEvent.Finished, this.showResult, this);
+      this.gameScene.events.off(GameEvent.Reward, this.flyReward, this);
     });
     this.banner = null;
     this.refresh();
@@ -186,18 +208,10 @@ export class UIScene extends Phaser.Scene {
       this.summonCoin,
     ]);
 
+    addPressFeel(this, this.summonBg, this.summonButton, () => this.canSummon);
     // Призыв по нажатию, а не по отпусканию: кнопку жмут часто и быстро.
     this.summonBg.on('pointerdown', () => {
-      if (!this.canSummon) return;
-      this.tweens.killTweensOf(this.summonButton);
-      this.summonButton.setScale(1);
-      this.tweens.add({
-        targets: this.summonButton,
-        scale: BUTTON_FEEL.pressScale,
-        duration: BUTTON_FEEL.pressMs,
-        yoyo: true,
-      });
-      this.gameScene.summon();
+      if (this.canSummon) this.gameScene.summon();
     });
   }
 
@@ -214,10 +228,8 @@ export class UIScene extends Phaser.Scene {
     icon.fillRect(gap / 2, -height / 2, width, height);
     const button = this.add.container(...pauseButtonCenter(), [bg, icon]);
 
-    bg.on('pointerdown', () => {
-      audio.play('click');
-      playPress(this, button);
-    });
+    addPressFeel(this, bg, button);
+    bg.on('pointerdown', () => audio.play('click'));
     bg.on('pointerup', () => this.openPause());
   }
 
@@ -245,9 +257,7 @@ export class UIScene extends Phaser.Scene {
     });
     const sound = addSoundToggle(this, ...pauseMenuButtonCenter(1), buttonW, buttonH);
     const menu = addButton(this, ...pauseMenuButtonCenter(2), buttonW, buttonH, t('pause.menu'), false, () => {
-      progress.flush();
-      this.scene.stop(SceneKey.Game);
-      this.scene.start(SceneKey.Menu);
+      this.leaveToMenu();
     });
 
     this.pauseMenu = this.add.container(0, 0, [dim, title, resume, sound, menu]);
@@ -282,18 +292,11 @@ export class UIScene extends Phaser.Scene {
     ]);
     this.shownMeteor = '';
 
+    addPressFeel(this, this.meteorBg, this.meteorButton, () => this.gameScene.meteorState().ready);
     // Повторное нажатие отменяет прицеливание.
     this.meteorBg.on('pointerdown', () => {
       if (!this.gameScene.meteorState().ready) return;
       audio.play('click');
-      this.tweens.killTweensOf(this.meteorButton);
-      this.meteorButton.setScale(1);
-      this.tweens.add({
-        targets: this.meteorButton,
-        scale: BUTTON_FEEL.pressScale,
-        duration: BUTTON_FEEL.pressMs,
-        yoyo: true,
-      });
       this.gameScene.toggleMeteorAim();
       this.refreshMeteor();
     });
@@ -330,8 +333,8 @@ export class UIScene extends Phaser.Scene {
     const { gold, crystals, summonCost, canSummon, lives, wave, totalWaves, upcoming } = this.gameScene.hudState();
     this.canSummon = canSummon;
 
-    this.goldText.setText(String(gold));
-    this.setStat(this.crystalsText, String(crystals));
+    this.showCounters(gold, crystals);
+    this.showWaveStart(wave);
     this.setStat(this.waveText, t('hud.waveValue', { current: wave, total: totalWaves }));
     this.setStat(this.livesText, String(lives));
     this.showUpcoming(upcoming);
@@ -344,6 +347,124 @@ export class UIScene extends Phaser.Scene {
     this.summonLabel.setColor(textColor);
     this.summonCost.setColor(textColor);
     this.summonCoin.setFillStyle(canSummon ? COLORS.bg : COLORS.line);
+  }
+
+  /** Монеты и кристаллы в HUD — без награды, которая ещё в полёте. */
+  private showCounters(gold: number, crystals: number): void {
+    this.setStat(this.goldText, String(Math.max(0, gold - this.flyingGold)));
+    this.setStat(this.crystalsText, String(Math.max(0, crystals - this.flyingCrystals)));
+  }
+
+  /** Награда за врага разлетается монетами и кристаллами и летит в счётчики. */
+  private flyReward({ x, y, gold, crystals }: RewardDrop): void {
+    const screenY = y + BOARD_Y;
+    this.flyingGold += gold;
+    this.flyingCrystals += crystals;
+
+    this.flyShares(gold, Math.ceil(gold / COIN_FEEL.goldPerCoin), 0, (order, share) => {
+      this.flyIcon(addCoinIcon(this, x, screenY, COIN_FEEL.size), this.goldText, order, () => {
+        this.flyingGold -= share;
+        audio.play('coins');
+      });
+    });
+    // Кристаллы летят следом за монетами.
+    const coins = Math.min(COIN_FEEL.maxCoins, Math.ceil(gold / COIN_FEEL.goldPerCoin));
+    this.flyShares(crystals, crystals, coins, (order, share) => {
+      this.flyIcon(addCrystalIcon(this, x, screenY, COIN_FEEL.crystalSize), this.crystalsText, order, () => {
+        this.flyingCrystals -= share;
+      });
+    });
+  }
+
+  /** Делит `amount` между значками (не больше `maxCoins`) и запускает каждый; `order` задаёт очерёдность вылета. */
+  private flyShares(amount: number, wanted: number, firstOrder: number, launch: (order: number, share: number) => void): void {
+    const count = Math.min(COIN_FEEL.maxCoins, wanted);
+    for (let i = 0; i < count; i++) {
+      launch(firstOrder + i, Math.floor(amount / count) + (i < amount % count ? 1 : 0));
+    }
+  }
+
+  /** Значок отскакивает от врага в случайную сторону, затем летит в счётчик; `land` — когда долетел. */
+  private flyIcon(icon: Phaser.GameObjects.Image, counter: Phaser.GameObjects.Text, order: number, land: () => void): void {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = COIN_FEEL.scatter * (0.5 + Math.random() * 0.5);
+    this.tweens.chain({
+      targets: icon,
+      tweens: [
+        {
+          x: icon.x + Math.cos(angle) * distance,
+          y: icon.y + Math.sin(angle) * distance,
+          duration: COIN_FEEL.scatterMs,
+          ease: COIN_FEEL.scatterEase,
+        },
+        {
+          x: counter.x + COIN_TARGET_X,
+          y: counter.y + counter.height / 2,
+          scale: icon.scale * COIN_FEEL.endScale,
+          delay: order * COIN_FEEL.staggerMs,
+          duration: COIN_FEEL.flyMs,
+          ease: COIN_FEEL.flyEase,
+        },
+      ],
+      onComplete: () => {
+        icon.destroy();
+        land();
+        const { gold, crystals } = this.gameScene.hudState();
+        this.showCounters(gold, crystals);
+      },
+    });
+  }
+
+  /** Баннер «Волна N» в момент, когда волна началась; у волны с боссом — красный, с подписью. */
+  private showWaveStart(wave: number): void {
+    if (wave <= this.startedWave) return;
+    this.startedWave = wave;
+    if (this.waveBanner) {
+      this.tweens.killTweensOf(this.waveBanner.list);
+      this.tweens.killTweensOf(this.waveBanner);
+      this.waveBanner.destroy();
+    }
+
+    const boss = this.level.bossWaves.includes(wave);
+    const accent = boss ? COLORS.danger : COLORS.brass;
+    const bg = this.add.graphics();
+    bg.fillStyle(COLORS.bg, WAVE_BANNER_FEEL.bgAlpha);
+    bg.fillRect(-GAME_W / 2, -WAVE_BANNER_H / 2, GAME_W, WAVE_BANNER_H);
+    bg.fillStyle(accent);
+    bg.fillRect(-GAME_W / 2, -WAVE_BANNER_H / 2, GAME_W, 2);
+    bg.fillRect(-GAME_W / 2, WAVE_BANNER_H / 2 - 2, GAME_W, 2);
+
+    const title = this.add
+      .text(0, boss ? -8 : 0, t('wave.start', { wave }), {
+        fontFamily: FONTS.display,
+        fontSize: '24px',
+        color: boss ? TEXT_COLORS.danger : TEXT_COLORS.fg,
+      })
+      .setOrigin(0.5);
+    const parts: Phaser.GameObjects.GameObject[] = [bg, title];
+    if (boss) {
+      parts.push(
+        this.add
+          .text(0, WAVE_BANNER_SUBTITLE_Y, t('wave.boss'), { fontFamily: FONTS.body, fontSize: '13px', color: TEXT_COLORS.fg })
+          .setOrigin(0.5),
+      );
+    }
+
+    const banner = this.add.container(GAME_W / 2, WAVE_BANNER_Y - WAVE_BANNER_FEEL.slide, parts).setAlpha(0);
+    this.waveBanner = banner;
+    const { showMs, showEase, holdMs, hideMs, textFromScale } = WAVE_BANNER_FEEL;
+    this.tweens.add({ targets: banner, y: WAVE_BANNER_Y, alpha: 1, duration: showMs });
+    this.tweens.add({ targets: title, scale: { from: textFromScale, to: 1 }, duration: showMs, ease: showEase });
+    this.tweens.add({
+      targets: banner,
+      alpha: 0,
+      delay: showMs + holdMs,
+      duration: hideMs,
+      onComplete: () => {
+        banner.destroy();
+        if (this.waveBanner === banner) this.waveBanner = null;
+      },
+    });
   }
 
   /** Обновляет счётчик; если значение изменилось, он вздрагивает. */
@@ -422,14 +543,10 @@ export class UIScene extends Phaser.Scene {
 
     const data: LevelSceneData = { levelId: this.level.id };
     const offset = (RESULT_BUTTON_W + RESULT_BUTTON_GAP) / 2;
-    const menu = this.addResultButton(GAME_W / 2 - offset, 'result.menu', false, () => {
-      progress.flush();
-      this.scene.stop(SceneKey.Game);
-      this.scene.start(SceneKey.Menu);
-    });
+    const menu = this.addResultButton(GAME_W / 2 - offset, 'result.menu', false, () => this.leaveToMenu());
     // GameScene при запуске сама перезапускает HUD.
     const retry = this.addResultButton(GAME_W / 2 + offset, 'result.retry', true, () => {
-      this.gameScene.scene.restart(data);
+      fadeOut(this, () => this.gameScene.scene.restart(data));
     });
 
     const overlay = this.add.container(0, 0, [dim, title, ...stars, detail, menu, retry]).setAlpha(0);
@@ -445,6 +562,14 @@ export class UIScene extends Phaser.Scene {
         duration: RESULT_FEEL.starMs,
         ease: RESULT_FEEL.starEase,
       });
+    });
+  }
+
+  private leaveToMenu(): void {
+    progress.flush();
+    fadeOut(this, () => {
+      this.scene.stop(SceneKey.Game);
+      this.scene.start(SceneKey.Menu);
     });
   }
 

@@ -1,14 +1,55 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 import { audio } from '../audio';
 import { BUTTON_FEEL } from '../feel';
 import { t } from '../i18n';
 import { COLORS, FONTS, MIN_TOUCH, TEXT_COLORS } from '../layout';
+import { ensureTextures, Texture } from './textures';
 
-/** Отклик на нажатие: элемент на миг сжимается. Повторное нажатие начинает сжатие заново. */
-export function playPress(scene: Phaser.Scene, target: Phaser.GameObjects.Container): void {
-  scene.tweens.killTweensOf(target);
-  target.setScale(1);
-  scene.tweens.add({ targets: target, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
+/**
+ * Отклик на нажатие: пока `hit` держат, `target` сжат; отпустили или увели палец — пружинит обратно.
+ * `enabled` — можно ли сейчас нажимать: выключенная кнопка не откликается.
+ */
+export function addPressFeel(
+  scene: Phaser.Scene,
+  hit: Phaser.GameObjects.Rectangle,
+  target: Phaser.GameObjects.Container,
+  enabled: () => boolean = () => true,
+): void {
+  const { width, height } = hit;
+  // Сжатая кнопка не должна терять нажатие у края: область нажатия растёт настолько же, насколько сжалась картинка.
+  const setHitArea = (scale: number): void => {
+    const area = hit.input?.hitArea as Phaser.Geom.Rectangle | undefined;
+    area?.setTo((width - width / scale) / 2, (height - height / scale) / 2, width / scale, height / scale);
+  };
+  let pressed = false;
+
+  hit.on('pointerdown', () => {
+    if (!enabled()) return;
+    pressed = true;
+    setHitArea(BUTTON_FEEL.pressScale);
+    scene.tweens.killTweensOf(target);
+    scene.tweens.add({
+      targets: target,
+      scale: BUTTON_FEEL.pressScale,
+      duration: BUTTON_FEEL.pressMs,
+      ease: BUTTON_FEEL.pressEase,
+    });
+  });
+
+  const release = (): void => {
+    if (!pressed) return;
+    pressed = false;
+    scene.tweens.killTweensOf(target);
+    scene.tweens.add({
+      targets: target,
+      scale: 1,
+      duration: BUTTON_FEEL.releaseMs,
+      ease: BUTTON_FEEL.releaseEase,
+      onComplete: () => setHitArea(1),
+    });
+  };
+  hit.on('pointerup', release);
+  hit.on('pointerout', release);
 }
 
 interface ButtonParts {
@@ -53,10 +94,8 @@ export function addButton(
   onClick: () => void,
 ): Phaser.GameObjects.Container {
   const { button, bg } = makeButton(scene, x, y, width, height, label, primary);
-  bg.on('pointerdown', () => {
-    audio.play('click');
-    playPress(scene, button);
-  });
+  addPressFeel(scene, bg, button);
+  bg.on('pointerdown', () => audio.play('click'));
   bg.once('pointerup', onClick);
   return button;
 }
@@ -71,11 +110,11 @@ export function addSoundToggle(
 ): Phaser.GameObjects.Container {
   const label = (): string => t(audio.on ? 'sound.on' : 'sound.off');
   const { button, bg, text } = makeButton(scene, x, y, width, height, label(), false);
+  addPressFeel(scene, bg, button);
   bg.on('pointerdown', () => {
     audio.toggle();
     text.setText(label());
     audio.play('click');
-    playPress(scene, button);
   });
   return button;
 }
@@ -111,37 +150,23 @@ export function addSoundButton(scene: Phaser.Scene, x: number, y: number): Phase
   };
   draw(audio.on);
 
+  addPressFeel(scene, bg, button);
   bg.on('pointerdown', () => {
     draw(audio.toggle());
     // Слышно только при включении: так игрок сразу понимает, что звук вернулся.
     audio.play('click');
-    playPress(scene, button);
   });
   return button;
 }
 
-const CRYSTAL_TEXTURE = 'crystal';
-/** Текстура крупнее, чем значок на экране, чтобы края оставались гладкими. */
-const CRYSTAL_TEXTURE_SIZE = 48;
-
 /** Значок кристалла высотой `size`. Нарисован, а не взят из шрифта: на всех устройствах выглядит одинаково. */
 export function addCrystalIcon(scene: Phaser.Scene, x: number, y: number, size: number): Phaser.GameObjects.Image {
-  if (!scene.textures.exists(CRYSTAL_TEXTURE)) {
-    const s = CRYSTAL_TEXTURE_SIZE;
-    const half = s / 2;
-    const side = s * 0.4;
-    const top = new Phaser.Math.Vector2(half, 0);
-    const right = new Phaser.Math.Vector2(half + side, half);
-    const bottom = new Phaser.Math.Vector2(half, s);
-    const left = new Phaser.Math.Vector2(half - side, half);
-    const g = scene.make.graphics({}, false);
-    g.fillStyle(COLORS.crystal);
-    g.fillPoints([top, right, bottom, left], true);
-    // Светлая грань сверху слева.
-    g.fillStyle(COLORS.crystalLight);
-    g.fillPoints([top, new Phaser.Math.Vector2(half, half), left], true);
-    g.generateTexture(CRYSTAL_TEXTURE, s, s);
-    g.destroy();
-  }
-  return scene.add.image(x, y, CRYSTAL_TEXTURE).setDisplaySize(size, size);
+  ensureTextures(scene);
+  return scene.add.image(x, y, Texture.crystal).setDisplaySize(size, size);
+}
+
+/** Монета диаметром `size`. */
+export function addCoinIcon(scene: Phaser.Scene, x: number, y: number, size: number): Phaser.GameObjects.Image {
+  ensureTextures(scene);
+  return scene.add.image(x, y, Texture.coin).setDisplaySize(size, size);
 }

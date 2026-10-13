@@ -1,14 +1,14 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
 import { levels } from '../data';
-import { BUTTON_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { COLORS, FONTS, GAME_W, MENU, menuBookCenter, menuCardCenter, menuSoundCenter, TEXT_COLORS } from '../layout';
 import { progress } from '../progress';
 import { campaignTiles, type CampaignTile } from '../systems/Campaign';
 import { MAX_STARS } from '../systems/Progress';
 import { SceneKey, type LevelSceneData } from './keys';
-import { addButton, addSoundButton } from './widgets';
+import { fadeIn, fadeOut } from './transitions';
+import { addButton, addPressFeel, addSoundButton } from './widgets';
 
 const CARD_PAD = 14;
 const NUMBER_W = 26;
@@ -21,6 +21,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    fadeIn(this);
     this.add
       .text(GAME_W / 2, MENU.titleY, t('game.title'), {
         fontFamily: FONTS.display,
@@ -36,7 +37,7 @@ export class MenuScene extends Phaser.Scene {
     tiles.forEach((tile, index) => this.addCard(tile, ...menuCardCenter(index)));
 
     addButton(this, ...menuBookCenter(), MENU.bookW, MENU.bookH, t('book.title'), false, () => {
-      this.scene.start(SceneKey.Book);
+      fadeOut(this, () => this.scene.start(SceneKey.Book));
     });
   }
 
@@ -79,11 +80,9 @@ export class MenuScene extends Phaser.Scene {
 
     const data: LevelSceneData = { levelId: tile.levelId };
     bg.setInteractive({ useHandCursor: true });
-    bg.on('pointerdown', () => {
-      audio.play('click');
-      this.tweens.add({ targets: card, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
-    });
-    bg.once('pointerup', () => this.scene.start(SceneKey.Gear, data));
+    addPressFeel(this, bg, card);
+    bg.on('pointerdown', () => audio.play('click'));
+    bg.once('pointerup', () => fadeOut(this, () => this.scene.start(SceneKey.Gear, data)));
   }
 
   private drawLock(x: number, y: number): Phaser.GameObjects.Graphics {

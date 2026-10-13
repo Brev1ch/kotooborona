@@ -33,6 +33,12 @@ export const MERGE_FEEL = {
   ringTo: 68,
   ringLineWidth: 3,
   ringEase: 'Cubic.easeOut',
+  /** Искры цвета стихии разлетаются из клетки. */
+  sparkCount: 10,
+  sparkMs: 420,
+  sparkSpeedMin: 40,
+  sparkSpeedMax: 120,
+  sparkScale: 0.45,
 };
 
 /** Ритуал смешения: полупрозрачный кот, кольцо прогресса и вспышка в конце. */
@@ -94,14 +100,24 @@ export const ENEMY_FEEL = {
   /** Враг прошёл в ворота: поле вздрагивает. */
   leakShakeMs: 140,
   leakShakeIntensity: 0.006,
-  /** Попадание: враг вздрагивает. */
+  /** Попадание: враг вздрагивает и на миг белеет. */
   hitScale: 1.25,
   hitMs: 70,
+  flashAlpha: 0.85,
+  flashMs: 110,
   /** Щит принял удар. */
   blockScale: 1.6,
   blockMs: 110,
   deathMs: 180,
   deathScale: 0.3,
+  /** Облачко на месте убитого: клубы разлетаются, растут и тают. Чем крупнее враг, тем их больше. */
+  puffPerRadius: 0.75,
+  puffMs: 380,
+  puffSpeedMin: 12,
+  puffSpeedMax: 46,
+  puffScaleFrom: 0.5,
+  puffScaleTo: 1.3,
+  puffAlpha: 0.7,
 };
 
 /** Метки эффектов на враге: кольцо замедления, точки огня и яда. */
@@ -229,9 +245,49 @@ export const METEOR_FEEL = {
   buttonFillAlpha: 0.35,
 };
 
+/** Кнопка сжимается, пока её держат, и пружинит обратно, когда отпустили. */
 export const BUTTON_FEEL = {
   pressScale: 0.94,
-  pressMs: 70,
+  pressMs: 60,
+  pressEase: 'Quad.easeOut',
+  releaseMs: 180,
+  releaseEase: 'Back.easeOut',
+};
+
+/** Награда за врага летит из точки гибели в счётчик HUD; счётчик растёт, когда она долетела. */
+export const COIN_FEEL = {
+  /** Одна летящая монета на столько монет награды, но не больше `maxCoins`. */
+  goldPerCoin: 2,
+  maxCoins: 6,
+  size: 9,
+  crystalSize: 11,
+  /** Сначала монеты разлетаются в стороны от врага… */
+  scatter: 16,
+  scatterMs: 140,
+  scatterEase: 'Cubic.easeOut',
+  /** …потом по очереди летят в счётчик. */
+  staggerMs: 45,
+  flyMs: 380,
+  flyEase: 'Cubic.easeIn',
+  endScale: 0.6,
+};
+
+/** Баннер «Волна N» в момент начала волны. */
+export const WAVE_BANNER_FEEL = {
+  /** Полупрозрачный: мыши на входе остаются видны. */
+  bgAlpha: 0.65,
+  slide: 14,
+  textFromScale: 1.35,
+  showMs: 220,
+  showEase: 'Back.easeOut',
+  holdMs: 1100,
+  hideMs: 280,
+};
+
+/** Переход между экранами: старый гаснет в цвет фона, новый проявляется. */
+export const TRANSITION_FEEL = {
+  outMs: 130,
+  inMs: 200,
 };
 
 /**

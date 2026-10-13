@@ -1,14 +1,14 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
 import { cats, gear, type GearItem, type GearSlot } from '../data';
-import { BUTTON_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { COLORS, FONTS, GAME_W, GEAR, gearButtonCenter, MIN_TOUCH, TEXT_COLORS } from '../layout';
 import { progress } from '../progress';
 import { itemBonuses, type BonusLine } from '../systems/Loadout';
 import { GEAR_SLOTS } from '../systems/Progress';
 import { SceneKey, type LevelSceneData } from './keys';
-import { addButton } from './widgets';
+import { fadeIn, fadeOut } from './transitions';
+import { addButton, addPressFeel } from './widgets';
 
 interface Chip {
   id: string;
@@ -29,6 +29,7 @@ export class GearScene extends Phaser.Scene {
   }
 
   create(): void {
+    fadeIn(this);
     this.add
       .text(GAME_W / 2, GEAR.titleY, t(`level.${this.levelId}` as StringKey), {
         fontFamily: FONTS.display,
@@ -49,10 +50,10 @@ export class GearScene extends Phaser.Scene {
 
     const data: LevelSceneData = { levelId: this.levelId };
     addButton(this, ...gearButtonCenter('back'), GEAR.backW, GEAR.buttonH, t('nav.back'), false, () => {
-      this.scene.start(SceneKey.Menu);
+      fadeOut(this, () => this.scene.start(SceneKey.Menu));
     });
     addButton(this, ...gearButtonCenter('start'), GEAR.startW, GEAR.buttonH, t('gear.start'), true, () => {
-      this.scene.start(SceneKey.Game, data);
+      fadeOut(this, () => this.scene.start(SceneKey.Game, data));
     });
   }
 
@@ -89,9 +90,9 @@ export class GearScene extends Phaser.Scene {
       chips.push({ id: item.id, bg, label });
       x += width + chipGap;
 
+      addPressFeel(this, bg, chip);
       bg.on('pointerdown', () => {
         audio.play('click');
-        this.tweens.add({ targets: chip, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
         progress.selectGear(slot, item.id);
         refresh();
       });

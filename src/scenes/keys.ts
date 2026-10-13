@@ -21,7 +21,17 @@ export const GameEvent = {
   Discovered: 'discovered',
   /** Уровень закончен; аргумент — LevelResult. */
   Finished: 'finished',
+  /** Враг убит, награда уже в экономике; аргумент — RewardDrop. */
+  Reward: 'reward',
 } as const;
+
+/** Награда за врага: откуда монеты и кристаллы летят в HUD. Точка — в координатах поля. */
+export interface RewardDrop {
+  x: number;
+  y: number;
+  gold: number;
+  crystals: number;
+}
 
 /** Срез состояния игры для HUD. */
 export interface HudState {

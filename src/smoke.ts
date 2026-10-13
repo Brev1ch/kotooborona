@@ -20,6 +20,8 @@ export interface SmokeTarget {
 export interface SmokeState {
   /** Ключи активных сцен. */
   scenes: string[];
+  /** Идёт переход между экранами: экран гаснет или проявляется. */
+  fading: boolean;
   /** Всё, что сейчас реагирует на нажатие, во всех активных сценах. */
   targets: SmokeTarget[];
   /** Звук включён игроком. */
@@ -66,7 +68,8 @@ export function installSmokeProbe(game: Phaser.Game): void {
       const scenes = active.map((scene) => scene.scene.key);
       const targets: SmokeTarget[] = [];
       for (const scene of active) collectTargets(scene.children.list, targets);
-      const common = { scenes, targets, sound: audio.on, gear: { ...progress.gear } };
+      const fading = active.some((scene) => scene.cameras.main?.fadeEffect.isRunning);
+      const common = { scenes, fading, targets, sound: audio.on, gear: { ...progress.gear } };
 
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);

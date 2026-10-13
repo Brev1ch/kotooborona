@@ -52,7 +52,8 @@ async function waitFor(
   let last: SmokeState | null = null;
   while (Date.now() < deadline) {
     last = await state(page);
-    if (last && ready(last)) return;
+    // Пока экран гаснет или проявляется, он ещё не готов: ни к снимку, ни к нажатию.
+    if (last && !last.fading && ready(last)) return;
     // Ошибка в консоли обычно и есть причина, по которой экран не появился.
     if (errors.length > 0) break;
     await page.waitForTimeout(100);

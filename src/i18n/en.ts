@@ -11,6 +11,8 @@ export const en: Record<StringKey, string> = {
   'hud.waveValue': '{current}/{total}',
 
   'wave.soon': 'Wave {wave} incoming',
+  'wave.start': 'Wave {wave}',
+  'wave.boss': 'Rat Commander!',
   'wave.bossSoon': 'Rat Commander! Wave {wave} incoming',
 
   'reward.gold': '+{gold}',

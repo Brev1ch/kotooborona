@@ -6,6 +6,7 @@ import { BOOK, bookBackCenter, COLORS, FONTS, GAME_W, TEXT_COLORS } from '../lay
 import { progress } from '../progress';
 import { bookEntries, type BookEntry } from '../systems/Book';
 import { SceneKey } from './keys';
+import { fadeIn, fadeOut } from './transitions';
 import { addButton } from './widgets';
 
 /** Книга котов: открытые — с описанием эффекта, неоткрытые — «???» с рецептом. */
@@ -15,6 +16,7 @@ export class BookScene extends Phaser.Scene {
   }
 
   create(): void {
+    fadeIn(this);
     const entries = bookEntries(cats, (element) => progress.hasCat(element));
     const found = entries.filter((entry) => entry.known).length;
 
@@ -36,7 +38,7 @@ export class BookScene extends Phaser.Scene {
     entries.forEach((entry, i) => this.addRow(entry, BOOK.listY + i * BOOK.rowH + BOOK.rowH / 2));
 
     addButton(this, ...bookBackCenter(), BOOK.backW, BOOK.backH, t('nav.back'), false, () => {
-      this.scene.start(SceneKey.Menu);
+      fadeOut(this, () => this.scene.start(SceneKey.Menu));
     });
   }
 

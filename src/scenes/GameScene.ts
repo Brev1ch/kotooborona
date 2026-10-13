@@ -19,8 +19,18 @@ import { Meteor } from '../systems/Meteor';
 import { buildPath, positionAt, type Path } from '../systems/Path';
 import { Summon } from '../systems/Summon';
 import { Waves } from '../systems/Waves';
+import {
+  GameEvent,
+  SceneKey,
+  type HudState,
+  type LevelResult,
+  type LevelSceneData,
+  type MeteorState,
+  type RewardDrop,
+} from './keys';
+import { ensureTextures, Texture } from './textures';
+import { fadeIn } from './transitions';
 import { addCrystalIcon } from './widgets';
-import { GameEvent, SceneKey, type HudState, type LevelResult, type LevelSceneData, type MeteorState } from './keys';
 
 const BLOCK_TEXT: Record<MergeBlock, StringKey> = {
   maxLevel: 'merge.maxLevel',
@@ -74,6 +84,10 @@ export class GameScene extends Phaser.Scene {
   private aimGlow!: Phaser.GameObjects.Graphics;
   /** Круг радиуса удара под пальцем. */
   private reticle!: Phaser.GameObjects.Graphics;
+  /** Облачка на месте убитых врагов. */
+  private puffs!: Phaser.GameObjects.Particles.ParticleEmitter;
+  /** Искры слияния; цвет стихии задаётся перед каждой вспышкой. */
+  private sparks!: Phaser.GameObjects.Particles.ParticleEmitter;
   /** Палец, который коснулся поля в режиме прицеливания: удар — когда он отпустит. */
   private aimPointerId: number | null = null;
 
@@ -90,6 +104,7 @@ export class GameScene extends Phaser.Scene {
     // с координатами из levels.json, а дорога за краем поля не видна.
     this.cameras.main.setViewport(0, BOARD_Y, BOARD_W, BOARD_H);
     this.cameras.main.setBackgroundColor(COLORS.board);
+    fadeIn(this);
 
     const g = this.add.graphics();
     this.drawRoad(g, this.level.path);
@@ -139,6 +154,7 @@ export class GameScene extends Phaser.Scene {
     this.highlights = this.add.graphics().setDepth(DEPTH.highlight);
     this.rangeRing = this.add.graphics().setDepth(DEPTH.fx).setVisible(false);
     this.addAimLayers();
+    this.addParticles();
 
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.onPointerDown, this);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.onPointerMove, this);
@@ -323,8 +339,15 @@ export class GameScene extends Phaser.Scene {
         this.enemyViews.get(event.enemy)?.playDeath();
         this.enemyViews.delete(event.enemy);
         this.showReward(event.x, event.y, event.gold, event.crystals);
+        this.puffs.emitParticleAt(event.x, event.y, Math.round(enemies.types[event.enemy.type].radius * ENEMY_FEEL.puffPerRadius));
         audio.play('enemyDeath');
-        audio.play('coins');
+        // Монеты и кристаллы летят в счётчики HUD.
+        this.events.emit(GameEvent.Reward, {
+          x: event.x,
+          y: event.y,
+          gold: event.gold,
+          crystals: event.crystals,
+        } satisfies RewardDrop);
         // С новым кристаллом заблокированное смешение могло стать доступным.
         if (this.drag && event.crystals > 0) this.drawHighlights();
         return true;
@@ -417,6 +440,28 @@ export class GameScene extends Phaser.Scene {
     // Пока идёт прицеливание, котов не таскают: взятый возвращается на место.
     if (this.meteor.toggleAim()) this.cancelDrag();
     this.syncAim();
+  }
+
+  private addParticles(): void {
+    ensureTextures(this);
+    this.puffs = this.add
+      .particles(0, 0, Texture.dot, {
+        emitting: false,
+        lifespan: ENEMY_FEEL.puffMs,
+        speed: { min: ENEMY_FEEL.puffSpeedMin, max: ENEMY_FEEL.puffSpeedMax },
+        scale: { start: ENEMY_FEEL.puffScaleFrom, end: ENEMY_FEEL.puffScaleTo },
+        alpha: { start: ENEMY_FEEL.puffAlpha, end: 0 },
+        tint: COLORS.puff,
+      })
+      .setDepth(DEPTH.fx);
+    this.sparks = this.add
+      .particles(0, 0, Texture.dot, {
+        emitting: false,
+        lifespan: MERGE_FEEL.sparkMs,
+        speed: { min: MERGE_FEEL.sparkSpeedMin, max: MERGE_FEEL.sparkSpeedMax },
+        scale: { start: MERGE_FEEL.sparkScale, end: 0 },
+      })
+      .setDepth(DEPTH.fx);
   }
 
   private addAimLayers(): void {
@@ -759,8 +804,13 @@ export class GameScene extends Phaser.Scene {
     this.events.emit(GameEvent.Discovered, element);
   }
 
-  /** Расходящееся кольцо цвета стихии: после слияния (с задержкой, пока коты стягиваются) и в конце ритуала. */
+  /** Расходящееся кольцо и искры цвета стихии: после слияния (с задержкой, пока коты стягиваются) и в конце ритуала. */
   private playRing(x: number, y: number, color: number, delay = 0): void {
+    this.time.delayedCall(delay, () => {
+      this.sparks.setParticleTint(color);
+      this.sparks.emitParticleAt(x, y, MERGE_FEEL.sparkCount);
+    });
+
     const ring = this.add.graphics().setDepth(DEPTH.fx);
     this.tweens.addCounter({
       from: 0,
