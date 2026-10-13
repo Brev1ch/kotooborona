@@ -3,7 +3,7 @@ import type { LevelConfig, Point } from '../data';
 import { gear, levels } from '../data';
 import { TUTORIAL_FEEL } from '../feel';
 import { t } from '../i18n';
-import { BOARD_Y, COLORS, CONTROLS_Y, FONTS, METEOR_X, SUMMON_X, TEXT_COLORS } from '../layout';
+import { BOARD_Y, BUILD_X, COLORS, CONTROLS_CENTER_Y, CONTROLS_Y, FONTS, METEOR_X, SUMMON_X, TEXT_COLORS } from '../layout';
 import type { TutorialHint } from '../systems/Tutorial';
 import { CIRCLE_RADIUS, ensureTextures, Texture } from './textures';
 
@@ -78,8 +78,18 @@ export class TutorialOverlay {
     this.setText(t(`tutorial.${hint.step}`));
     switch (hint.step) {
       case 'summon':
+      case 'limit':
         this.pointAt(SUMMON_X);
         break;
+      case 'build':
+        this.pointAt(BUILD_X);
+        break;
+      case 'sell': {
+        // Палец тащит кота прямо вниз, на нижнюю полосу.
+        const from = this.slotCenter(hint.from);
+        this.drag(from, [from[0], CONTROLS_CENTER_Y]);
+        break;
+      }
       case 'meteor':
         this.pointAt(METEOR_X);
         break;

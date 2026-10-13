@@ -11,7 +11,18 @@ export interface TutorialState {
   merges: number;
   hybrids: number;
   meteors: number;
+  /** Сколько котов и строений он продал и сколько строений поставил. */
+  sales: number;
+  builds: number;
   canSummon: boolean;
+  /** Призывы волны по обычной цене кончились: следующий — со штрафом. */
+  limitSpent: boolean;
+  /** Клетка кота, которого стоит продать: поле почти занято, а пары ему нет; null — продавать некого. */
+  sellSlot: number | null;
+  /** Игрок что-то держит в руке: подсказки про перетаскивание не нужны. */
+  dragging: boolean;
+  /** Сейчас можно что-то построить: строения на уровне открыты, монет и места хватает, окно стройки закрыто. */
+  canBuild: boolean;
   /** Клетки двух одинаковых котов, которых можно слить прямо сейчас; null — такой пары нет. */
   mergePair: [number, number] | null;
   /** Клетки двух котов разных стихий, из которых получится гибрид, если на него хватает кристаллов. */
@@ -26,14 +37,25 @@ export interface TutorialState {
 
 /** Подсказка: что сказать и куда показать. */
 export type TutorialHint =
-  | { step: 'summon'; target: 'summonButton' }
+  | { step: 'summon' | 'limit'; target: 'summonButton' }
+  | { step: 'build'; target: 'buildButton' }
+  /** Кота из клетки `from` — вниз, в зону продажи. */
+  | { step: 'sell'; from: number }
   | { step: 'merge' | 'hybrid'; from: number; to: number }
   | { step: 'meteor'; target: 'meteorButton' }
   /** Игрок уже целится: показываем, куда бить. */
   | { step: 'meteorAim'; point: Point | null };
 
-/** Шаг обучения, который сейчас уместно подсказать; null — подсказывать нечего. */
-function applicable(steps: readonly TutorialStep[], rules: TutorialRules, state: TutorialState): TutorialHint | null {
+/**
+ * Шаг обучения, который сейчас уместно подсказать; null — подсказывать нечего.
+ * `limitDone` — про лимит уже рассказали: эта подсказка не про действие, она показывается один раз за бой.
+ */
+function applicable(
+  steps: readonly TutorialStep[],
+  rules: TutorialRules,
+  state: TutorialState,
+  limitDone: boolean,
+): TutorialHint | null {
   if (state.finished) return null;
   for (const step of steps) {
     switch (step) {
@@ -45,6 +67,15 @@ function applicable(steps: readonly TutorialStep[], rules: TutorialRules, state:
         break;
       case 'hybrid':
         if (state.hybrids === 0 && state.hybridPair) return { step, from: state.hybridPair[0], to: state.hybridPair[1] };
+        break;
+      case 'limit':
+        if (!limitDone && state.limitSpent) return { step, target: 'summonButton' };
+        break;
+      case 'sell':
+        if (state.sales === 0 && state.sellSlot !== null && !state.dragging) return { step, from: state.sellSlot };
+        break;
+      case 'build':
+        if (state.builds === 0 && state.canBuild) return { step, target: 'buildButton' };
         break;
       case 'meteor':
         if (state.meteors > 0) break;
@@ -64,6 +95,9 @@ function applicable(steps: readonly TutorialStep[], rules: TutorialRules, state:
 export class Tutorial {
   private pending: string | null = null;
   private waited = 0;
+  /** Подсказка про лимит призывов уже была на экране и ушла. */
+  private limitDone = false;
+  private limitShown = false;
 
   constructor(
     private readonly steps: readonly TutorialStep[],
@@ -72,7 +106,9 @@ export class Tutorial {
 
   /** Продвигает время на `dt` секунд и возвращает подсказку, которую пора показать, или null. */
   update(dt: number, state: TutorialState): TutorialHint | null {
-    const hint = applicable(this.steps, this.rules, state);
+    const hint = applicable(this.steps, this.rules, state, this.limitDone);
+    // Про лимит рассказываем один раз: началась новая волна или игрок заплатил штраф — подсказка уходит насовсем.
+    if (this.limitShown && hint?.step !== 'limit') this.limitDone = true;
     if (!hint) {
       this.pending = null;
       return null;
@@ -85,7 +121,9 @@ export class Tutorial {
     } else {
       this.waited += dt;
     }
-    return this.waited >= this.rules.delay ? hint : null;
+    if (this.waited < this.rules.delay) return null;
+    if (hint.step === 'limit') this.limitShown = true;
+    return hint;
   }
 }
 
@@ -124,4 +162,19 @@ export function densestPoint(points: readonly Point[], radius: number): Point | 
     }
   }
   return best;
+}
+
+/**
+ * Кот, которого стоит продать: свободных клеток не больше `freeSlots`, слить сейчас некого,
+ * а у этого кота нет даже соседа того же уровня. Из таких — самый дешёвый. null — продавать некого.
+ */
+export function findSellSlot(board: readonly (Piece | null)[], freeSlots: number): number | null {
+  if (board.filter((piece) => piece === null).length > freeSlots) return null;
+  let pick: { slot: number; invested: number } | null = null;
+  board.forEach((cat, slot) => {
+    if (!isCat(cat) || cat.ritual > 0) return;
+    if (board.some((other, at) => at !== slot && isCat(other) && other.level === cat.level)) return;
+    if (!pick || cat.invested < pick.invested) pick = { slot, invested: cat.invested };
+  });
+  return (pick as { slot: number } | null)?.slot ?? null;
 }

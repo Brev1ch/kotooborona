@@ -602,7 +602,10 @@ export class UIScene extends Phaser.Scene {
     this.refreshCoinAd();
     // На паузе бой стоит, и отсчёт подсказок стоит вместе с ним.
     if (this.tutorial && !this.pauseMenu) {
-      this.tutorialOverlay?.show(this.tutorial.update(delta / 1000, this.gameScene.tutorialState()));
+      const state = this.gameScene.tutorialState();
+      // Пока окно стройки открыто, звать к нему уже не нужно.
+      if (this.buildPanel?.open) state.canBuild = false;
+      this.tutorialOverlay?.show(this.tutorial.update(delta / 1000, state));
     }
   }
 

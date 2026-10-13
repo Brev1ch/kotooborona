@@ -24,7 +24,8 @@
   "tutorial": {
     "summons": 2,
     "meteorEnemies": 3,
-    "delay": 1.2
+    "delay": 1.2,
+    "sellFreeSlots": 2
   },
   "levels": [
     {
@@ -42,7 +43,7 @@
       "ratChance": 0.15,
       "shieldChance": 0,
       "fish": 20,
-      "tutorial": { "steps": ["summon", "merge"], "at": [180, 425], "width": 300 }
+      "tutorial": { "steps": ["summon", "merge", "limit"], "at": [180, 425], "width": 300 }
     },
     {
       "id": "tropinka",
@@ -59,7 +60,7 @@
       "ratChance": 0.2,
       "shieldChance": 0,
       "fish": 24,
-      "tutorial": { "steps": ["hybrid"], "at": [180, 425], "width": 300 }
+      "tutorial": { "steps": ["hybrid", "sell"], "at": [180, 425], "width": 300 }
     },
     {
       "id": "ruchey",
@@ -93,7 +94,8 @@
       "ratChance": 0.3,
       "shieldChance": 0,
       "fish": 32,
-      "buildings": ["shop", "mine", "altar"]
+      "buildings": ["shop", "mine", "altar"],
+      "tutorial": { "steps": ["build"], "at": [180, 226], "width": 300 }
     },
     {
       "id": "polyana",

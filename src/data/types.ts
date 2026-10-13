@@ -102,7 +102,7 @@ export interface LevelConfig {
   tutorial?: { steps: TutorialStep[]; at: Point; width: number };
 }
 
-export type TutorialStep = 'summon' | 'merge' | 'hybrid' | 'meteor';
+export type TutorialStep = 'summon' | 'merge' | 'hybrid' | 'meteor' | 'limit' | 'sell' | 'build';
 
 export interface TutorialRules {
   /** Про призыв подсказываем, пока игрок не призвал столько котов. */
@@ -111,6 +111,8 @@ export interface TutorialRules {
   meteorEnemies: number;
   /** Сколько секунд должен продержаться повод, чтобы подсказка появилась. */
   delay: number;
+  /** Про продажу — когда свободных клеток осталось не больше, а на поле есть кот без пары. */
+  sellFreeSlots: number;
 }
 
 export interface WavesConfig {

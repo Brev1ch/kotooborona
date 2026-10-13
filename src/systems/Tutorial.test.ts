@@ -3,9 +3,9 @@ import { cats, levels } from '../data';
 import type { Point } from '../data';
 import type { Cat } from '../entities/Cat';
 import { Merge } from './Merge';
-import { densestPoint, findMergePair, Tutorial, type TutorialState } from './Tutorial';
+import { densestPoint, findMergePair, findSellSlot, Tutorial, type TutorialState } from './Tutorial';
 
-const rules = { summons: 2, meteorEnemies: 3, delay: 1 };
+const rules = { summons: 2, meteorEnemies: 3, delay: 1, sellFreeSlots: 1 };
 
 function state(overrides: Partial<TutorialState> = {}): TutorialState {
   return {
@@ -14,7 +14,13 @@ function state(overrides: Partial<TutorialState> = {}): TutorialState {
     merges: 0,
     hybrids: 0,
     meteors: 0,
+    sales: 0,
+    builds: 0,
     canSummon: false,
+    limitSpent: false,
+    sellSlot: null,
+    dragging: false,
+    canBuild: false,
     mergePair: null,
     hybridPair: null,
     meteorReady: false,
@@ -135,6 +141,84 @@ describe('Tutorial: не мешает тому, кто уже разобралс
   });
 });
 
+describe('Tutorial: лимит, продажа и стройка', () => {
+  it('лимит: показывает на кнопку призыва, когда призывы волны кончились', () => {
+    const tutorial = new Tutorial(['limit'], rules);
+
+    expect(settled(tutorial, state())).toBeNull();
+    expect(settled(tutorial, state({ limitSpent: true }))).toEqual({ step: 'limit', target: 'summonButton' });
+  });
+
+  it('про лимит рассказывает один раз за бой: после новой волны подсказка не возвращается', () => {
+    const tutorial = new Tutorial(['limit'], rules);
+    settled(tutorial, state({ limitSpent: true }));
+    // Началась волна — лимит обновился.
+    expect(settled(tutorial, state())).toBeNull();
+
+    expect(settled(tutorial, state({ limitSpent: true }))).toBeNull();
+  });
+
+  it('лимит кончился и обновился раньше, чем подсказка появилась, — она ещё впереди', () => {
+    const tutorial = new Tutorial(['limit'], rules);
+    tutorial.update(0.5, state({ limitSpent: true }));
+    tutorial.update(0.5, state());
+
+    expect(settled(tutorial, state({ limitSpent: true }))?.step).toBe('limit');
+  });
+
+  it('слияние важнее лимита: сначала игрок учится сливать', () => {
+    const tutorial = new Tutorial(['summon', 'merge', 'limit'], rules);
+    const both = state({ summons: 4, limitSpent: true, mergePair: [0, 1] });
+
+    expect(settled(tutorial, both)?.step).toBe('merge');
+    expect(settled(tutorial, { ...both, merges: 1, mergePair: null })?.step).toBe('limit');
+  });
+
+  it('продажа: показывает кота без пары, пока игрок ничего не продал', () => {
+    const tutorial = new Tutorial(['sell'], rules);
+
+    expect(settled(tutorial, state({ sellSlot: 4 }))).toEqual({ step: 'sell', from: 4 });
+    expect(settled(tutorial, state({ sellSlot: 4, sales: 1 }))).toBeNull();
+  });
+
+  it('пока игрок что-то держит в руке, про продажу не подсказывает', () => {
+    expect(settled(new Tutorial(['sell'], rules), state({ sellSlot: 4, dragging: true }))).toBeNull();
+  });
+
+  it('стройка: показывает на кнопку, пока игрок ничего не построил и строить можно', () => {
+    const tutorial = new Tutorial(['build'], rules);
+
+    expect(settled(tutorial, state())).toBeNull();
+    expect(settled(tutorial, state({ canBuild: true }))).toEqual({ step: 'build', target: 'buildButton' });
+    expect(settled(tutorial, state({ canBuild: true, builds: 1 }))).toBeNull();
+  });
+});
+
+describe('findSellSlot', () => {
+  const cat = (level: number, invested = 10): Cat => ({ element: 'fire', level, cooldown: 0, ritual: 0, invested });
+  const shop = { kind: 'shop' as const, level: 1, invested: 30, waves: 0 };
+
+  it('пока свободных клеток хватает, продавать некого', () => {
+    expect(findSellSlot([cat(1), cat(2), null, null], 1)).toBeNull();
+  });
+
+  it('на почти занятом поле выбирает кота, у которого нет соседа того же уровня', () => {
+    expect(findSellSlot([cat(2), cat(2), cat(1), null], 1)).toBe(2);
+  });
+
+  it('из нескольких таких — самого дешёвого', () => {
+    expect(findSellSlot([cat(3, 40), cat(2, 20), cat(1, 30)], 0)).toBe(1);
+  });
+
+  it('у всех есть пара по уровню — продавать некого', () => {
+    expect(findSellSlot([cat(1), cat(1), cat(2), cat(2)], 0)).toBeNull();
+  });
+
+  it('строения и коты в ритуале не предлагаются', () => {
+    expect(findSellSlot([shop, { ...cat(1), ritual: 2 }, cat(3), cat(3)], 0)).toBeNull();
+  });
+});
+
 describe('findMergePair', () => {
   const merger = new Merge(cats, { maxCatLevel: 3, ritualTime: 4, crystalCost: 1 });
   const cat = (element: Cat['element'], level = 1, ritual = 0): Cat => ({ element, level, cooldown: 0, ritual, invested: 0 });
@@ -177,13 +261,20 @@ describe('densestPoint', () => {
 });
 
 describe('обучение в уровнях главы', () => {
-  it('идёт на первых трёх уровнях: призыв и слияние, гибрид, метеор', () => {
+  it('идёт на первых четырёх уровнях: призыв, слияние и лимит; гибрид и продажа; метеор; стройка', () => {
     expect(levels.levels.map((level) => level.tutorial?.steps ?? [])).toEqual([
-      ['summon', 'merge'],
-      ['hybrid'],
+      ['summon', 'merge', 'limit'],
+      ['hybrid', 'sell'],
       ['meteor'],
-      ...Array<string[]>(7).fill([]),
+      ['build'],
+      ...Array<string[]>(6).fill([]),
     ]);
+  });
+
+  it('про стройку подсказывает первый уровень, где она открыта', () => {
+    const first = levels.levels.findIndex((level) => (level.buildings ?? []).length > 0);
+
+    expect(levels.levels[first].tutorial?.steps).toContain('build');
   });
 
   it('на уровне с гибридом игроку хватает кристаллов уже со старта', () => {

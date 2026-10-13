@@ -640,6 +640,9 @@ async function drag(page: Page, from: [number, number], to: [number, number], be
   await touch('touchEnd');
 }
 
+/** Сколько ждать, чтобы убедиться, что подсказка не появилась снова: дольше её задержки. */
+const TUTORIAL_GONE_MS = 1800;
+
 /** Точка зоны продажи: левая часть нижней полосы, чтобы кот в руке не закрывал надпись «Продать». */
 const SELL_POINT: [number, number] = [GAME_W / 6, CONTROLS_CENTER_Y];
 /** Первый уровень, на котором открыты строения (номер с нуля). */
@@ -826,7 +829,7 @@ test('все уровни главы запускаются, кот продаё
   });
 });
 
-test('обучение: призыв → слияние → гибрид → метеор; на пройденном уровне подсказок нет', async ({ page }) => {
+test('обучение: призыв → слияние → лимит → продажа → гибрид → метеор → стройка; на пройденном уровне подсказок нет', async ({ page }) => {
   /** Подсказка появляется с задержкой и после неё должна быть именно такой. */
   const expectHint = (step: string | null, message: string): Promise<void> =>
     waitFor(
@@ -894,6 +897,65 @@ test('обучение: призыв → слияние → гибрид → м�
     checkConsole('обучение: слияние');
   });
 
+  await test.step('уровень 1: лимит призывов', async () => {
+    await startLevel(ids[0]);
+    // С началом волны лимит обновляется: тратим его целиком уже в первой волне, чтобы он не сбросился посреди проверки.
+    await waitFor(
+      page,
+      WAVE_TIMEOUT,
+      (s) => s.hud?.wave === 1,
+      (s) => `Первая волна не началась (волна ${s?.hud?.wave ?? '?'})`,
+    );
+    await page.evaluate(() => window.__smoke?.addGold(100));
+    const limit = (await state(page))?.hud?.summonLimit ?? 0;
+    for (let n = 0; n < limit; n++) {
+      await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
+      await page.waitForTimeout(PRESS_SETTLE_MS);
+    }
+    // Котам ставим разные уровни: подсказка про слияние не должна заслонить подсказку про лимит.
+    await page.evaluate(() => {
+      (window.__smoke?.catSlots() ?? []).forEach((slot, index) => window.__smoke?.placeCat(slot, 'water', index + 2));
+    });
+    await expectHint('limit', 'Призывы волны кончились, а подсказки про лимит нет');
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/tutorial-3-limit.png` });
+    await checkTexts(page, 'подсказка про лимит');
+
+    // Призыв со штрафом — игрок понял: подсказка уходит и больше не возвращается.
+    await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
+    await page.evaluate(() => {
+      (window.__smoke?.catSlots() ?? []).forEach((slot, index) => window.__smoke?.placeCat(slot, 'water', index + 2));
+    });
+    await page.waitForTimeout(TUTORIAL_GONE_MS);
+    const after = await state(page);
+    if (after?.tutorial === 'limit' && (after.hud?.overLimitMult ?? 1) <= 2) {
+      throw new Error('Подсказка про лимит осталась после призыва со штрафом');
+    }
+    checkConsole('обучение: лимит');
+  });
+
+  await test.step('уровень 2: продажа', async () => {
+    await startLevel(ids[1]);
+    // Поле занято котами одной стихии и разных уровней: слить некого, гибрида не сделать.
+    await page.evaluate(() => {
+      for (let slot = 0; slot < 12; slot++) window.__smoke?.placeCat(slot, 'water', slot + 1);
+    });
+    await expectHint('sell', 'Поле занято, пары ни у кого нет, а подсказки про продажу нет');
+    await page.waitForTimeout(WAVE_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/tutorial-4-sell.png` });
+    await checkTexts(page, 'подсказка про продажу');
+
+    const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
+    await drag(page, centers[0], SELL_POINT);
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.cats === 11 && s.tutorial === null,
+      (s) => `Кот не продан сквозь подсказку или она осталась: котов ${s?.cats}, подсказка «${s?.tutorial}»`,
+    );
+    checkConsole('обучение: продажа');
+  });
+
   await test.step('уровень 2: гибрид', async () => {
     await startLevel(ids[1]);
     await page.evaluate(() => {
@@ -902,7 +964,7 @@ test('обучение: призыв → слияние → гибрид → м�
     });
     await expectHint('hybrid', 'Нет подсказки про гибрида, хотя есть коты разных стихий и кристалл');
     await page.waitForTimeout(WAVE_SETTLE_MS);
-    await page.screenshot({ path: `${SHOTS}/tutorial-3-hybrid.png` });
+    await page.screenshot({ path: `${SHOTS}/tutorial-5-hybrid.png` });
     checkConsole('обучение: гибрид');
   });
 
@@ -910,17 +972,45 @@ test('обучение: призыв → слияние → гибрид → м�
     await startLevel(ids[2]);
     await expectHint('meteor', 'Мыши вышли, метеор готов, а подсказки про него нет');
     await page.waitForTimeout(SPAWN_SETTLE_MS);
-    await page.screenshot({ path: `${SHOTS}/tutorial-4-meteor.png` });
+    await page.screenshot({ path: `${SHOTS}/tutorial-6-meteor.png` });
 
     await tap(page, METEOR_X, CONTROLS_CENTER_Y);
     await expectHint('meteorAim', 'После нажатия «Метеор» нет подсказки, куда бить');
     await page.waitForTimeout(SPAWN_SETTLE_MS);
-    await page.screenshot({ path: `${SHOTS}/tutorial-5-meteor-aim.png` });
+    await page.screenshot({ path: `${SHOTS}/tutorial-7-meteor-aim.png` });
 
     // Удар по дороге у входа: подсказка про метеор больше не появляется.
     await tap(page, 30, 200);
     await expectHint(null, 'После удара метеором подсказка осталась');
     checkConsole('обучение: метеор');
+  });
+
+  await test.step('уровень 4: стройка', async () => {
+    await startLevel(ids[3]);
+    await page.evaluate(() => window.__smoke?.addGold(100));
+    await expectHint('build', 'Строить можно, монеты есть, а подсказки про стройку нет');
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/tutorial-8-build.png` });
+    await checkTexts(page, 'подсказка про стройку');
+
+    // Окно открыто — звать к нему незачем; строение поставлено — подсказка не возвращается.
+    await tap(page, BUILD_X, CONTROLS_CENTER_Y);
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.buildRows === BUILD_KINDS && s.tutorial === null,
+      (s) => `Окно стройки открыто (строк ${s?.buildRows ?? 0}), а подсказка «${s?.tutorial ?? 'нет'}»`,
+    );
+    await tap(page, ...buildRowCenter(0, BUILD_KINDS));
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.buildings === 1 && s.buildRows === 0,
+      (s) => `Лавка не построена (строений ${s?.buildings ?? 0})`,
+    );
+    await page.waitForTimeout(TUTORIAL_GONE_MS);
+    if ((await state(page))?.tutorial !== null) throw new Error('После постройки подсказка про стройку вернулась');
+    checkConsole('обучение: стройка');
   });
 
   await test.step('пройденный уровень — без подсказок', async () => {

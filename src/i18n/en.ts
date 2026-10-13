@@ -83,6 +83,9 @@ export const en: Record<StringKey, string> = {
   'tutorial.summon': 'Tap Summon to put a cat on the field',
   'tutorial.merge': 'Drag a cat onto its twin to merge them',
   'tutorial.hybrid': 'Mix two elements: a hybrid costs a crystal',
+  'tutorial.limit': 'Out of summons for this wave: the next cat costs more. A new wave resets the price',
+  'tutorial.sell': 'A cat with no match? Drag it down to sell',
+  'tutorial.build': 'Tap the hammer: buildings give coins, crystals and summons',
   'tutorial.meteor': 'Too many mice — tap Meteor',
   'tutorial.meteorAim': 'Tap the road where the mice are',
 
