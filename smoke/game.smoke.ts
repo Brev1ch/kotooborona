@@ -640,8 +640,8 @@ async function drag(page: Page, from: [number, number], to: [number, number], be
   await touch('touchEnd');
 }
 
-/** Точка зоны продажи: середина нижней полосы. */
-const SELL_POINT: [number, number] = [GAME_W / 2, CONTROLS_CENTER_Y];
+/** Точка зоны продажи: левая часть нижней полосы, чтобы кот в руке не закрывал надпись «Продать». */
+const SELL_POINT: [number, number] = [GAME_W / 6, CONTROLS_CENTER_Y];
 /** Первый уровень, на котором открыты строения (номер с нуля). */
 const FIRST_BUILD_LEVEL = 3;
 const BUILD_KINDS = 3;
@@ -751,13 +751,14 @@ test('все уровни главы запускаются, кот продаё
         await page.waitForTimeout(PRESS_SETTLE_MS);
         const zone = (await state(page))?.sellZone;
         if (!zone?.includes('5')) throw new Error(`Уровень ${id}: кот над нижней полосой, а на зоне продажи «${zone ?? 'ничего'}»`);
+        if (!(await state(page))?.ghost) throw new Error(`Уровень ${id}: кот над зоной продажи не нарисован поверх неё`);
         await page.screenshot({ path: `${SHOTS}/level-${number}-sell.png` });
         await checkTexts(page, `уровень ${id}, кот над зоной продажи`);
       });
       await waitFor(
         page,
         SUMMON_TIMEOUT,
-        (s) => s.cats === CATS - 1 && (s.hud?.gold ?? 0) >= gold + 5 && s.sellZone === null,
+        (s) => s.cats === CATS - 1 && (s.hud?.gold ?? 0) >= gold + 5 && s.sellZone === null && !s.ghost,
         (s) => `На уровне ${id} кот не продан: котов ${s?.cats ?? 0}, монет ${s?.hud?.gold ?? '?'} (было ${gold}), зона «${s?.sellZone ?? ''}»`,
       );
       // Кот, которого подняли и вернули в клетку, остаётся на поле, а кнопки возвращаются.
@@ -766,7 +767,7 @@ test('все уровни главы запускаются, кот продаё
       await waitFor(
         page,
         SUMMON_TIMEOUT,
-        (s) => s.cats === CATS - 1 && s.sellZone === null,
+        (s) => s.cats === CATS - 1 && s.sellZone === null && !s.ghost,
         (s) => `На уровне ${id} кот, возвращённый в клетку, пропал или кнопки не вернулись (котов ${s?.cats ?? 0})`,
       );
 

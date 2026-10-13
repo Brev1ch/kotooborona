@@ -1,4 +1,5 @@
 import type { BuildingKind, BuildingLevel } from '../data/types';
+import type { Piece } from '../entities/Building';
 import type { BuildBlock } from '../systems/Buildings';
 import type { UpcomingWave } from '../systems/Waves';
 
@@ -33,9 +34,20 @@ export const GameEvent = {
   Reward: 'reward',
   /** Игрок взял кота или строение, навёл на зону продажи или отпустил; аргумент — SellOffer или null. */
   SellOffer: 'sellOffer',
+  /** Игрок ведёт пальцем взятого кота или строение; аргумент — DragGhost. */
+  DragMove: 'dragMove',
+  /** Игрок отпустил взятое; аргумент — true, если оно продано. */
+  DragEnd: 'dragEnd',
   /** Игрок нажал на строение; аргумент — номер клетки. */
   BuildingTapped: 'buildingTapped',
 } as const;
+
+/** Взятый кот или строение и где сейчас палец, в координатах экрана. HUD рисует его поверх всего, включая нижнюю полосу. */
+export interface DragGhost {
+  piece: Piece;
+  x: number;
+  y: number;
+}
 
 /** Что держит игрок: сколько монет вернёт продажа и над зоной ли продажи палец. */
 export interface SellOffer {

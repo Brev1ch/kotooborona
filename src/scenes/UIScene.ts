@@ -45,6 +45,10 @@ import {
   SUMMON_X,
   TEXT_COLORS,
 } from '../layout';
+import { isCat } from '../entities/Building';
+import { BuildingView } from '../entities/BuildingView';
+import { CatView } from '../entities/CatView';
+import type { PieceView } from '../entities/PieceView';
 import { progress } from '../progress';
 import { nextLevelId } from '../systems/Campaign';
 import { Pool } from '../systems/Pool';
@@ -53,7 +57,7 @@ import { Tutorial } from '../systems/Tutorial';
 import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
 import { BuildPanel } from './BuildPanel';
-import { GameEvent, SceneKey, type LevelResult, type LevelSceneData, type RewardDrop, type SellOffer } from './keys';
+import { GameEvent, SceneKey, type DragGhost, type LevelResult, type LevelSceneData, type RewardDrop, type SellOffer } from './keys';
 import { addBakedShape, bakeTexture } from './textures';
 import { fadeIn, fadeOut } from './transitions';
 import { TutorialOverlay } from './TutorialOverlay';
@@ -141,6 +145,8 @@ export class UIScene extends Phaser.Scene {
   private controls: Phaser.GameObjects.Container[] = [];
   private sellZone: Phaser.GameObjects.Container | null = null;
   private sellBg!: Phaser.GameObjects.Rectangle;
+  /** Кот или строение в руке игрока: рисуется здесь, поверх поля и нижней полосы. */
+  private ghost: PieceView | null = null;
   private sellLabel!: Phaser.GameObjects.Text;
   private sellCoin!: Phaser.GameObjects.Image;
   private meteorButton!: Phaser.GameObjects.Container;
@@ -241,6 +247,9 @@ export class UIScene extends Phaser.Scene {
     this.gameScene.events.on(GameEvent.Reward, this.flyReward, this);
     this.gameScene.events.on(GameEvent.SellOffer, this.showSellOffer, this);
     this.gameScene.events.on(GameEvent.BuildingTapped, this.openUpgrade, this);
+    this.gameScene.events.on(GameEvent.DragMove, this.moveGhost, this);
+    this.gameScene.events.on(GameEvent.DragEnd, this.dropGhost, this);
+    this.ghost = null;
     // Игрок свернул игру или ушёл на другую вкладку: вернётся он в меню паузы, а не в идущий бой.
     const onVisibility = (): void => {
       if (document.hidden) this.openPause();
@@ -254,6 +263,8 @@ export class UIScene extends Phaser.Scene {
       this.gameScene.events.off(GameEvent.Reward, this.flyReward, this);
       this.gameScene.events.off(GameEvent.SellOffer, this.showSellOffer, this);
       this.gameScene.events.off(GameEvent.BuildingTapped, this.openUpgrade, this);
+      this.gameScene.events.off(GameEvent.DragMove, this.moveGhost, this);
+      this.gameScene.events.off(GameEvent.DragEnd, this.dropGhost, this);
     });
     this.banner = null;
     this.refresh();
@@ -375,8 +386,9 @@ export class UIScene extends Phaser.Scene {
       return;
     }
 
-    this.sellBg.setFillStyle(offer.over ? COLORS.brass : COLORS.panel);
-    this.sellLabel.setText(t('sell.zone', { gold: offer.gold })).setColor(offer.over ? TEXT_COLORS.dark : TEXT_COLORS.brass);
+    // Над зоной она зелёная, а не латунная: латунные детали того, что в руке (крыша лавки, точки уровня), на ней не теряются.
+    this.sellBg.setFillStyle(offer.over ? COLORS.reward : COLORS.panel);
+    this.sellLabel.setText(t('sell.zone', { gold: offer.gold })).setColor(offer.over ? TEXT_COLORS.fg : TEXT_COLORS.brass);
     // Подпись и монета вместе стоят по центру зоны.
     const width = this.sellLabel.width + 5 + SELL_COIN;
     this.sellLabel.setX(-width / 2);
@@ -388,6 +400,29 @@ export class UIScene extends Phaser.Scene {
       duration: SELL_FEEL.tweenMs,
       ease: SELL_FEEL.ease,
     });
+  }
+
+  /** Взятое следует за пальцем; при первом вызове появляется его картинка. */
+  private moveGhost({ piece, x, y }: DragGhost): void {
+    if (!this.ghost) {
+      this.ghost = isCat(piece) ? new CatView(this, x, y, piece) : new BuildingView(this, x, y, piece);
+      this.ghost.lift();
+    }
+    this.ghost.setPosition(x, y);
+  }
+
+  /** Игрок отпустил взятое: проданное стягивается в зону продажи, остальное возвращается на поле уже там. */
+  private dropGhost(sold: boolean): void {
+    const ghost = this.ghost;
+    this.ghost = null;
+    if (!ghost) return;
+    if (sold) ghost.absorb(ghost.x, CONTROLS_CENTER_Y);
+    else ghost.destroy();
+  }
+
+  /** Игрок держит кота или строение, и оно нарисовано поверх экрана. Для смоук-проверки. */
+  holdingGhost(): boolean {
+    return this.ghost !== null;
   }
 
   /** Нажатие на строение: окно с его улучшением. */

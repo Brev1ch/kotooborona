@@ -882,7 +882,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.drag = { pointerId: pointer.id, slot, view, hover: null, overSell: false, downX: pointer.x, downY: pointer.y };
-    view.lift();
+    // Поле обрезано по своему краю, а взятое должно быть видно и над нижней полосой:
+    // пока оно в руке, его рисует HUD, а картинка на поле спрятана.
+    view.setVisible(false);
 
     // Круг дальности — только у кота: строение не стреляет.
     if (isCat(piece)) {
@@ -938,10 +940,13 @@ export class GameScene extends Phaser.Scene {
     this.rangeRing.setVisible(false);
     this.emitSellOffer();
 
-    if (this.overSellZone(pointer)) {
+    const sold = this.overSellZone(pointer);
+    this.events.emit(GameEvent.DragEnd, sold);
+    if (sold) {
       this.sell(from, view);
       return;
     }
+    view.setVisible(true);
     // Нажатие на строение без перетаскивания открывает его улучшение.
     const tapped = Math.hypot(pointer.x - downX, pointer.y - downY) < TAP_SLOP;
     if (tapped && to === from && isBuilding(this.board[from])) {
@@ -1009,8 +1014,10 @@ export class GameScene extends Phaser.Scene {
   /** Возвращает взятое на место. */
   private cancelDrag(): void {
     if (!this.drag) return;
+    this.drag.view.setVisible(true);
     this.drag.view.settle(...this.slotCenter(this.drag.slot), CAT_FEEL.returnMs);
     this.drag = null;
+    this.events.emit(GameEvent.DragEnd, false);
     this.highlights.clear();
     this.hint.setVisible(false);
     this.rangeRing.setVisible(false);
@@ -1024,7 +1031,8 @@ export class GameScene extends Phaser.Scene {
     const gold = this.economy.sell(piece.invested);
     this.board[slot] = null;
     this.views[slot] = null;
-    view.absorb(view.x, BOARD_H + CONTROLS_H / 2);
+    // Как проданное исчезает в зоне продажи, показывает HUD.
+    view.destroy();
     this.actions.sales++;
     this.syncLimit();
     audio.play('coins');
@@ -1123,6 +1131,8 @@ export class GameScene extends Phaser.Scene {
     const { x, y } = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     this.drag.view.setPosition(x, y);
     this.rangeRing.setPosition(x, y);
+    const piece = this.board[this.drag.slot];
+    if (piece) this.events.emit(GameEvent.DragMove, { piece, x, y: y + BOARD_Y });
   }
 
   /** Обводит клетки, с которыми взятый кот сольётся или слияние чем-то заблокировано, и подписывает ту, что под пальцем. */

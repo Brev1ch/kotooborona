@@ -44,6 +44,8 @@ export interface SmokeState {
   buildRows: number;
   /** Надпись на зоне продажи, пока игрок держит кота или строение. */
   sellZone: string | null;
+  /** Взятый кот или строение нарисован поверх экрана. */
+  ghost: boolean;
   enemies: number;
   /** Сколько враги прошли в сумме: на паузе не растёт. */
   march: number;
@@ -355,12 +357,12 @@ export function installSmokeProbe(game: Phaser.Game): void {
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);
       if (!paused && !scenes.includes(SceneKey.Game)) {
-        return { ...common, hud: null, level: null, cats: 0, buildings: 0, buildRows: 0, sellZone: null, enemies: 0, march: 0, paused: false, result: null, tutorial: null };
+        return { ...common, hud: null, level: null, cats: 0, buildings: 0, buildRows: 0, sellZone: null, ghost: false, enemies: 0, march: 0, paused: false, result: null, tutorial: null };
       }
       const gameScene = game.scene.getScene(SceneKey.Game) as GameScene;
       const ui = game.scene.getScene(SceneKey.UI) as UIScene;
       const hud = gameScene.hudState();
-      return { ...common, hud, level: gameScene.levelId, ...gameScene.fieldCounts(), buildRows: ui.buildPanelRows(), sellZone: ui.sellZoneText(), paused, result: ui.resultShown(), tutorial: ui.tutorialStep() };
+      return { ...common, hud, level: gameScene.levelId, ...gameScene.fieldCounts(), buildRows: ui.buildPanelRows(), sellZone: ui.sellZoneText(), ghost: ui.holdingGhost(), paused, result: ui.resultShown(), tutorial: ui.tutorialStep() };
     },
   };
 }
