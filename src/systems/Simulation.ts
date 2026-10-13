@@ -5,7 +5,7 @@ import type { Enemy } from '../entities/Enemy';
 import { Buildings } from './Buildings';
 import { catRange, Combat, type CombatEvent } from './Combat';
 import { Economy, starsFor } from './Economy';
-import { gearBonuses, type GearBonuses } from './Loadout';
+import { noBonuses, type GearBonuses } from './Loadout';
 import { Merge } from './Merge';
 import { Meteor } from './Meteor';
 import { buildPath, positionAt, type Path } from './Path';
@@ -89,12 +89,12 @@ export class Simulation {
   private summonsByWave: number[] = [];
   private built: Record<BuildingKind, number> = { shop: 0, mine: 0, altar: 0 };
 
-  /** `rng` возвращает число в [0, 1); `bonuses` — снаряжение игрока, по умолчанию стартовое первого уровня. */
+  /** `rng` возвращает число в [0, 1); `bonuses` — снаряжение игрока. По умолчанию его нет: баланс подбирается так, чтобы уровни проходились без бонусов. */
   constructor(
     readonly level: LevelConfig,
     private readonly configs: BattleConfigs,
     rng: () => number = Math.random,
-    bonuses: GearBonuses = gearBonuses(configs.gear, configs.gear.defaults),
+    bonuses: GearBonuses = noBonuses(),
   ) {
     const { cats, enemies, economy, gear, levels, board } = configs;
     const half = levels.slotSize / 2;

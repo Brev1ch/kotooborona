@@ -37,7 +37,7 @@
       "startGold": 40,
       "startCrystals": 1,
       "startLives": 20,
-      "hpMult": 1.45,
+      "hpMult": 1.35,
       "enemies": { "rat": 0.15 },
       "fish": 20,
       "tutorial": { "steps": ["summon", "merge", "limit"], "at": [180, 425], "width": 300 }
@@ -53,7 +53,7 @@
       "startGold": 40,
       "startCrystals": 1,
       "startLives": 20,
-      "hpMult": 1.5,
+      "hpMult": 1.45,
       "enemies": { "rat": 0.2 },
       "fish": 24,
       "tutorial": { "steps": ["hybrid", "sell"], "at": [180, 425], "width": 300 }
@@ -137,7 +137,7 @@
       "startGold": 50,
       "startCrystals": 2,
       "startLives": 20,
-      "hpMult": 2.6,
+      "hpMult": 2.5,
       "enemies": { "rat": 0.3, "shield": 0.25, "boots": 0.1, "fire": 0.1 },
       "fish": 45,
       "buildings": ["shop", "mine", "altar"]
