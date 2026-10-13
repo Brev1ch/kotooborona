@@ -6,7 +6,7 @@ import type { GameScene } from './scenes/GameScene';
 import { GameEvent } from './scenes/keys';
 
 // Отладочные инструменты. Модуль подключается только под import.meta.env.DEV (см. UIScene)
-// и в сборку для игроков не попадает, поэтому строки и числа живут прямо здесь.
+// и зондом проверок (src/smoke.ts); игрокам он не загружается, поэтому строки и числа живут прямо здесь.
 
 const BUTTON_W = 68;
 const BUTTON_H = 18;
@@ -25,7 +25,8 @@ const STRESS_LIVES = 999;
 
 const FPS_EVERY_MS = 500;
 
-function stress(game: GameScene): void {
+/** Худший случай для отрисовки; им же меряет производительность `npm run perf`. */
+export function stress(game: GameScene): void {
   // Чтобы проверку не оборвало поражение.
   game.economy.lives = STRESS_LIVES;
   for (let slot = 0; slot < game.slotCount; slot++) {

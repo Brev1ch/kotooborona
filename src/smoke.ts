@@ -1,8 +1,10 @@
 import type Phaser from 'phaser';
 import { audio } from './audio';
+import { levels } from './data';
+import { stress } from './debug';
 import { progress } from './progress';
 import type { GameScene } from './scenes/GameScene';
-import { SceneKey, type HudState } from './scenes/keys';
+import { SceneKey, type HudState, type LevelSceneData } from './scenes/keys';
 import type { GearSelection } from './systems/Progress';
 
 // Зонд для смоук-проверки (smoke/game.smoke.ts). Игра — один canvas, поэтому тест
@@ -38,8 +40,26 @@ export interface SmokeState {
   paused: boolean;
 }
 
+/** Стоимость кадра для процессора: обновление и отправка отрисовки, без работы видеокарты. Время — в мс. */
+export interface FrameProfile {
+  frames: number;
+  median: number;
+  p95: number;
+  worst: number;
+  /** Больше всего врагов и объектов на поле за время записи. */
+  enemiesPeak: number;
+  objectsPeak: number;
+}
+
 export interface SmokeProbe {
   state(): SmokeState;
+  /** Сразу запускает бой, минуя меню и снаряжение; без id — на первом уровне. */
+  startLevel(levelId?: string): void;
+  /** Стресс-проверка из src/debug.ts: поле гибридов и толпа врагов. */
+  stress(): void;
+  /** Начинает запись стоимости кадров; `stopProfile` возвращает итог. */
+  startProfile(): void;
+  stopProfile(): FrameProfile;
 }
 
 declare global {
@@ -62,7 +82,43 @@ function collectTargets(objects: Phaser.GameObjects.GameObject[], out: SmokeTarg
 }
 
 export function installSmokeProbe(game: Phaser.Game): void {
+  const steps: number[] = [];
+  let stepStart = 0;
+  let enemiesPeak = 0;
+  let objectsPeak = 0;
+  const onPreStep = (): void => {
+    stepStart = performance.now();
+  };
+  const onPostRender = (): void => {
+    steps.push(performance.now() - stepStart);
+    const scene = game.scene.getScene(SceneKey.Game) as GameScene;
+    enemiesPeak = Math.max(enemiesPeak, scene.fieldCounts().enemies);
+    objectsPeak = Math.max(objectsPeak, scene.children.length);
+  };
+
   window.__smoke = {
+    startProfile() {
+      steps.length = 0;
+      enemiesPeak = 0;
+      objectsPeak = 0;
+      game.events.on('prestep', onPreStep);
+      game.events.on('postrender', onPostRender);
+    },
+    stopProfile() {
+      game.events.off('prestep', onPreStep);
+      game.events.off('postrender', onPostRender);
+      const sorted = [...steps].sort((a, b) => a - b);
+      const at = (share: number): number => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * share))] ?? 0;
+      return { frames: sorted.length, median: at(0.5), p95: at(0.95), worst: at(1), enemiesPeak, objectsPeak };
+    },
+    startLevel(levelId = levels.levels[0].id) {
+      for (const scene of game.scene.getScenes(true)) scene.scene.stop();
+      const data: LevelSceneData = { levelId };
+      game.scene.start(SceneKey.Game, data);
+    },
+    stress() {
+      stress(game.scene.getScene(SceneKey.Game) as GameScene);
+    },
     state() {
       const active = game.scene.getScenes(true);
       const scenes = active.map((scene) => scene.scene.key);
