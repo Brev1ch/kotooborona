@@ -596,6 +596,8 @@ export class GameScene extends Phaser.Scene {
 
       case 'killed':
         this.economy.reward(event.gold, event.crystals);
+        // Первая победа над врагом открывает его в бестиарии.
+        progress.meetEnemy(event.enemy.type);
         this.enemyViews.get(event.enemy)?.playDeath();
         this.enemyViews.delete(event.enemy);
         this.showReward(event.x, event.y, event.gold, event.crystals);

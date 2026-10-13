@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CatsConfig, GearConfig } from '../data/types';
+import type { CatsConfig, EnemiesConfig, GearConfig } from '../data/types';
 import { CURRENT_VERSION, parseSave, Progress, SAVE_KEY, type Migration, type SaveRules, type SaveStorage } from './Progress';
 
 // Из конфигов нужны только id предметов, умолчания, прокачка одного предмета и список стихий.
@@ -12,6 +12,7 @@ const rules: SaveRules = {
     upgradeCost: [40, 90],
   } as unknown as GearConfig,
   cats: { elements: { fire: {}, water: {}, steam: {}, ice: {} } } as unknown as CatsConfig,
+  enemies: { types: { mouse: {}, rat: {}, shield: {}, boots: {}, boss: {}, king: {} } } as unknown as EnemiesConfig,
 };
 
 /** Текущая версия сохранения и версия «из будущего», которой этот код ещё не знает. */
@@ -28,6 +29,7 @@ const defaults = {
   owned: ['staff:none', 'mantle:thrift', 'amulet:cry'],
   gearLevels: {},
   chests: 0,
+  bestiary: [] as string[],
 };
 
 /** Все предметы тестового конфига: так выглядит инвентарь игрока, открывшего все сундуки. */
@@ -68,6 +70,7 @@ describe('parseSave: чтение сохранения', () => {
       owned: ALL_GEAR,
       gearLevels: { 'amulet:purse': 2 },
       chests: 3,
+      bestiary: ['mouse', 'boots'],
     };
 
     expect(parseSave(raw, rules)).toEqual({ data: raw, extra: {} });
@@ -188,7 +191,60 @@ describe('parseSave: настоящие миграции', () => {
     progress.addFish(5);
     progress.flush();
 
-    expect(saves).toEqual([{ ...defaults, ...v1, version: V, fish: 5, owned: ALL_GEAR }]);
+    expect(saves).toEqual([{ ...defaults, ...v1, version: V, fish: 5, owned: ALL_GEAR, bestiary: ['mouse', 'rat', 'boss'] }]);
+  });
+});
+
+describe('parseSave: версия 3 → 4, бестиарий', () => {
+  const v3 = (stars: unknown) => ({ version: 3, stars, gear: defaults.gear, book: [], sound: true, fish: 7, owned: [], gearLevels: {}, chests: 1 });
+
+  it('у игрока без пройденных уровней бестиарий пуст', () => {
+    expect(parseSave(v3({}), rules).data.bestiary).toEqual([]);
+  });
+
+  it('пройденный уровень начала главы открывает мышь, крысу и командира', () => {
+    expect(parseSave(v3({ opushka: 1 }), rules).data.bestiary).toEqual(['mouse', 'rat', 'boss']);
+    expect(parseSave(v3({ tropinka: 3, dub: 2 }), rules).data.bestiary).toEqual(['mouse', 'rat', 'boss']);
+  });
+
+  it.each(['polyana', 'ovrag', 'burelom', 'melnitsa', 'most'])('пройденный уровень %s открывает ещё и щитоносца', (id) => {
+    expect(parseSave(v3({ opushka: 3, [id]: 1 }), rules).data.bestiary).toEqual(['mouse', 'rat', 'shield', 'boss']);
+  });
+
+  it('пройденный последний уровень открывает короля', () => {
+    expect(parseSave(v3({ lager: 2 }), rules).data.bestiary).toEqual(['mouse', 'rat', 'shield', 'boss', 'king']);
+  });
+
+  it('уровень без звёзд и мусор вместо звёзд никого не открывают', () => {
+    expect(parseSave(v3({ lager: 0, opushka: 'три' }), rules).data.bestiary).toEqual([]);
+    expect(parseSave(v3([3, 3]), rules).data.bestiary).toEqual([]);
+    expect(parseSave(v3(null), rules).data.bestiary).toEqual([]);
+  });
+
+  it('остальное сохранение миграция не трогает', () => {
+    const { data } = parseSave(v3({ opushka: 2 }), rules);
+
+    expect(data).toMatchObject({ version: V, stars: { opushka: 2 }, fish: 7, chests: 1 });
+  });
+
+  it('версии 1 и 2 проходят всю цепочку и тоже получают бестиарий', () => {
+    expect(parseSave({ version: 1, stars: { lager: 3 } }, rules).data.bestiary).toEqual(['mouse', 'rat', 'shield', 'boss', 'king']);
+    expect(parseSave({ version: 2, stars: { polyana: 1 }, fish: 3 }, rules).data.bestiary).toEqual(['mouse', 'rat', 'shield', 'boss']);
+  });
+
+  it('сохранение версии 4 читается как есть: без повторов, чужих типов и мусора', () => {
+    const raw = { version: 4, stars: { lager: 3 }, bestiary: ['boots', 'boots', 'dragon', 7, 'mouse'] };
+
+    expect(parseSave(raw, rules).data.bestiary).toEqual(['boots', 'mouse']);
+    expect(parseSave({ version: 4, bestiary: 'boots' }, rules).data.bestiary).toEqual([]);
+  });
+
+  it('в данных игры есть все уровни и враги, на которые опирается миграция', async () => {
+    const { enemies, levels } = await import('../data');
+    const ids = levels.levels.map((level) => level.id);
+
+    for (const id of ['polyana', 'ovrag', 'burelom', 'melnitsa', 'most', 'lager']) expect(ids, id).toContain(id);
+    for (const type of ['mouse', 'rat', 'shield', 'boss', 'king']) expect(Object.keys(enemies.types), type).toContain(type);
   });
 });
 
@@ -394,6 +450,12 @@ describe('parseSave: сохранение новее кода', () => {
     expect(extra).toEqual({ guild: 120, pets: [{ id: 'owl' }] });
     expect(data.book).toEqual(['steam', 'dragon']);
   });
+
+  it('незнакомых врагов в бестиарии сохраняет', () => {
+    const { data } = parseSave({ ...raw, bestiary: ['mouse', 'hydra'] }, rules);
+
+    expect(data.bestiary).toEqual(['mouse', 'hydra']);
+  });
 });
 
 describe('Progress: изменения', () => {
@@ -446,6 +508,27 @@ describe('Progress: изменения', () => {
     expect(progress.discover('steam')).toBe(true);
     expect(progress.discover('steam')).toBe(false);
     expect(progress.hasCat('steam')).toBe(true);
+  });
+
+  it('враг открывается в бестиарии один раз и уходит в запись', () => {
+    const { storage, saves } = memoryStorage();
+    const progress = new Progress(storage, rules);
+
+    expect(progress.hasEnemy('boots')).toBe(false);
+    expect(progress.meetEnemy('boots')).toBe(true);
+    expect(progress.meetEnemy('boots')).toBe(false);
+    expect(progress.hasEnemy('boots')).toBe(true);
+
+    progress.flush();
+    expect(saves).toEqual([{ ...defaults, bestiary: ['boots'] }]);
+  });
+
+  it('бестиарий читается из сохранения', async () => {
+    const progress = new Progress(memoryStorage({ version: V, bestiary: ['rat'] }).storage, rules);
+    await progress.load();
+
+    expect(progress.hasEnemy('rat')).toBe(true);
+    expect(progress.hasEnemy('mouse')).toBe(false);
   });
 
   it('звук включён по умолчанию и читается из сохранения', async () => {
@@ -584,6 +667,7 @@ describe('Progress: запись', () => {
         owned: defaults.owned,
         gearLevels: {},
         chests: 0,
+        bestiary: [],
         guild: 120,
         pets: [{ id: 'owl' }],
       },

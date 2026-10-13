@@ -1,4 +1,4 @@
-import type { CatsConfig, ElementId, GearConfig, GearSlot } from '../data/types';
+import type { CatsConfig, ElementId, EnemiesConfig, EnemyTypeId, GearConfig, GearSlot } from '../data/types';
 import type { ChestLoot } from './Chests';
 import { findGear, GEAR_SLOTS, gearKey, maxGearLevel, upgradeCost } from './Gear';
 
@@ -30,6 +30,8 @@ export interface SaveData {
   gearLevels: Record<string, number>;
   /** Сколько сундуков открыто. */
   chests: number;
+  /** Враги, которых игрок уже побеждал: они открыты в бестиарии. В сохранении новее кода здесь могут быть и незнакомые типы. */
+  bestiary: string[];
 }
 
 type RawSave = Record<string, unknown>;
@@ -46,7 +48,28 @@ const MIGRATIONS: readonly Migration[] = [
   (save) => ({ ...save, fish: 0 }),
   // 2 → 3: предметы теперь выпадают из сундуков и прокачиваются. До этого игроку были доступны все — оставляем их ему.
   (save) => ({ ...save, owned: [...GEAR_BEFORE_CHESTS], gearLevels: {}, chests: 0 }),
+  // 3 → 4: появился бестиарий. Тех, кого игрок наверняка уже побеждал, открываем по пройденным уровням.
+  (save) => ({ ...save, bestiary: enemiesMetBeforeBestiary(save.stars) }),
 ];
+
+/** Уровни, на которых до появления бестиария (версии сохранения 1–3) выходили щитоносцы, и уровень с королём. */
+const SHIELD_LEVELS_BEFORE_BESTIARY = ['polyana', 'ovrag', 'burelom', 'melnitsa', 'most', 'lager'];
+const KING_LEVEL_BEFORE_BESTIARY = 'lager';
+
+/**
+ * Враги, побеждённые до появления бестиария. Мыши, крысы и командир были на каждом уровне,
+ * щитоносцы — с пятого, король — на последнем: пройденный уровень значит, что игрок их убивал.
+ */
+function enemiesMetBeforeBestiary(stars: unknown): string[] {
+  if (!isRecord(stars)) return [];
+  const passed = Object.keys(stars).filter((id) => typeof stars[id] === 'number' && (stars[id] as number) >= 1);
+  if (passed.length === 0) return [];
+  const met = ['mouse', 'rat'];
+  if (passed.some((id) => SHIELD_LEVELS_BEFORE_BESTIARY.includes(id))) met.push('shield');
+  met.push('boss');
+  if (passed.includes(KING_LEVEL_BEFORE_BESTIARY)) met.push('king');
+  return met;
+}
 
 /** Всё снаряжение, которое было в игре до появления сундуков (версии сохранения 1 и 2). */
 const GEAR_BEFORE_CHESTS = [
@@ -69,6 +92,7 @@ export const CURRENT_VERSION = MIGRATIONS.length + 1;
 export interface SaveRules {
   gear: GearConfig;
   cats: CatsConfig;
+  enemies: EnemiesConfig;
 }
 
 export interface ParsedSave {
@@ -83,7 +107,7 @@ export interface SaveStorage {
   save<T>(key: string, value: T): Promise<void>;
 }
 
-const KNOWN_FIELDS = ['version', 'stars', 'gear', 'book', 'sound', 'fish', 'owned', 'gearLevels', 'chests'];
+const KNOWN_FIELDS = ['version', 'stars', 'gear', 'book', 'sound', 'fish', 'owned', 'gearLevels', 'chests', 'bestiary'];
 
 function isRecord(value: unknown): value is RawSave {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -112,6 +136,7 @@ export function defaultSave(rules: SaveRules, version = MIGRATIONS.length + 1): 
     owned: starterGear(rules),
     gearLevels: {},
     chests: 0,
+    bestiary: [],
   };
 }
 
@@ -183,6 +208,12 @@ export function parseSave(raw: unknown, rules: SaveRules, migrations: readonly M
 
   if (typeof save.chests === 'number' && Number.isFinite(save.chests)) data.chests = Math.max(0, Math.floor(save.chests));
 
+  if (Array.isArray(save.bestiary)) {
+    const types = save.bestiary.filter((id): id is string => typeof id === 'string');
+    // Враг из будущей версии этой игре незнаком, но у игрока он открыт — не теряем.
+    data.bestiary = [...new Set(newer ? types : types.filter((id) => id in rules.enemies.types))];
+  }
+
   const extra: RawSave = {};
   if (newer) {
     for (const [field, value] of Object.entries(save)) {
@@ -192,7 +223,7 @@ export function parseSave(raw: unknown, rules: SaveRules, migrations: readonly M
   return { data, extra };
 }
 
-/** Прогресс игрока между уровнями: звёзды, выбранное снаряжение, книга котов. */
+/** Прогресс игрока между уровнями: звёзды, выбранное снаряжение, книга котов, бестиарий. */
 export class Progress {
   private data: SaveData;
   private extra: RawSave = {};
@@ -300,6 +331,19 @@ export class Progress {
     return true;
   }
 
+  /** Враг открыт в бестиарии. */
+  hasEnemy(type: EnemyTypeId): boolean {
+    return this.data.bestiary.includes(type);
+  }
+
+  /** Заносит побеждённого врага в бестиарий. Возвращает true, если он побеждён впервые. */
+  meetEnemy(type: EnemyTypeId): boolean {
+    if (this.hasEnemy(type)) return false;
+    this.data.bestiary.push(type);
+    this.touch();
+    return true;
+  }
+
   get soundOn(): boolean {
     return this.data.sound;
   }
@@ -334,7 +378,7 @@ export class Progress {
     this.timer = null;
     if (!this.dirty) return;
     this.dirty = false;
-    const { version, stars, gear, book, sound, fish, owned, gearLevels, chests } = this.data;
+    const { version, stars, gear, book, sound, fish, owned, gearLevels, chests, bestiary } = this.data;
     const snapshot = {
       ...this.extra,
       version,
@@ -346,6 +390,7 @@ export class Progress {
       owned: [...owned],
       gearLevels: { ...gearLevels },
       chests,
+      bestiary: [...bestiary],
     };
     // Не записалось — изменения уйдут со следующей записью.
     this.storage.save(SAVE_KEY, snapshot).catch(() => {

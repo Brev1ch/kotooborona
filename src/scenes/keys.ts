@@ -8,6 +8,7 @@ export const SceneKey = {
   Menu: 'Menu',
   Gear: 'Gear',
   Book: 'Book',
+  Bestiary: 'Bestiary',
   Story: 'Story',
   Game: 'Game',
   UI: 'UI',

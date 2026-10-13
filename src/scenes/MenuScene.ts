@@ -11,6 +11,7 @@ import {
   GAME_H,
   GAME_W,
   MENU,
+  menuBestiaryCenter,
   menuBookCenter,
   menuCardCenter,
   menuChestCenter,
@@ -67,6 +68,9 @@ export class MenuScene extends Phaser.Scene {
 
     addButton(this, ...menuBookCenter(), MENU.bookW, MENU.bookH, t('book.title'), false, () => {
       fadeOut(this, () => this.scene.start(SceneKey.Book));
+    });
+    addButton(this, ...menuBestiaryCenter(), MENU.bookW, MENU.bookH, t('bestiary.title'), false, () => {
+      fadeOut(this, () => this.scene.start(SceneKey.Bestiary));
     });
   }
 

@@ -1,8 +1,11 @@
 import { test, type Page } from '@playwright/test';
 import {
+  bestiaryBackCenter,
+  bestiaryRowCenter,
   bookBackCenter,
   chestTakeCenter,
   COIN_AD_X,
+  enemyCardButtonCenter,
   CONTROLS_CENTER_Y,
   GAME_H,
   BUILD_X,
@@ -11,6 +14,7 @@ import {
   gearButtonCenter,
   HUD_BUTTON_GAP,
   HUD_H,
+  menuBestiaryCenter,
   menuBookCenter,
   menuCardCenter,
   menuChestCenter,
@@ -223,6 +227,61 @@ test('старое сохранение: меню → книга → снаря�
       (s) => `После нажатия «Назад» в книге игра не вернулась в меню за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
     );
     checkConsole('возврат из книги');
+  });
+
+  await test.step('бестиарий', async () => {
+    const open = async (): Promise<void> => {
+      await tap(page, ...menuBestiaryCenter());
+      await waitFor(
+        page,
+        SCREEN_TIMEOUT,
+        (s) => s.scenes.includes(SceneKey.Bestiary),
+        (s) => `После нажатия «Бестиарий» игра не дошла до бестиария за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
+      );
+    };
+    const back = async (): Promise<void> => {
+      await tap(page, ...bestiaryBackCenter());
+      await waitFor(
+        page,
+        SCREEN_TIMEOUT,
+        (s) => s.scenes.includes(SceneKey.Menu),
+        (s) => `После нажатия «Назад» в бестиарии игра не вернулась в меню за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
+      );
+    };
+    /** Карточка врага открыта: её затемнение — нажимаемый прямоугольник во весь экран. */
+    const cardOpen = (s: SmokeState): boolean => s.targets.some((target) => target.width >= GAME_W && target.height >= GAME_H);
+
+    // У игрока, не прошедшего ни одного уровня, все враги — силуэты, и нажимается только «Назад».
+    await open();
+    await page.screenshot({ path: `${SHOTS}/${shot('bestiary-empty')}` });
+    await checkTouchSizes(page, 'пустой бестиарий');
+    const rows = (await state(page))?.targets.filter((target) => target.name.startsWith('enemy-')) ?? [];
+    if (rows.length > 0) throw new Error(`В пустом бестиарии нажимаются строки: ${rows.map((row) => row.name).join(', ')}`);
+    await back();
+
+    // Побеждённые враги открыты; строка открытого врага показывает карточку.
+    await page.evaluate(() => {
+      for (const type of ['mouse', 'shield', 'boots', 'fire', 'ninja', 'king'] as const) window.__smoke?.meetEnemy(type);
+    });
+    await open();
+    await page.screenshot({ path: `${SHOTS}/${shot('bestiary')}` });
+    await checkTouchSizes(page, 'бестиарий');
+    // Щитоносец и пожарная мышь — самые длинные тексты: по ним видно, что карточке хватает места.
+    for (const [index, name] of [[2, 'shield'], [4, 'fire'], [7, 'ninja'], [10, 'king']] as const) {
+      await tap(page, ...bestiaryRowCenter(index));
+      await waitFor(page, SUMMON_TIMEOUT, cardOpen, () => `Строка врага ${name} не открыла карточку`);
+      await page.screenshot({ path: `${SHOTS}/${shot(`bestiary-card-${name}`)}` });
+      await checkTouchSizes(page, `карточка врага ${name}`);
+      await tap(page, ...enemyCardButtonCenter());
+      await waitFor(page, SUMMON_TIMEOUT, (s) => !cardOpen(s), () => `Карточка врага ${name} не закрылась`);
+    }
+    // Строка неизвестного врага карточку не открывает.
+    await tap(page, ...bestiaryRowCenter(1));
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    const s = await state(page);
+    if (s && cardOpen(s)) throw new Error('Строка неизвестного врага открыла карточку');
+    await back();
+    checkConsole('бестиарий');
   });
 
   await test.step('первый уровень', async () => {

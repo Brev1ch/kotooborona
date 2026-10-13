@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cats, gear, levels, story } from '../data';
+import { cats, enemies, gear, levels, story } from '../data';
 import { en } from './en';
 import { setLang, t } from './index';
 import { ru, type StringKey } from './ru';
@@ -58,6 +58,14 @@ describe('строки, которые собираются из данных', 
     for (const element of Object.keys(cats.elements)) {
       expect(has(`cat.${element}`), element).toBe(true);
       expect(has(`cat.${element}.desc`), element).toBe(true);
+    }
+  });
+
+  it('у каждого врага есть имя, описание, особенность и подсказка', () => {
+    for (const type of Object.keys(enemies.types)) {
+      for (const key of [`enemy.${type}`, `enemy.${type}.desc`, `enemy.${type}.trait`, `enemy.${type}.tip`]) {
+        expect(has(key), key).toBe(true);
+      }
     }
   });
 

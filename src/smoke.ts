@@ -112,6 +112,8 @@ export interface SmokeProbe {
   stress(): void;
   /** Ставит на дорогу живучего врага типа `type`, уже прошедшего `distance`. */
   spawnEnemy(type: EnemyTypeId, distance: number): void;
+  /** Открывает врага в бестиарии, как после победы над ним. */
+  meetEnemy(type: EnemyTypeId): void;
   /** Парад из src/debug.ts: по одному врагу каждого типа друг за другом. */
   parade(): void;
   /** Вся игра остановлена площадкой: идёт реклама или игру свернули. */
@@ -350,6 +352,9 @@ export function installSmokeProbe(game: Phaser.Game): void {
     },
     spawnEnemy(type, distance) {
       (game.scene.getScene(SceneKey.Game) as GameScene).addEnemy({ ...debugEnemy(type, 5000), distance });
+    },
+    meetEnemy(type) {
+      progress.meetEnemy(type);
     },
     parade() {
       parade(game.scene.getScene(SceneKey.Game) as GameScene);

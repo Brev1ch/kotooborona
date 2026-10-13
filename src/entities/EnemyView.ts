@@ -125,6 +125,24 @@ export function drawEnemyBody(g: Phaser.GameObjects.Graphics, type: EnemyTypeId)
 }
 
 /**
+ * Портрет врага для бестиария и карточек: та же запечённая картинка, что на поле, вписанная в квадрат `size`.
+ * Неизвестный враг (`known = false`) — силуэт.
+ */
+export function addEnemyPortrait(
+  scene: Phaser.Scene,
+  type: EnemyTypeId,
+  x: number,
+  y: number,
+  size: number,
+  known = true,
+): Phaser.GameObjects.Image {
+  const [width, height] = enemyBodySize(type);
+  const image = addBakedShape(scene, `enemy-${type}`, width, height, (g) => drawEnemyBody(g, type)).setPosition(x, y);
+  image.setScale(image.scale * Math.min(size / width, size / height));
+  return known ? image : image.setTintFill(COLORS.line);
+}
+
+/**
  * Временный вид врага: мышь сверху, носом по ходу движения, с полоской здоровья.
  * Тело, щит и метки эффектов — картинки из запечённых текстур: на поле десятки врагов, и рисовать каждого заново каждый кадр дорого.
  */

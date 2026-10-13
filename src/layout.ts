@@ -25,9 +25,11 @@ export const MENU = {
   cardW: 160,
   cardH: 66,
   gap: 12,
+  /** Внизу — две кнопки рядом: книга котов и бестиарий. */
   bookY: 592,
-  bookW: 332,
+  bookW: 160,
   bookH: 50,
+  bookGap: 12,
   soundPad: 12,
   /** Счётчик рыбок в левом верхнем углу. */
   fishX: 52,
@@ -52,9 +54,14 @@ export function menuSoundCenter(): [number, number] {
   return [GAME_W - MENU.soundPad - MIN_TOUCH / 2, MENU.soundPad + MIN_TOUCH / 2];
 }
 
-/** Центр кнопки «Книга котов» в меню. */
+/** Центр кнопки «Книга котов» в меню: левая из двух. */
 export function menuBookCenter(): [number, number] {
-  return [GAME_W / 2, MENU.bookY];
+  return [GAME_W / 2 - (MENU.bookW + MENU.bookGap) / 2, MENU.bookY];
+}
+
+/** Центр кнопки «Бестиарий» в меню: правая из двух. */
+export function menuBestiaryCenter(): [number, number] {
+  return [GAME_W / 2 + (MENU.bookW + MENU.bookGap) / 2, MENU.bookY];
 }
 
 /** Центр плитки уровня в меню; `index` — номер в главе с нуля. */
@@ -133,6 +140,55 @@ export const BOOK = {
 
 export function bookBackCenter(): [number, number] {
   return [GAME_W / 2, BOOK.backY];
+}
+
+// Бестиарий: список врагов во всю высоту экрана, строка открытого врага нажимается и показывает карточку.
+export const BESTIARY = {
+  titleY: 36,
+  countY: 62,
+  listY: 80,
+  rowW: 332,
+  rowH: MIN_TOUCH,
+  /** Портрет и текст — от левого края строки. */
+  iconX: 26,
+  iconSize: 30,
+  textX: 52,
+  backY: 604,
+  backW: 160,
+  backH: MIN_TOUCH,
+};
+
+/** Центр строки бестиария; `index` — номер врага с нуля. */
+export function bestiaryRowCenter(index: number): [number, number] {
+  return [GAME_W / 2, BESTIARY.listY + index * BESTIARY.rowH + BESTIARY.rowH / 2];
+}
+
+export function bestiaryBackCenter(): [number, number] {
+  return [GAME_W / 2, BESTIARY.backY];
+}
+
+// Карточка врага поверх экрана: портрет, имя, описание, особенность, подсказка и кнопка.
+export const ENEMY_CARD = {
+  y: 320,
+  w: 316,
+  h: 432,
+  pad: 18,
+  headingY: -194,
+  portraitY: -142,
+  portraitSize: 84,
+  nameY: -84,
+  textY: -60,
+  /** Между абзацами и между подписью и её текстом. */
+  blockGap: 12,
+  labelGap: 3,
+  buttonY: 178,
+  buttonW: 200,
+  buttonH: 50,
+};
+
+/** Центр кнопки карточки врага. */
+export function enemyCardButtonCenter(): [number, number] {
+  return [GAME_W / 2, ENEMY_CARD.y + ENEMY_CARD.buttonY];
 }
 
 // Верхняя полоса: четыре показателя, справа — кнопки скорости боя и паузы.

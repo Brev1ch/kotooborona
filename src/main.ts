@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, GAME_H, GAME_W } from './layout';
+import { BestiaryScene } from './scenes/BestiaryScene';
 import { BookScene } from './scenes/BookScene';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
@@ -18,7 +19,7 @@ const game = new Phaser.Game({
     width: GAME_W,
     height: GAME_H,
   },
-  scene: [BootScene, MenuScene, BookScene, GearScene, StoryScene, GameScene, UIScene],
+  scene: [BootScene, MenuScene, BookScene, BestiaryScene, GearScene, StoryScene, GameScene, UIScene],
 });
 
 // Долгое касание и правая кнопка не должны открывать меню браузера поверх игры.
