@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
 import { cats, getLevel, type ElementId, type LevelConfig } from '../data';
-import { ANNOUNCE_FEEL, BANNER_FEEL, COIN_FEEL, METEOR_FEEL, RESULT_FEEL, STAT_FEEL, WAVE_BANNER_FEEL } from '../feel';
+import { ANNOUNCE_FEEL, BANNER_FEEL, COIN_FEEL, METEOR_FEEL, RESULT_FEEL, STAT_FEEL, WAVE_BANNER_FEEL, type SoundId } from '../feel';
 import { t, type StringKey } from '../i18n';
 import {
   BOARD_H,
@@ -103,9 +103,6 @@ export class UIScene extends Phaser.Scene {
   /** Волна, начало которой уже объявлено баннером. */
   private startedWave = 0;
   private waveBanner: Phaser.GameObjects.Container | null = null;
-  /** Награда, которая ещё летит к счётчикам: счётчик вырастет, когда она долетит. */
-  private flyingGold = 0;
-  private flyingCrystals = 0;
   /** Меню паузы, пока оно открыто. */
   private pauseMenu: Phaser.GameObjects.Container | null = null;
 
@@ -136,8 +133,6 @@ export class UIScene extends Phaser.Scene {
     this.announcedWave = 0;
     this.startedWave = wave;
     this.waveBanner = null;
-    this.flyingGold = 0;
-    this.flyingCrystals = 0;
     this.announce = this.add
       .text(GAME_W / 2, ANNOUNCE_Y, '', {
         fontFamily: FONTS.display,
@@ -333,7 +328,8 @@ export class UIScene extends Phaser.Scene {
     const { gold, crystals, summonCost, canSummon, lives, wave, totalWaves, upcoming } = this.gameScene.hudState();
     this.canSummon = canSummon;
 
-    this.showCounters(gold, crystals);
+    this.goldText.setText(String(gold));
+    this.setStat(this.crystalsText, String(crystals));
     this.showWaveStart(wave);
     this.setStat(this.waveText, t('hud.waveValue', { current: wave, total: totalWaves }));
     this.setStat(this.livesText, String(lives));
@@ -349,43 +345,24 @@ export class UIScene extends Phaser.Scene {
     this.summonCoin.setFillStyle(canSummon ? COLORS.bg : COLORS.line);
   }
 
-  /** Монеты и кристаллы в HUD — без награды, которая ещё в полёте. */
-  private showCounters(gold: number, crystals: number): void {
-    this.setStat(this.goldText, String(Math.max(0, gold - this.flyingGold)));
-    this.setStat(this.crystalsText, String(Math.max(0, crystals - this.flyingCrystals)));
-  }
-
-  /** Награда за врага разлетается монетами и кристаллами и летит в счётчики. */
+  /**
+   * Награда за врага разлетается монетами и кристаллами и летит в счётчики.
+   * Полёт только для глаз: сами счётчики уже обновлены, а когда значок долетает, счётчик вздрагивает.
+   */
   private flyReward({ x, y, gold, crystals }: RewardDrop): void {
     const screenY = y + BOARD_Y;
-    this.flyingGold += gold;
-    this.flyingCrystals += crystals;
-
-    this.flyShares(gold, Math.ceil(gold / COIN_FEEL.goldPerCoin), 0, (order, share) => {
-      this.flyIcon(addCoinIcon(this, x, screenY, COIN_FEEL.size), this.goldText, order, () => {
-        this.flyingGold -= share;
-        audio.play('coins');
-      });
-    });
-    // Кристаллы летят следом за монетами.
     const coins = Math.min(COIN_FEEL.maxCoins, Math.ceil(gold / COIN_FEEL.goldPerCoin));
-    this.flyShares(crystals, crystals, coins, (order, share) => {
-      this.flyIcon(addCrystalIcon(this, x, screenY, COIN_FEEL.crystalSize), this.crystalsText, order, () => {
-        this.flyingCrystals -= share;
-      });
-    });
-  }
-
-  /** Делит `amount` между значками (не больше `maxCoins`) и запускает каждый; `order` задаёт очерёдность вылета. */
-  private flyShares(amount: number, wanted: number, firstOrder: number, launch: (order: number, share: number) => void): void {
-    const count = Math.min(COIN_FEEL.maxCoins, wanted);
-    for (let i = 0; i < count; i++) {
-      launch(firstOrder + i, Math.floor(amount / count) + (i < amount % count ? 1 : 0));
+    for (let i = 0; i < coins; i++) {
+      this.flyIcon(addCoinIcon(this, x, screenY, COIN_FEEL.size), this.goldText, i, 'coins');
+    }
+    // Кристаллы летят следом за монетами.
+    for (let i = 0; i < Math.min(COIN_FEEL.maxCoins, crystals); i++) {
+      this.flyIcon(addCrystalIcon(this, x, screenY, COIN_FEEL.crystalSize), this.crystalsText, coins + i);
     }
   }
 
-  /** Значок отскакивает от врага в случайную сторону, затем летит в счётчик; `land` — когда долетел. */
-  private flyIcon(icon: Phaser.GameObjects.Image, counter: Phaser.GameObjects.Text, order: number, land: () => void): void {
+  /** Значок отскакивает от врага в случайную сторону, затем летит в счётчик; `order` задаёт очерёдность вылета. */
+  private flyIcon(icon: Phaser.GameObjects.Image, counter: Phaser.GameObjects.Text, order: number, sound?: SoundId): void {
     const angle = Math.random() * Math.PI * 2;
     const distance = COIN_FEEL.scatter * (0.5 + Math.random() * 0.5);
     this.tweens.chain({
@@ -408,9 +385,8 @@ export class UIScene extends Phaser.Scene {
       ],
       onComplete: () => {
         icon.destroy();
-        land();
-        const { gold, crystals } = this.gameScene.hudState();
-        this.showCounters(gold, crystals);
+        if (sound) audio.play(sound);
+        this.pulseStat(counter);
       },
     });
   }
@@ -471,6 +447,10 @@ export class UIScene extends Phaser.Scene {
   private setStat(text: Phaser.GameObjects.Text, value: string): void {
     if (text.text === value) return;
     text.setText(value);
+    this.pulseStat(text);
+  }
+
+  private pulseStat(text: Phaser.GameObjects.Text): void {
     this.tweens.killTweensOf(text);
     text.setScale(1);
     this.tweens.add({
