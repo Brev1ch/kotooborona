@@ -161,6 +161,24 @@ export class GameScene extends Phaser.Scene {
     else if (this.waves.finished && this.combat.enemies.length === 0) this.finish(true);
   }
 
+  /**
+   * Пауза игрока: бой, волны, перезарядки и анимации поля стоят до `resumeBattle`.
+   * Возвращает false, если ставить на паузу нечего: бой окончен или уже стоит.
+   */
+  pauseBattle(): boolean {
+    if (this.finished || this.scene.isPaused()) return false;
+    // Взятый кот возвращается на место: палец отпустят уже над меню паузы.
+    this.cancelDrag();
+    this.aimPointerId = null;
+    this.reticle.setVisible(false);
+    this.scene.pause();
+    return true;
+  }
+
+  resumeBattle(): void {
+    this.scene.resume();
+  }
+
   private finish(won: boolean): void {
     this.finished = true;
     this.cancelDrag();
@@ -379,11 +397,12 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
-  /** Сколько котов и врагов на поле; читает смоук-проверка (src/smoke.ts). */
-  fieldCounts(): { cats: number; enemies: number } {
+  /** Сколько котов и врагов на поле и сколько враги прошли в сумме; читает смоук-проверка (src/smoke.ts). */
+  fieldCounts(): { cats: number; enemies: number; march: number } {
     return {
       cats: this.board.filter((cat) => cat !== null).length,
       enemies: this.combat.enemies.length,
+      march: this.combat.enemies.reduce((sum, enemy) => sum + enemy.distance, 0),
     };
   }
 

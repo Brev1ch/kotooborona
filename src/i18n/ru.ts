@@ -22,6 +22,12 @@ export const ru = {
   'result.retry': 'Ещё раз',
   'result.menu': 'В меню',
 
+  'pause.title': 'Пауза',
+  'pause.resume': 'Продолжить',
+  'pause.menu': 'В меню',
+  'sound.on': 'Звук: вкл',
+  'sound.off': 'Звук: выкл',
+
   'summon.button': 'Призвать',
 
   'meteor.button': 'Метеор',

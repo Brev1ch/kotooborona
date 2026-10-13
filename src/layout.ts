@@ -2,7 +2,8 @@
 export const GAME_W = 360;
 export const GAME_H = 640;
 
-export const HUD_H = 40;
+// Полоса HUD выше кнопки паузы; место для неё взято у нижней полосы, поле осталось 540.
+export const HUD_H = 48;
 export const BOARD_W = 360;
 export const BOARD_H = 540;
 export const BOARD_Y = HUD_H;
@@ -75,6 +76,23 @@ export const BOOK = {
 
 export function bookBackCenter(): [number, number] {
   return [GAME_W / 2, BOOK.backY];
+}
+
+// Верхняя полоса: четыре показателя и кнопка паузы справа.
+export const HUD_PAD = 6;
+
+/** Центр кнопки паузы в HUD. */
+export function pauseButtonCenter(): [number, number] {
+  return [GAME_W - HUD_PAD - MIN_TOUCH / 2, HUD_H / 2];
+}
+
+// Меню паузы: заголовок и кнопки столбиком — «Продолжить», звук, «В меню».
+export const PAUSE_MENU = { titleY: 216, firstY: 290, buttonW: 220, buttonH: 50, gap: 12 };
+
+/** Центр кнопки меню паузы; `index` — номер сверху с нуля. */
+export function pauseMenuButtonCenter(index: number): [number, number] {
+  const { firstY, buttonH, gap } = PAUSE_MENU;
+  return [GAME_W / 2, firstY + index * (buttonH + gap)];
 }
 
 // Нижняя полоса: «Призвать» слева, «Метеор» справа.

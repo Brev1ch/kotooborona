@@ -1,13 +1,24 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
 import { BUTTON_FEEL } from '../feel';
+import { t } from '../i18n';
 import { COLORS, FONTS, MIN_TOUCH, TEXT_COLORS } from '../layout';
 
-/**
- * Кнопка перехода между экранами: главная — латунная, второстепенная — контурная.
- * Срабатывает один раз, на отпускание.
- */
-export function addButton(
+/** Отклик на нажатие: элемент на миг сжимается. Повторное нажатие начинает сжатие заново. */
+export function playPress(scene: Phaser.Scene, target: Phaser.GameObjects.Container): void {
+  scene.tweens.killTweensOf(target);
+  target.setScale(1);
+  scene.tweens.add({ targets: target, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
+}
+
+interface ButtonParts {
+  button: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  text: Phaser.GameObjects.Text;
+}
+
+/** Плашка с подписью: главная — латунная, второстепенная — контурная. */
+function makeButton(
   scene: Phaser.Scene,
   x: number,
   y: number,
@@ -15,8 +26,7 @@ export function addButton(
   height: number,
   label: string,
   primary: boolean,
-  onClick: () => void,
-): Phaser.GameObjects.Container {
+): ButtonParts {
   const bg = scene.add
     .rectangle(0, 0, width, height, primary ? COLORS.brass : COLORS.panel)
     .setStrokeStyle(1, COLORS.line, primary ? 0 : 1)
@@ -28,13 +38,45 @@ export function addButton(
       color: primary ? TEXT_COLORS.dark : TEXT_COLORS.fg,
     })
     .setOrigin(0.5);
-  const button = scene.add.container(x, y, [bg, text]);
+  return { button: scene.add.container(x, y, [bg, text]), bg, text };
+}
 
+/** Кнопка перехода между экранами. Срабатывает один раз, на отпускание. */
+export function addButton(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label: string,
+  primary: boolean,
+  onClick: () => void,
+): Phaser.GameObjects.Container {
+  const { button, bg } = makeButton(scene, x, y, width, height, label, primary);
   bg.on('pointerdown', () => {
     audio.play('click');
-    scene.tweens.add({ targets: button, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
+    playPress(scene, button);
   });
   bg.once('pointerup', onClick);
+  return button;
+}
+
+/** Переключатель звука с подписью «Звук: вкл» / «Звук: выкл». */
+export function addSoundToggle(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): Phaser.GameObjects.Container {
+  const label = (): string => t(audio.on ? 'sound.on' : 'sound.off');
+  const { button, bg, text } = makeButton(scene, x, y, width, height, label(), false);
+  bg.on('pointerdown', () => {
+    audio.toggle();
+    text.setText(label());
+    audio.play('click');
+    playPress(scene, button);
+  });
   return button;
 }
 
@@ -73,7 +115,7 @@ export function addSoundButton(scene: Phaser.Scene, x: number, y: number): Phase
     draw(audio.toggle());
     // Слышно только при включении: так игрок сразу понимает, что звук вернулся.
     audio.play('click');
-    scene.tweens.add({ targets: button, scale: BUTTON_FEEL.pressScale, duration: BUTTON_FEEL.pressMs, yoyo: true });
+    playPress(scene, button);
   });
   return button;
 }

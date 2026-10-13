@@ -24,6 +24,12 @@ export const en: Record<StringKey, string> = {
   'result.retry': 'Try again',
   'result.menu': 'Menu',
 
+  'pause.title': 'Paused',
+  'pause.resume': 'Resume',
+  'pause.menu': 'Menu',
+  'sound.on': 'Sound: on',
+  'sound.off': 'Sound: off',
+
   'summon.button': 'Summon',
 
   'meteor.button': 'Meteor',

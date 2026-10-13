@@ -11,8 +11,14 @@ import {
   CONTROLS_PAD,
   CONTROLS_Y,
   FONTS,
+  GAME_H,
   GAME_W,
   HUD_H,
+  HUD_PAD,
+  MIN_TOUCH,
+  PAUSE_MENU,
+  pauseButtonCenter,
+  pauseMenuButtonCenter,
   SUMMON_W,
   SUMMON_X,
   TEXT_COLORS,
@@ -22,11 +28,17 @@ import { MAX_STARS } from '../systems/Progress';
 import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
 import { GameEvent, SceneKey, type LevelResult, type LevelSceneData } from './keys';
-import { addButton } from './widgets';
+import { addButton, addSoundToggle, playPress } from './widgets';
 
-const STAT_PAD = 6;
 const STAT_GAP = 6;
 const STAT_COUNT = 4;
+/** Ширина одного показателя: полоса делится между ними и кнопкой паузы. */
+const STAT_W = (GAME_W - HUD_PAD * 2 - MIN_TOUCH - STAT_GAP * STAT_COUNT) / STAT_COUNT;
+const STAT_H = 40;
+const STAT_LABEL_Y = 6;
+const STAT_VALUE_Y = 17;
+/** Значок паузы: две полоски. */
+const PAUSE_BAR = { width: 5, height: 16, gap: 6 };
 
 const CONTROLS_GAP = 8;
 const SUMMON_H = 44;
@@ -79,6 +91,8 @@ export class UIScene extends Phaser.Scene {
   private meteorStatus!: Phaser.GameObjects.Text;
   /** Состояние кнопки метеора, уже показанное на экране. */
   private shownMeteor = '';
+  /** Меню паузы, пока оно открыто. */
+  private pauseMenu: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super(SceneKey.UI);
@@ -115,11 +129,19 @@ export class UIScene extends Phaser.Scene {
 
     this.addSummonButton();
     this.addMeteorButton();
+    this.addPauseButton();
+    this.pauseMenu = null;
 
     this.gameScene.events.on(GameEvent.Changed, this.refresh, this);
     this.gameScene.events.on(GameEvent.Discovered, this.showDiscovered, this);
     this.gameScene.events.on(GameEvent.Finished, this.showResult, this);
+    // Игрок свернул игру или ушёл на другую вкладку: вернётся он в меню паузы, а не в идущий бой.
+    const onVisibility = (): void => {
+      if (document.hidden) this.openPause();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      document.removeEventListener('visibilitychange', onVisibility);
       this.gameScene.events.off(GameEvent.Changed, this.refresh, this);
       this.gameScene.events.off(GameEvent.Discovered, this.showDiscovered, this);
       this.gameScene.events.off(GameEvent.Finished, this.showResult, this);
@@ -177,6 +199,58 @@ export class UIScene extends Phaser.Scene {
       });
       this.gameScene.summon();
     });
+  }
+
+  private addPauseButton(): void {
+    const bg = this.add
+      .rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel)
+      .setStrokeStyle(1, COLORS.line)
+      .setName('pause')
+      .setInteractive({ useHandCursor: true });
+    const { width, height, gap } = PAUSE_BAR;
+    const icon = this.add.graphics();
+    icon.fillStyle(COLORS.range);
+    icon.fillRect(-gap / 2 - width, -height / 2, width, height);
+    icon.fillRect(gap / 2, -height / 2, width, height);
+    const button = this.add.container(...pauseButtonCenter(), [bg, icon]);
+
+    bg.on('pointerdown', () => {
+      audio.play('click');
+      playPress(this, button);
+    });
+    bg.on('pointerup', () => this.openPause());
+  }
+
+  /** Останавливает бой и показывает меню паузы: «Продолжить», звук, «В меню». */
+  private openPause(): void {
+    if (this.pauseMenu || !this.gameScene.pauseBattle()) return;
+
+    // Затемнение перехватывает касания, чтобы под меню ничего не нажималось.
+    const dim = this.add
+      .rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, COLORS.bg, RESULT_FEEL.dimAlpha)
+      .setInteractive();
+    const title = this.add
+      .text(GAME_W / 2, PAUSE_MENU.titleY, t('pause.title'), {
+        fontFamily: FONTS.display,
+        fontSize: '26px',
+        color: TEXT_COLORS.fg,
+      })
+      .setOrigin(0.5);
+
+    const { buttonW, buttonH } = PAUSE_MENU;
+    const resume = addButton(this, ...pauseMenuButtonCenter(0), buttonW, buttonH, t('pause.resume'), true, () => {
+      this.pauseMenu?.destroy();
+      this.pauseMenu = null;
+      this.gameScene.resumeBattle();
+    });
+    const sound = addSoundToggle(this, ...pauseMenuButtonCenter(1), buttonW, buttonH);
+    const menu = addButton(this, ...pauseMenuButtonCenter(2), buttonW, buttonH, t('pause.menu'), false, () => {
+      progress.flush();
+      this.scene.stop(SceneKey.Game);
+      this.scene.start(SceneKey.Menu);
+    });
+
+    this.pauseMenu = this.add.container(0, 0, [dim, title, resume, sound, menu]);
   }
 
   private addMeteorButton(): void {
@@ -442,23 +516,23 @@ export class UIScene extends Phaser.Scene {
     value: string,
     valueColor: string,
   ): Phaser.GameObjects.Text {
-    const w = (GAME_W - STAT_PAD * 2 - STAT_GAP * (STAT_COUNT - 1)) / STAT_COUNT;
-    const h = HUD_H - 8;
-    const x = STAT_PAD + index * (w + STAT_GAP);
-    const y = 4;
+    const w = STAT_W;
+    const h = STAT_H;
+    const x = HUD_PAD + index * (w + STAT_GAP);
+    const y = (HUD_H - h) / 2;
 
     g.fillStyle(COLORS.panel);
     g.lineStyle(1, COLORS.line);
     g.fillRoundedRect(x, y, w, h, 8);
     g.strokeRoundedRect(x, y, w, h, 8);
 
-    this.add.text(x + 7, y + 3, t(label).toUpperCase(), {
+    this.add.text(x + 7, y + STAT_LABEL_Y, t(label).toUpperCase(), {
       fontFamily: FONTS.body,
       fontSize: '9px',
       color: TEXT_COLORS.muted,
     });
 
-    return this.add.text(x + 7, y + 13, value, {
+    return this.add.text(x + 7, y + STAT_VALUE_Y, value, {
       fontFamily: FONTS.display,
       fontSize: '14px',
       color: valueColor,

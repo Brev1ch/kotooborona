@@ -30,6 +30,10 @@ export interface SmokeState {
   hud: HudState | null;
   cats: number;
   enemies: number;
+  /** Сколько враги прошли в сумме: на паузе не растёт. */
+  march: number;
+  /** Бой стоит на паузе. */
+  paused: boolean;
 }
 
 export interface SmokeProbe {
@@ -64,9 +68,13 @@ export function installSmokeProbe(game: Phaser.Game): void {
       for (const scene of active) collectTargets(scene.children.list, targets);
       const common = { scenes, targets, sound: audio.on, gear: { ...progress.gear } };
 
-      if (!scenes.includes(SceneKey.Game)) return { ...common, hud: null, cats: 0, enemies: 0 };
+      // Сцена боя на паузе не числится среди активных, но она есть.
+      const paused = game.scene.isPaused(SceneKey.Game);
+      if (!paused && !scenes.includes(SceneKey.Game)) {
+        return { ...common, hud: null, cats: 0, enemies: 0, march: 0, paused: false };
+      }
       const gameScene = game.scene.getScene(SceneKey.Game) as GameScene;
-      return { ...common, hud: gameScene.hudState(), ...gameScene.fieldCounts() };
+      return { ...common, hud: gameScene.hudState(), ...gameScene.fieldCounts(), paused };
     },
   };
 }

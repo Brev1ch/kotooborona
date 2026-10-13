@@ -10,6 +10,8 @@ import {
   menuCardCenter,
   menuSoundCenter,
   MIN_TOUCH,
+  pauseButtonCenter,
+  pauseMenuButtonCenter,
   SUMMON_X,
 } from '../src/layout';
 import { SceneKey } from '../src/scenes/keys';
@@ -25,6 +27,8 @@ const WAVE_TIMEOUT = 15_000;
 /** Пауза перед снимком: анимация появления кота, выход мышей на видимую часть дороги. */
 const SPAWN_SETTLE_MS = 400;
 const WAVE_SETTLE_MS = 1500;
+/** Сколько смотрим на паузу, чтобы убедиться, что враги стоят. */
+const PAUSE_HOLD_MS = 500;
 
 /** Отступ касания от угла внутрь элемента: проверяем, что нажимается вся видимая площадь. */
 const CORNER_INSET = 2;
@@ -257,5 +261,48 @@ test('меню → книга котов → первый уровень → с�
     await page.waitForTimeout(WAVE_SETTLE_MS);
     await page.screenshot({ path: `${SHOTS}/0${CATS + 5}-wave.png` });
     checkConsole('первая волна');
+  });
+
+  /** На паузе враги стоят; «Продолжить» возвращает в бой. */
+  async function checkPausedAndResume(step: string, shot?: string): Promise<void> {
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.paused,
+      () => `Бой не встал на паузу (${step})`,
+    );
+    const before = await state(page);
+    await page.waitForTimeout(PAUSE_HOLD_MS);
+    const after = await state(page);
+    if (!before || !after || before.enemies === 0 || after.march !== before.march) {
+      throw new Error(`На паузе враги продолжают идти (${step}): путь ${before?.march} → ${after?.march}`);
+    }
+    if (shot) await page.screenshot({ path: `${SHOTS}/${shot}` });
+    await checkTouchSizes(page, step);
+
+    await tap(page, ...pauseMenuButtonCenter(0));
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => !s.paused && s.march > after.march,
+      () => `После «Продолжить» бой не пошёл дальше (${step})`,
+    );
+    checkConsole(step);
+  }
+
+  await test.step('пауза', async () => {
+    await tap(page, ...pauseButtonCenter());
+    await checkPausedAndResume('меню паузы', `0${CATS + 6}-pause.png`);
+  });
+
+  await test.step('пауза после сворачивания', async () => {
+    const setHidden = (hidden: boolean) =>
+      page.evaluate((value) => {
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => value });
+        document.dispatchEvent(new Event('visibilitychange'));
+      }, hidden);
+    await setHidden(true);
+    await setHidden(false);
+    await checkPausedAndResume('возврат после сворачивания');
   });
 });
