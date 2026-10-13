@@ -59,6 +59,15 @@ export const ru = {
   'book.unknown': '???',
   'book.recipe': '{first} + {second}',
 
+  'chest.progress': 'Сундук — звёзд: {have} из {need}',
+  'chest.open': 'Открыть сундук',
+  'chest.allOpened': 'Все сундуки открыты',
+  'chest.title': 'Сундук открыт!',
+  'chest.item': '{slot}: {name}',
+  'chest.fish': '+{fish}',
+  'chest.onlyFish': 'Все предметы уже собраны',
+  'chest.take': 'Забрать',
+
   'level.opushka': 'Опушка',
 
   'cat.fire': 'Огненный',
@@ -98,6 +107,10 @@ export const ru = {
   'gear.slot.staff': 'Посох',
   'gear.slot.mantle': 'Мантия',
   'gear.slot.amulet': 'Амулет',
+  'gear.level': 'Ур. {level}',
+  'gear.upgrade': 'Улучшить',
+  'gear.maxLevel': 'Макс. уровень',
+  'gear.locked': 'Из сундука',
   'gear.bonus.none': 'Без бонуса',
   'gear.bonus.summonChance': '{element} кот: шанс {chance}% вместо {base}%',
   'gear.bonus.summonCost': 'Призыв на {percent}% дешевле',

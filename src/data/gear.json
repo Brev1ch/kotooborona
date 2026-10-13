@@ -2,21 +2,23 @@
   "summon": { "baseCost": 10, "costGrowth": 1.13 },
   "ritual": { "time": 4, "crystalCost": 1 },
   "meteor": { "cooldown": 25, "damage": 40, "damageGrowthPerWave": 1.22, "radius": 60, "burnDps": 0.1, "burnTime": 2 },
+  "upgradeCost": [40, 90, 160],
+  "chests": { "stars": [2, 5, 8, 11, 14, 18, 22, 26, 30], "fish": 15, "fishInstead": 60 },
   "defaults": { "staff": "none", "mantle": "thrift", "amulet": "cry" },
   "staff": [
     { "id": "none" },
-    { "id": "fire", "element": "fire", "summonWeight": 1.45 },
-    { "id": "water", "element": "water", "summonWeight": 1.45 },
-    { "id": "earth", "element": "earth", "summonWeight": 1.45 },
-    { "id": "air", "element": "air", "summonWeight": 1.45 }
+    { "id": "fire", "element": "fire", "summonWeight": 1.45, "upgrades": [{ "summonWeight": 1.7 }, { "summonWeight": 2.0 }, { "summonWeight": 2.4 }] },
+    { "id": "water", "element": "water", "summonWeight": 1.45, "upgrades": [{ "summonWeight": 1.7 }, { "summonWeight": 2.0 }, { "summonWeight": 2.4 }] },
+    { "id": "earth", "element": "earth", "summonWeight": 1.45, "upgrades": [{ "summonWeight": 1.7 }, { "summonWeight": 2.0 }, { "summonWeight": 2.4 }] },
+    { "id": "air", "element": "air", "summonWeight": 1.45, "upgrades": [{ "summonWeight": 1.7 }, { "summonWeight": 2.0 }, { "summonWeight": 2.4 }] }
   ],
   "mantle": [
-    { "id": "thrift", "summonCostMult": 0.9 },
-    { "id": "sorc", "meteorCooldownMult": 0.8 }
+    { "id": "thrift", "summonCostMult": 0.9, "upgrades": [{ "summonCostMult": 0.87 }, { "summonCostMult": 0.84 }, { "summonCostMult": 0.8 }] },
+    { "id": "sorc", "meteorCooldownMult": 0.8, "upgrades": [{ "meteorCooldownMult": 0.75 }, { "meteorCooldownMult": 0.7 }, { "meteorCooldownMult": 0.65 }] }
   ],
   "amulet": [
-    { "id": "alch", "ritualTimeMult": 0.7 },
-    { "id": "cry", "bonusCrystals": 1 },
-    { "id": "purse", "bonusGold": 20 }
+    { "id": "alch", "ritualTimeMult": 0.7, "upgrades": [{ "ritualTimeMult": 0.6 }, { "ritualTimeMult": 0.5 }, { "ritualTimeMult": 0.4 }] },
+    { "id": "cry", "bonusCrystals": 1, "upgrades": [{ "bonusCrystals": 2 }, { "bonusCrystals": 3 }] },
+    { "id": "purse", "bonusGold": 20, "upgrades": [{ "bonusGold": 30 }, { "bonusGold": 40 }, { "bonusGold": 50 }] }
   ]
 }

@@ -1,6 +1,7 @@
 import { test, type Page } from '@playwright/test';
 import {
   bookBackCenter,
+  chestTakeCenter,
   COIN_AD_X,
   CONTROLS_CENTER_Y,
   GAME_H,
@@ -8,6 +9,7 @@ import {
   gearButtonCenter,
   menuBookCenter,
   menuCardCenter,
+  menuChestCenter,
   menuSoundCenter,
   MIN_TOUCH,
   pauseButtonCenter,
@@ -135,7 +137,24 @@ test.afterEach(async ({ page }, testInfo) => {
   }
 });
 
-test('меню → книга котов → первый уровень → снаряжение → три кота → первая волна', async ({ page }) => {
+/** Сохранение первой версии игры: до сундуков игроку было доступно всё снаряжение. */
+const OLD_SAVE = { version: 1, stars: {}, gear: { staff: 'none', mantle: 'thrift', amulet: 'cry' }, book: [], sound: true };
+
+/** Нажимаемый элемент с таким именем на текущем экране. */
+async function target(page: Page, name: string): Promise<SmokeTarget> {
+  const found = (await state(page))?.targets.find((candidate) => candidate.name === name);
+  if (!found) throw new Error(`На экране нет нажимаемого элемента «${name}»`);
+  return found;
+}
+
+function center(t: SmokeTarget): [number, number] {
+  return [t.x + t.width / 2, t.y + t.height / 2];
+}
+
+test('старое сохранение: меню → книга → снаряжение → бой → пауза → итоги боя', async ({ page }) => {
+  // Игрок с сохранением версии 1: оно должно прочитаться, а всё снаряжение — остаться доступным.
+  await page.addInitScript((save) => localStorage.setItem('koto_save', JSON.stringify(save)), OLD_SAVE);
+
   await test.step('меню', async () => {
     await page.goto('/?smoke');
     await waitFor(
@@ -422,5 +441,110 @@ test('меню → книга котов → первый уровень → с�
     );
     await page.screenshot({ path: `${SHOTS}/${shot('menu-after')}` });
     checkConsole('меню после победы');
+  });
+});
+
+test('новый игрок: закрытое снаряжение → победа → сундук → прокачка', async ({ page }) => {
+  await test.step('меню и экран снаряжения', async () => {
+    await page.goto('/?smoke');
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Menu),
+      (s) => `Игра не дошла до меню: ${scenesText(s)}`,
+    );
+    await tap(page, ...menuCardCenter(0));
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Gear),
+      (s) => `Игра не дошла до экрана снаряжения: ${scenesText(s)}`,
+    );
+    await checkTouchSizes(page, 'снаряжение нового игрока');
+
+    // Предмета из сундука у нового игрока нет: нажатие показывает, что он даёт, но не надевает.
+    await tap(page, ...center(await target(page, 'gear:staff:fire')));
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    const after = await state(page);
+    if (after?.gear.staff !== 'none') throw new Error(`Закрытый предмет наделся: в слоте посоха «${after?.gear.staff}»`);
+    await page.screenshot({ path: `${SHOTS}/${shot('new-gear-locked')}` });
+
+    // Рыбок ещё нет: прокачка недоступна.
+    await tap(page, ...center(await target(page, 'upgrade:mantle')));
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    if ((await state(page))?.gearLevels.mantle !== 1) throw new Error('Предмет прокачался без рыбок');
+    checkConsole('снаряжение нового игрока');
+  });
+
+  await test.step('победа на три звезды', async () => {
+    await tap(page, ...gearButtonCenter('start'));
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.UI),
+      (s) => `Бой не начался: ${scenesText(s)}`,
+    );
+    await page.evaluate(() => window.__smoke?.win());
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.result === 'win',
+      () => 'Не появился экран победы',
+    );
+    await page.waitForTimeout(RESULT_SETTLE_MS);
+    await tap(page, ...resultAdCenter());
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    await tap(page, ...resultButtonCenter('left'));
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Menu),
+      (s) => `Игра не вернулась в меню: ${scenesText(s)}`,
+    );
+    checkConsole('победа');
+  });
+
+  await test.step('сундук', async () => {
+    const before = await state(page);
+    await page.screenshot({ path: `${SHOTS}/${shot('new-chest-ready')}` });
+    await checkTouchSizes(page, 'меню с сундуком');
+
+    await tap(page, ...menuChestCenter());
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.chests === 1 && s.fish > (before?.fish ?? 0),
+      (s) => `Сундук не открылся: открыто ${s?.chests ?? '?'}, рыбок ${s?.fish ?? '?'}`,
+    );
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${shot('new-chest-loot')}` });
+    await checkTouchSizes(page, 'окно сундука');
+
+    await tap(page, ...chestTakeCenter());
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    // Окно закрыто: уровни снова нажимаются.
+    await tap(page, ...menuCardCenter(0));
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Gear),
+      (s) => `После «Забрать» уровень не открылся: ${scenesText(s)}`,
+    );
+    checkConsole('сундук');
+  });
+
+  await test.step('прокачка', async () => {
+    const before = await state(page);
+    await tap(page, ...center(await target(page, 'upgrade:mantle')));
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.gearLevels.mantle === 2 && s.fish < (before?.fish ?? 0),
+      (s) => `Мантия не прокачалась: уровень ${s?.gearLevels.mantle ?? '?'}, рыбок ${before?.fish} → ${s?.fish ?? '?'}`,
+    );
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${shot('new-gear-upgraded')}` });
+    await checkTouchSizes(page, 'снаряжение после прокачки');
+    checkConsole('прокачка');
   });
 });

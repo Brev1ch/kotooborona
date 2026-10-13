@@ -131,3 +131,29 @@ describe('itemBonuses', () => {
     ]);
   });
 });
+
+describe('gearBonuses: прокачка', () => {
+  const leveled = {
+    staff: [{ id: 'fire', element: 'fire', summonWeight: 1.5, upgrades: [{ summonWeight: 2 }, { summonWeight: 3 }] }],
+    mantle: [{ id: 'thrift', summonCostMult: 0.9, upgrades: [{ summonCostMult: 0.8 }] }],
+    amulet: [{ id: 'purse', bonusGold: 20, upgrades: [{ bonusGold: 30 }] }],
+  } as unknown as GearConfig;
+  const worn = { staff: 'fire', mantle: 'thrift', amulet: 'purse' };
+
+  it('без уровней работают бонусы первого уровня', () => {
+    const bonuses = gearBonuses(leveled, worn);
+
+    expect(bonuses.summonWeights).toEqual({ fire: 1.5 });
+    expect(bonuses.summonCostMult).toBe(0.9);
+    expect(bonuses.bonusGold).toBe(20);
+  });
+
+  it('у каждого предмета действуют бонусы его уровня', () => {
+    const levels: Record<string, number> = { 'staff:fire': 3, 'mantle:thrift': 2, 'amulet:purse': 1 };
+    const bonuses = gearBonuses(leveled, worn, (slot, id) => levels[`${slot}:${id}`]);
+
+    expect(bonuses.summonWeights).toEqual({ fire: 3 });
+    expect(bonuses.summonCostMult).toBe(0.8);
+    expect(bonuses.bonusGold).toBe(20);
+  });
+});

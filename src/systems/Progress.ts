@@ -1,8 +1,10 @@
 import type { CatsConfig, ElementId, GearConfig, GearSlot } from '../data/types';
+import type { ChestLoot } from './Chests';
+import { findGear, GEAR_SLOTS, gearKey, maxGearLevel, upgradeCost } from './Gear';
 
+export { GEAR_SLOTS };
 export const SAVE_KEY = 'save';
 export const MAX_STARS = 3;
-export const GEAR_SLOTS: readonly GearSlot[] = ['staff', 'mantle', 'amulet'];
 
 /** Облачные сохранения площадки не любят частых записей: изменения копятся и уходят одной записью. */
 const SAVE_DELAY_MS = 1000;
@@ -22,6 +24,12 @@ export interface SaveData {
   sound: boolean;
   /** Рыбки: валюта между уровнями. */
   fish: number;
+  /** Предметы снаряжения, которые есть у игрока; ключи — `gearKey`. Предметы по умолчанию есть всегда. */
+  owned: string[];
+  /** Уровни прокачки предметов по `gearKey`; предметов первого уровня здесь нет. */
+  gearLevels: Record<string, number>;
+  /** Сколько сундуков открыто. */
+  chests: number;
 }
 
 type RawSave = Record<string, unknown>;
@@ -36,6 +44,22 @@ export type Migration = (save: RawSave) => RawSave;
 const MIGRATIONS: readonly Migration[] = [
   // 1 → 2: появились рыбки.
   (save) => ({ ...save, fish: 0 }),
+  // 2 → 3: предметы теперь выпадают из сундуков и прокачиваются. До этого игроку были доступны все — оставляем их ему.
+  (save) => ({ ...save, owned: [...GEAR_BEFORE_CHESTS], gearLevels: {}, chests: 0 }),
+];
+
+/** Всё снаряжение, которое было в игре до появления сундуков (версии сохранения 1 и 2). */
+const GEAR_BEFORE_CHESTS = [
+  'staff:none',
+  'staff:fire',
+  'staff:water',
+  'staff:earth',
+  'staff:air',
+  'mantle:thrift',
+  'mantle:sorc',
+  'amulet:alch',
+  'amulet:cry',
+  'amulet:purse',
 ];
 
 /** Версия, в которой игра пишет сохранение. */
@@ -59,14 +83,36 @@ export interface SaveStorage {
   save<T>(key: string, value: T): Promise<void>;
 }
 
-const KNOWN_FIELDS = ['version', 'stars', 'gear', 'book', 'sound', 'fish'];
+const KNOWN_FIELDS = ['version', 'stars', 'gear', 'book', 'sound', 'fish', 'owned', 'gearLevels', 'chests'];
 
 function isRecord(value: unknown): value is RawSave {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Предметы, которые есть у игрока с начала игры. */
+function starterGear(rules: SaveRules): string[] {
+  return GEAR_SLOTS.map((slot) => gearKey(slot, rules.gear.defaults[slot]));
+}
+
+/** Слот и предмет по ключу из сохранения; null — такого предмета в игре нет. */
+function gearByKey(rules: SaveRules, key: string): { slot: GearSlot; id: string } | null {
+  const [slot, id] = key.split(':') as [GearSlot, string | undefined];
+  if (!GEAR_SLOTS.includes(slot) || id === undefined || !findGear(rules.gear, slot, id)) return null;
+  return { slot, id };
+}
+
 export function defaultSave(rules: SaveRules, version = MIGRATIONS.length + 1): SaveData {
-  return { version, stars: {}, gear: { ...rules.gear.defaults }, book: [], sound: true, fish: 0 };
+  return {
+    version,
+    stars: {},
+    gear: { ...rules.gear.defaults },
+    book: [],
+    sound: true,
+    fish: 0,
+    owned: starterGear(rules),
+    gearLevels: {},
+    chests: 0,
+  };
 }
 
 /**
@@ -114,6 +160,29 @@ export function parseSave(raw: unknown, rules: SaveRules, migrations: readonly M
 
   if (typeof save.fish === 'number' && Number.isFinite(save.fish)) data.fish = Math.max(0, Math.floor(save.fish));
 
+  if (Array.isArray(save.owned)) {
+    const keys = save.owned.filter((key): key is string => typeof key === 'string');
+    // Предмет из будущей версии этой игре незнаком, но у игрока он есть — не теряем.
+    data.owned = [...new Set([...data.owned, ...keys.filter((key) => newer || gearByKey(rules, key) !== null)])];
+  }
+
+  if (isRecord(save.gearLevels)) {
+    for (const [key, value] of Object.entries(save.gearLevels)) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+      const found = gearByKey(rules, key);
+      const item = found && findGear(rules.gear, found.slot, found.id);
+      if (!item) {
+        if (newer) data.gearLevels[key] = value;
+        continue;
+      }
+      // Уровень выше известного этой версии (сохранение новее кода) остаётся в сохранении; в бою он прижмётся к наибольшему.
+      const level = newer ? Math.floor(value) : Math.min(maxGearLevel(item), Math.floor(value));
+      if (level > 1) data.gearLevels[key] = level;
+    }
+  }
+
+  if (typeof save.chests === 'number' && Number.isFinite(save.chests)) data.chests = Math.max(0, Math.floor(save.chests));
+
   const extra: RawSave = {};
   if (newer) {
     for (const [field, value] of Object.entries(save)) {
@@ -156,20 +225,66 @@ export class Progress {
     this.touch();
   }
 
-  /** Надетые предметы; вместо предмета, незнакомого этой версии игры, — предмет по умолчанию. */
+  /** Сумма лучших результатов по всем уровням: за неё открываются сундуки. */
+  get totalStars(): number {
+    return Object.values(this.data.stars).reduce((sum, stars) => sum + stars, 0);
+  }
+
+  /** Надетые предметы; вместо незнакомого этой версии игры и вместо того, которого у игрока нет, — предмет по умолчанию. */
   get gear(): Readonly<GearSelection> {
     const { gear } = this.rules;
     const worn = { ...this.data.gear };
     for (const slot of GEAR_SLOTS) {
-      if (!gear[slot].some((item) => item.id === worn[slot])) worn[slot] = gear.defaults[slot];
+      if (!findGear(gear, slot, worn[slot]) || !this.ownsGear(slot, worn[slot])) worn[slot] = gear.defaults[slot];
     }
     return worn;
   }
 
-  /** Надевает предмет в слот. Уже надетый и предмет не из этого слота сохранение не меняют. */
+  /** Надевает предмет в слот. Уже надетый, чужой для слота и ещё не полученный предмет сохранение не меняют. */
   selectGear(slot: GearSlot, id: string): void {
-    if (this.gear[slot] === id || !this.rules.gear[slot].some((item) => item.id === id)) return;
+    if (this.gear[slot] === id || !findGear(this.rules.gear, slot, id) || !this.ownsGear(slot, id)) return;
     this.data.gear[slot] = id;
+    this.touch();
+  }
+
+  ownsGear(slot: GearSlot, id: string): boolean {
+    return this.data.owned.includes(gearKey(slot, id));
+  }
+
+  /** Уровень прокачки предмета; у непрокачанного и незнакомого — 1. */
+  gearLevel(slot: GearSlot, id: string): number {
+    const item = findGear(this.rules.gear, slot, id);
+    if (!item) return 1;
+    return Math.min(maxGearLevel(item), this.data.gearLevels[gearKey(slot, id)] ?? 1);
+  }
+
+  /**
+   * Поднимает уровень предмета на один за рыбки. Возвращает false и ничего не меняет,
+   * если предмета у игрока нет, он уже на последнем уровне или рыбок не хватает.
+   */
+  upgradeGear(slot: GearSlot, id: string): boolean {
+    const item = findGear(this.rules.gear, slot, id);
+    if (!item || !this.ownsGear(slot, id)) return false;
+    const level = this.gearLevel(slot, id);
+    const cost = upgradeCost(this.rules.gear, item, level);
+    if (cost === null || !this.spendFish(cost)) return false;
+    this.data.gearLevels[gearKey(slot, id)] = level + 1;
+    this.touch();
+    return true;
+  }
+
+  get chestsOpened(): number {
+    return this.data.chests;
+  }
+
+  /** Забирает содержимое сундука: счёт открытых сундуков растёт, предмет и рыбки переходят игроку. */
+  claimChest(loot: ChestLoot): void {
+    this.data.chests++;
+    if (loot.item) {
+      const key = gearKey(loot.item.slot, loot.item.id);
+      if (!this.data.owned.includes(key)) this.data.owned.push(key);
+    }
+    this.data.fish += Math.max(0, Math.floor(loot.fish));
     this.touch();
   }
 
@@ -219,8 +334,19 @@ export class Progress {
     this.timer = null;
     if (!this.dirty) return;
     this.dirty = false;
-    const { version, stars, gear, book, sound, fish } = this.data;
-    const snapshot = { ...this.extra, version, stars: { ...stars }, gear: { ...gear }, book: [...book], sound, fish };
+    const { version, stars, gear, book, sound, fish, owned, gearLevels, chests } = this.data;
+    const snapshot = {
+      ...this.extra,
+      version,
+      stars: { ...stars },
+      gear: { ...gear },
+      book: [...book],
+      sound,
+      fish,
+      owned: [...owned],
+      gearLevels: { ...gearLevels },
+      chests,
+    };
     // Не записалось — изменения уйдут со следующей записью.
     this.storage.save(SAVE_KEY, snapshot).catch(() => {
       this.dirty = true;

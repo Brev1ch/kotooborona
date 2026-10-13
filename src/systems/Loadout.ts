@@ -1,5 +1,6 @@
-import type { CatsConfig, ElementId, GearConfig, GearItem } from '../data/types';
-import { GEAR_SLOTS, type GearSelection } from './Progress';
+import type { CatsConfig, ElementId, GearConfig, GearItem, GearSlot } from '../data/types';
+import { gearAtLevel, GEAR_SLOTS } from './Gear';
+import type { GearSelection } from './Progress';
 
 /** Суммарный эффект надетого снаряжения на бой. */
 export interface GearBonuses {
@@ -26,14 +27,20 @@ export function noBonuses(): GearBonuses {
 }
 
 /**
- * Складывает бонусы надетых предметов. Бонус не привязан к слоту: что написано у предмета в gear.json,
+ * Складывает бонусы надетых предметов с учётом их прокачки. Бонус не привязан к слоту: что написано у предмета в gear.json,
  * то и работает. Множители перемножаются, прибавки складываются; незнакомый id ничего не даёт.
  */
-export function gearBonuses(config: GearConfig, worn: GearSelection): GearBonuses {
+export function gearBonuses(
+  config: GearConfig,
+  worn: GearSelection,
+  /** Уровень прокачки предмета; без него все предметы первого уровня. */
+  levelOf: (slot: GearSlot, id: string) => number = () => 1,
+): GearBonuses {
   const bonuses = noBonuses();
   for (const slot of GEAR_SLOTS) {
-    const item = config[slot].find((candidate) => candidate.id === worn[slot]);
-    if (!item) continue;
+    const base = config[slot].find((candidate) => candidate.id === worn[slot]);
+    if (!base) continue;
+    const item = gearAtLevel(base, levelOf(slot, base.id));
 
     if (item.element && item.summonWeight !== undefined) {
       bonuses.summonWeights[item.element] = (bonuses.summonWeights[item.element] ?? 1) * item.summonWeight;

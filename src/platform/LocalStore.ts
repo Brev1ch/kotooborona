@@ -4,6 +4,8 @@ const STORAGE_PREFIX = 'koto_';
 export interface LocalStore {
   load<T>(key: string, fallback: T): T;
   save<T>(key: string, value: T): void;
+  /** Стирает всё, что игра сохранила на устройстве. */
+  clear(): void;
 }
 
 /** localStorage браузера. Если он недоступен (приватный режим), игра идёт без сохранений. */
@@ -22,6 +24,16 @@ export const browserStore: LocalStore = {
       localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
     } catch {
       // Хранилище недоступно — продолжаем без записи.
+    }
+  },
+
+  clear(): void {
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith(STORAGE_PREFIX)) localStorage.removeItem(key);
+      }
+    } catch {
+      // Хранилище недоступно — стирать нечего.
     }
   },
 };

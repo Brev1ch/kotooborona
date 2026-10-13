@@ -13,6 +13,9 @@ function memoryStore(initial: Record<string, unknown> = {}): LocalStore & { data
     save: (key, value) => {
       data[key] = value;
     },
+    clear: () => {
+      for (const key of Object.keys(data)) delete data[key];
+    },
   };
 }
 

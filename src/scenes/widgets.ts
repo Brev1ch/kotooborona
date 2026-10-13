@@ -202,6 +202,51 @@ export function addFishIcon(scene: Phaser.Scene, x: number, y: number, size: num
   return scene.add.image(x, y, Texture.fish).setDisplaySize(size, size);
 }
 
+/** Замок: предмет или уровень ещё закрыт. */
+export function addLockIcon(scene: Phaser.Scene, x: number, y: number, scale = 1): Phaser.GameObjects.Graphics {
+  const g = scene.add.graphics({ x, y }).setScale(scale);
+  g.lineStyle(2.5, COLORS.line);
+  g.beginPath();
+  g.arc(0, -3, 5, Math.PI, 0);
+  g.strokePath();
+  g.fillStyle(COLORS.line);
+  g.fillRoundedRect(-8, -3, 16, 12, 3);
+  return g;
+}
+
+export interface FishCounter {
+  /** Показывает новое число; если оно изменилось, счётчик вздрагивает. */
+  set(value: number): void;
+}
+
+const FISH_COUNTER = { icon: 20, gap: 6, pulseScale: 1.25, pulseMs: 120 };
+
+/** Счётчик рыбок: значок и число, вместе по центру точки. */
+export function addFishCounter(scene: Phaser.Scene, x: number, y: number, value: number): FishCounter {
+  const icon = addFishIcon(scene, 0, 0, FISH_COUNTER.icon);
+  const text = scene.add
+    .text(0, 0, '', { fontFamily: FONTS.display, fontSize: '16px', color: TEXT_COLORS.fish })
+    .setOrigin(0, 0.5);
+  const box = scene.add.container(x, y, [icon, text]);
+  let shown = -1;
+
+  const set = (next: number): void => {
+    if (next === shown) return;
+    const first = shown === -1;
+    shown = next;
+    text.setText(String(next));
+    const width = FISH_COUNTER.icon + FISH_COUNTER.gap + text.width;
+    icon.setX(-width / 2 + FISH_COUNTER.icon / 2);
+    text.setX(-width / 2 + FISH_COUNTER.icon + FISH_COUNTER.gap);
+    if (first) return;
+    scene.tweens.killTweensOf(box);
+    box.setScale(1);
+    scene.tweens.add({ targets: box, scale: FISH_COUNTER.pulseScale, duration: FISH_COUNTER.pulseMs, yoyo: true });
+  };
+  set(value);
+  return { set };
+}
+
 /** Значок кристалла высотой `size`. Нарисован, а не взят из шрифта: на всех устройствах выглядит одинаково. */
 export function addCrystalIcon(scene: Phaser.Scene, x: number, y: number, size: number): Phaser.GameObjects.Image {
   ensureTextures(scene);

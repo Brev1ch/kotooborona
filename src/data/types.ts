@@ -126,15 +126,24 @@ export interface LevelsConfig {
 
 export type GearSlot = 'staff' | 'mantle' | 'amulet';
 
-export interface GearItem {
-  id: string;
-  element?: ElementId;
+/** Бонусы предмета; с уровнем предмета меняются только они. */
+export interface GearStats {
   summonWeight?: number;
   summonCostMult?: number;
   meteorCooldownMult?: number;
   ritualTimeMult?: number;
   bonusCrystals?: number;
   bonusGold?: number;
+}
+
+export interface GearItem extends GearStats {
+  id: string;
+  element?: ElementId;
+  /**
+   * Прокачка: бонусы 2-го, 3-го и следующих уровней; на 1-м уровне действуют бонусы самого предмета.
+   * Нет списка — предмет не прокачивается.
+   */
+  upgrades?: GearStats[];
 }
 
 export interface GearConfig extends Record<GearSlot, GearItem[]> {
@@ -148,6 +157,14 @@ export interface GearConfig extends Record<GearSlot, GearItem[]> {
     burnDps: number;
     burnTime: number;
   };
+  /** Цена прокачки в рыбках: до 2-го уровня, до 3-го и так далее. */
+  upgradeCost: number[];
+  /**
+   * Сундуки: сколько всего звёзд нужно для каждого по порядку, сколько рыбок лежит в сундуке с предметом
+   * и сколько — в сундуке, когда все предметы уже собраны.
+   */
+  chests: { stars: number[]; fish: number; fishInstead: number };
+  /** Предметы, которые есть у игрока с начала игры и надеты по умолчанию. */
   defaults: Record<GearSlot, string>;
 }
 

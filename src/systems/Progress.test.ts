@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatsConfig, GearConfig } from '../data/types';
 import { CURRENT_VERSION, parseSave, Progress, SAVE_KEY, type Migration, type SaveRules, type SaveStorage } from './Progress';
 
-// Из конфигов нужны только id предметов, умолчания и список стихий.
+// Из конфигов нужны только id предметов, умолчания, прокачка одного предмета и список стихий.
 const rules: SaveRules = {
   gear: {
     defaults: { staff: 'none', mantle: 'thrift', amulet: 'cry' },
     staff: [{ id: 'none' }, { id: 'fire' }],
     mantle: [{ id: 'thrift' }, { id: 'sorc' }],
-    amulet: [{ id: 'cry' }, { id: 'purse' }],
+    amulet: [{ id: 'cry' }, { id: 'purse', bonusGold: 20, upgrades: [{ bonusGold: 30 }, { bonusGold: 40 }] }],
+    upgradeCost: [40, 90],
   } as unknown as GearConfig,
   cats: { elements: { fire: {}, water: {}, steam: {}, ice: {} } } as unknown as CatsConfig,
 };
@@ -24,7 +25,13 @@ const defaults = {
   book: [],
   sound: true,
   fish: 0,
+  owned: ['staff:none', 'mantle:thrift', 'amulet:cry'],
+  gearLevels: {},
+  chests: 0,
 };
+
+/** Все предметы тестового конфига: так выглядит инвентарь игрока, открывшего все сундуки. */
+const ALL_GEAR = ['staff:none', 'mantle:thrift', 'amulet:cry', 'staff:fire', 'mantle:sorc', 'amulet:purse'];
 
 /** Хранилище в памяти; `saves` — всё, что в него записали, по порядку. */
 function memoryStorage(initial?: unknown) {
@@ -58,6 +65,9 @@ describe('parseSave: чтение сохранения', () => {
       book: ['steam'],
       sound: false,
       fish: 9,
+      owned: ALL_GEAR,
+      gearLevels: { 'amulet:purse': 2 },
+      chests: 3,
     };
 
     expect(parseSave(raw, rules)).toEqual({ data: raw, extra: {} });
@@ -152,6 +162,24 @@ describe('parseSave: настоящие миграции', () => {
     expect(parseSave(v1, rules).data.fish).toBe(0);
   });
 
+  it('версия 2 → 3: всё снаряжение, доступное до сундуков, остаётся у игрока', () => {
+    const { data } = parseSave({ ...v1, version: 2, fish: 12 }, rules);
+
+    // Предметов, которых нет в тестовом конфиге (остальные посохи, амулет алхимика), в результате нет.
+    expect([...data.owned].sort()).toEqual([...ALL_GEAR].sort());
+    expect(data.gearLevels).toEqual({});
+    expect(data.chests).toBe(0);
+    expect(data.fish).toBe(12);
+  });
+
+  it('после миграции надетые до неё предметы остаются надетыми', async () => {
+    const progress = new Progress(memoryStorage(v1).storage, rules);
+    await progress.load();
+
+    expect(progress.gear).toEqual({ staff: 'fire', mantle: 'sorc', amulet: 'purse' });
+    expect(progress.ownsGear('staff', 'fire')).toBe(true);
+  });
+
   it('после загрузки версии 1 запись уходит уже в текущей версии и с прежним прогрессом', async () => {
     const { storage, saves } = memoryStorage(v1);
     const progress = new Progress(storage, rules, 1000);
@@ -160,7 +188,7 @@ describe('parseSave: настоящие миграции', () => {
     progress.addFish(5);
     progress.flush();
 
-    expect(saves).toEqual([{ ...defaults, ...v1, version: V, fish: 5 }]);
+    expect(saves).toEqual([{ ...defaults, ...v1, version: V, fish: 5, owned: ALL_GEAR }]);
   });
 });
 
@@ -198,6 +226,143 @@ describe('Progress: рыбки', () => {
 
     expect(progress.fish).toBe(0);
     expect(saves).toEqual([]);
+  });
+});
+
+describe('parseSave: снаряжение и сундуки', () => {
+  it('предметы по умолчанию есть всегда, даже если в сохранении их нет', () => {
+    const { data } = parseSave({ version: V, owned: ['staff:fire'] }, rules);
+
+    expect(data.owned).toEqual([...defaults.owned, 'staff:fire']);
+  });
+
+  it('из списка предметов убирает незнакомые, мусор и повторы', () => {
+    const owned = ['staff:fire', 'staff:laser', 'fire', 7, 'staff:fire', 'boots:fire', 'mantle:fire'];
+
+    expect(parseSave({ version: V, owned }, rules).data.owned).toEqual([...defaults.owned, 'staff:fire']);
+  });
+
+  it('уровни держит в пределах предмета; первый уровень, мусор и незнакомые предметы не хранит', () => {
+    const gearLevels = { 'amulet:purse': 9, 'staff:fire': 3, 'mantle:sorc': 1, 'amulet:cry': 'два', 'staff:laser': 2 };
+
+    expect(parseSave({ version: V, gearLevels }, rules).data.gearLevels).toEqual({ 'amulet:purse': 3 });
+  });
+
+  it('число открытых сундуков — целое неотрицательное', () => {
+    expect(parseSave({ version: V, chests: 4 }, rules).data.chests).toBe(4);
+    expect(parseSave({ version: V, chests: 2.7 }, rules).data.chests).toBe(2);
+    for (const chests of [-1, '3', NaN, null]) expect(parseSave({ version: V, chests }, rules).data.chests).toBe(0);
+  });
+
+  it('сохранение новее кода: незнакомые предметы и уровни выше известных остаются', () => {
+    const raw = { version: NEWER, owned: ['staff:laser'], gearLevels: { 'staff:laser': 4, 'amulet:purse': 7 } };
+    const { data } = parseSave(raw, rules);
+
+    expect(data.owned).toEqual([...defaults.owned, 'staff:laser']);
+    expect(data.gearLevels).toEqual({ 'staff:laser': 4, 'amulet:purse': 7 });
+  });
+});
+
+describe('Progress: снаряжение из сундуков', () => {
+  it('у нового игрока есть только предметы по умолчанию, чужой предмет не надевается', () => {
+    const progress = new Progress(memoryStorage().storage, rules);
+
+    expect(progress.ownsGear('mantle', 'thrift')).toBe(true);
+    expect(progress.ownsGear('staff', 'fire')).toBe(false);
+
+    progress.selectGear('staff', 'fire');
+    expect(progress.gear.staff).toBe('none');
+  });
+
+  it('предмет из сундука появляется у игрока вместе с рыбками, счёт сундуков растёт', () => {
+    const { storage, saves } = memoryStorage();
+    const progress = new Progress(storage, rules, 1000);
+
+    progress.claimChest({ item: { slot: 'staff', id: 'fire' }, fish: 15 });
+    expect(progress.chestsOpened).toBe(1);
+    expect(progress.fish).toBe(15);
+    expect(progress.ownsGear('staff', 'fire')).toBe(true);
+
+    progress.selectGear('staff', 'fire');
+    expect(progress.gear.staff).toBe('fire');
+
+    progress.flush();
+    expect(saves).toEqual([
+      { ...defaults, fish: 15, chests: 1, owned: [...defaults.owned, 'staff:fire'], gear: { ...defaults.gear, staff: 'fire' } },
+    ]);
+  });
+
+  it('сундук без предмета даёт только рыбки; тот же предмет дважды не записывается', () => {
+    const progress = new Progress(memoryStorage().storage, rules);
+    progress.claimChest({ item: null, fish: 60 });
+    progress.claimChest({ item: { slot: 'mantle', id: 'thrift' }, fish: 0 });
+
+    expect(progress.chestsOpened).toBe(2);
+    expect(progress.fish).toBe(60);
+  });
+
+  it('надетый в сохранении предмет, которого у игрока нет, заменяется предметом по умолчанию', async () => {
+    const progress = new Progress(memoryStorage({ version: V, gear: { staff: 'fire' } }).storage, rules);
+    await progress.load();
+
+    expect(progress.gear.staff).toBe('none');
+  });
+
+  it('звёзды всех уровней складываются', () => {
+    const progress = new Progress(memoryStorage().storage, rules);
+    expect(progress.totalStars).toBe(0);
+
+    progress.recordStars('a', 3);
+    progress.recordStars('b', 1);
+    progress.recordStars('a', 2);
+    expect(progress.totalStars).toBe(4);
+  });
+});
+
+describe('Progress: прокачка снаряжения', () => {
+  async function withPurse(fish: number) {
+    const { storage, saves } = memoryStorage({ version: V, fish, owned: ['amulet:purse'] });
+    const progress = new Progress(storage, rules, 1000);
+    await progress.load();
+    return { progress, saves };
+  }
+
+  it('уровень растёт на один, рыбки списываются по цене уровня', async () => {
+    const { progress, saves } = await withPurse(200);
+    expect(progress.gearLevel('amulet', 'purse')).toBe(1);
+
+    expect(progress.upgradeGear('amulet', 'purse')).toBe(true);
+    expect(progress.gearLevel('amulet', 'purse')).toBe(2);
+    expect(progress.fish).toBe(160);
+
+    expect(progress.upgradeGear('amulet', 'purse')).toBe(true);
+    expect(progress.gearLevel('amulet', 'purse')).toBe(3);
+    expect(progress.fish).toBe(70);
+
+    progress.flush();
+    expect(saves[0]).toMatchObject({ fish: 70, gearLevels: { 'amulet:purse': 3 } });
+  });
+
+  it('на последнем уровне прокачка не идёт и рыбки не тратятся', async () => {
+    const { progress } = await withPurse(1000);
+    progress.upgradeGear('amulet', 'purse');
+    progress.upgradeGear('amulet', 'purse');
+
+    expect(progress.upgradeGear('amulet', 'purse')).toBe(false);
+    expect(progress.gearLevel('amulet', 'purse')).toBe(3);
+    expect(progress.fish).toBe(870);
+  });
+
+  it('без рыбок, без предмета и у предмета без улучшений прокачки нет', async () => {
+    const { progress } = await withPurse(39);
+    expect(progress.upgradeGear('amulet', 'purse')).toBe(false);
+
+    progress.addFish(500);
+    expect(progress.upgradeGear('staff', 'fire')).toBe(false);
+    expect(progress.upgradeGear('amulet', 'cry')).toBe(false);
+    expect(progress.upgradeGear('amulet', 'laser')).toBe(false);
+    expect(progress.fish).toBe(539);
+    expect(progress.gearLevel('amulet', 'laser')).toBe(1);
   });
 });
 
@@ -244,7 +409,7 @@ describe('Progress: изменения', () => {
   });
 
   it('загружает сохранённый прогресс', async () => {
-    const saved = { version: V, stars: { opushka: 2 }, gear: { staff: 'fire' }, book: ['steam'] };
+    const saved = { version: V, stars: { opushka: 2 }, gear: { staff: 'fire' }, book: ['steam'], owned: ALL_GEAR };
     const progress = new Progress(memoryStorage(saved).storage, rules);
     await progress.load();
 
@@ -264,8 +429,9 @@ describe('Progress: изменения', () => {
     expect(progress.stars('opushka')).toBe(3);
   });
 
-  it('надевает только предмет своего слота', () => {
-    const progress = new Progress(memoryStorage().storage, rules);
+  it('надевает только предмет своего слота', async () => {
+    const progress = new Progress(memoryStorage({ version: V, owned: ALL_GEAR }).storage, rules);
+    await progress.load();
 
     progress.selectGear('mantle', 'sorc');
     progress.selectGear('staff', 'sorc');
@@ -313,9 +479,10 @@ describe('Progress: запись', () => {
     expect(storage.save).toHaveBeenCalledWith(SAVE_KEY, { ...defaults, book: ['steam'] });
   });
 
-  it('несколько изменений подряд уходят одной записью', () => {
-    const { storage, saves } = memoryStorage();
+  it('несколько изменений подряд уходят одной записью', async () => {
+    const { storage, saves } = memoryStorage({ version: V, owned: ALL_GEAR });
     const progress = new Progress(storage, rules, 1000);
+    await progress.load();
 
     progress.discover('steam');
     vi.advanceTimersByTime(400);
@@ -324,7 +491,13 @@ describe('Progress: запись', () => {
     vi.advanceTimersByTime(5000);
 
     expect(saves).toEqual([
-      { ...defaults, stars: { opushka: 3 }, gear: { staff: 'fire', mantle: 'thrift', amulet: 'cry' }, book: ['steam'] },
+      {
+        ...defaults,
+        stars: { opushka: 3 },
+        gear: { staff: 'fire', mantle: 'thrift', amulet: 'cry' },
+        book: ['steam'],
+        owned: ALL_GEAR,
+      },
     ]);
   });
 
@@ -408,6 +581,9 @@ describe('Progress: запись', () => {
         book: ['dragon', 'steam'],
         sound: true,
         fish: 7,
+        owned: defaults.owned,
+        gearLevels: {},
+        chests: 0,
         guild: 120,
         pets: [{ id: 'owl' }],
       },
@@ -415,7 +591,8 @@ describe('Progress: запись', () => {
   });
 
   describe('незнакомый предмет из сохранения новее кода', () => {
-    const saved = { version: NEWER, gear: { staff: 'fire', mantle: 'cloak', amulet: 'purse' } };
+    const saved = { version: NEWER, gear: { staff: 'fire', mantle: 'cloak', amulet: 'purse' }, owned: [...ALL_GEAR, 'mantle:cloak'] };
+    const owned = saved.owned;
 
     it('в бою заменяется предметом по умолчанию, а в сохранении остаётся', async () => {
       const { storage, saves } = memoryStorage(saved);
@@ -428,7 +605,7 @@ describe('Progress: запись', () => {
       progress.selectGear('mantle', 'thrift');
       progress.flush();
 
-      expect(saves).toEqual([{ ...defaults, version: NEWER, gear: { staff: 'none', mantle: 'cloak', amulet: 'purse' } }]);
+      expect(saves).toEqual([{ ...defaults, version: NEWER, owned, gear: { staff: 'none', mantle: 'cloak', amulet: 'purse' } }]);
     });
 
     it('пропадает из сохранения, когда игрок выбрал в слоте другой предмет', async () => {
@@ -440,7 +617,7 @@ describe('Progress: запись', () => {
       progress.flush();
 
       expect(progress.gear.mantle).toBe('sorc');
-      expect(saves).toEqual([{ ...defaults, version: NEWER, gear: { staff: 'fire', mantle: 'sorc', amulet: 'purse' } }]);
+      expect(saves).toEqual([{ ...defaults, version: NEWER, owned, gear: { staff: 'fire', mantle: 'sorc', amulet: 'purse' } }]);
     });
   });
 

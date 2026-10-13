@@ -19,7 +19,7 @@ src/
   audio.ts           звуки поверх Phaser Sound: `audio.play(id)`, выключатель, паузы (скрытая вкладка, реклама)
   fonts.ts           загрузка веб-шрифтов до меню
   scenes/            Boot, Preload, Menu, Book, Gear, Game, UI (HUD поверх Game)
-  systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy, Progress, Loadout, Campaign, Book, Ads, Rewards
+  systems/           логика без отрисовки: Waves, Combat, Merge, Summon, Economy, Progress, Loadout, Gear, Chests, Campaign, Book, Ads, Rewards
   entities/          Cat, Enemy, Projectile, Hero
   data/              JSON-конфиги: cats.json, enemies.json, levels.json, gear.json, ads.json
   platform/          площадка за интерфейсом `Platform`: `YandexPlatform` (SDK Яндекс Игр: реклама, данные игрока, язык, разметка боя) и `DevPlatform` (заглушка); выбор — при запуске, по наличию `/sdk.js`
@@ -48,6 +48,7 @@ docs/                GDD и прототип
 - Логика в `systems/` покрывается тестами (Vitest, файлы `*.test.ts` рядом с системой). Новая или изменённая логика — вместе с тестами.
 - После изменений в сценах и отрисовке (`src/scenes/`, `src/entities/*View.ts`, `src/layout.ts`, `src/feel.ts`) запустить `npm run smoke` и посмотреть скриншоты в `screenshots/` — до того, как просить меня проверить.
 - Перед завершением задачи: `npm run build` без ошибок, `npm run typecheck` без ошибок и `npm test` проходит.
+- Сохранение (`systems/Progress.ts`): новое поле — новая миграция в конец `MIGRATIONS` и тест на чтение старых версий. В разработке `?reset` в адресе стирает сохранение, `?lang=en` включает английский.
 - Маленькие шаги: одна фича — один коммит. Сообщения коммитов на русском, в повелительном наклонении («Добавь ритуал смешения»).
 - Работаем в ветке `main`. Отдельные ветки не создавать без просьбы.
 

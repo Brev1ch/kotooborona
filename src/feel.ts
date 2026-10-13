@@ -284,6 +284,26 @@ export const WAVE_BANNER_FEEL = {
   hideMs: 280,
 };
 
+/** Экран снаряжения. */
+export const GEAR_FEEL = {
+  lockScale: 0.55,
+  /** Отступ замка от правого верхнего угла плашки. */
+  lockInset: 10,
+  /** После прокачки описание предмета вздрагивает. */
+  upgradePulse: 1.12,
+  upgradePulseMs: 260,
+};
+
+/** Сундук в меню: готовый к открытию покачивается, окно с добычей выскакивает. */
+export const CHEST_FEEL = {
+  readyPulseScale: 1.03,
+  readyPulseMs: 520,
+  popupFromScale: 0.8,
+  popupMs: 240,
+  popupEase: 'Back.easeOut',
+  dimAlpha: 0.85,
+};
+
 /** Переход между экранами: старый гаснет в цвет фона, новый проявляется. */
 export const TRANSITION_FEEL = {
   outMs: 130,

@@ -43,7 +43,13 @@ export interface SmokeState {
   result: 'win' | 'lose' | null;
   /** Рыбки игрока. */
   fish: number;
+  /** Уровни прокачки надетых предметов. */
+  gearLevels: GearSelectionLevels;
+  /** Сколько сундуков открыто. */
+  chests: number;
 }
+
+type GearSelectionLevels = Record<keyof GearSelection, number>;
 
 /** Стоимость кадра для процессора: обновление и отправка отрисовки, без работы видеокарты. Время — в мс. */
 export interface FrameProfile {
@@ -149,7 +155,13 @@ export function installSmokeProbe(game: Phaser.Game): void {
       const targets: SmokeTarget[] = [];
       for (const scene of active) collectTargets(scene.children.list, targets);
       const fading = active.some((scene) => scene.cameras.main?.fadeEffect.isRunning);
-      const common = { scenes, fading, targets, sound: audio.on, gear: { ...progress.gear }, fish: progress.fish };
+      const gear = { ...progress.gear };
+      const gearLevels = {
+        staff: progress.gearLevel('staff', gear.staff),
+        mantle: progress.gearLevel('mantle', gear.mantle),
+        amulet: progress.gearLevel('amulet', gear.amulet),
+      };
+      const common = { scenes, fading, targets, sound: audio.on, gear, gearLevels, fish: progress.fish, chests: progress.chestsOpened };
 
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);

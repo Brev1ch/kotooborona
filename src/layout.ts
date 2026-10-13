@@ -10,8 +10,42 @@ export const BOARD_Y = HUD_H;
 export const CONTROLS_Y = BOARD_Y + BOARD_H;
 export const CONTROLS_H = GAME_H - CONTROLS_Y;
 
-// Меню: название игры и сетка уровней главы.
-export const MENU = { titleY: 84, gridY: 150, cols: 2, cardW: 160, cardH: 66, gap: 12, bookY: 590, bookW: 332, bookH: 50, soundPad: 12 };
+/** Наименьший размер нажимаемого элемента по каждой стороне: меньше пальцем не попасть. */
+export const MIN_TOUCH = 44;
+
+// Меню: рыбки, название игры, сундук и сетка уровней главы.
+export const MENU = {
+  titleY: 68,
+  /** Полоса сундука между названием и уровнями. */
+  chestY: 120,
+  chestW: 332,
+  chestH: MIN_TOUCH,
+  gridY: 152,
+  cols: 2,
+  cardW: 160,
+  cardH: 66,
+  gap: 12,
+  bookY: 592,
+  bookW: 332,
+  bookH: 50,
+  soundPad: 12,
+  /** Счётчик рыбок в левом верхнем углу. */
+  fishX: 52,
+  fishY: 34,
+};
+
+/** Центр полосы сундука в меню. */
+export function menuChestCenter(): [number, number] {
+  return [GAME_W / 2, MENU.chestY];
+}
+
+// Окно открытого сундука поверх меню: заголовок, предмет, его бонус, рыбки, кнопка «Забрать».
+export const CHEST_POPUP = { y: 300, w: 300, h: 250, titleY: -92, itemY: -44, bonusY: -8, fishY: 36, buttonY: 86, buttonW: 200, buttonH: 50 };
+
+/** Центр кнопки «Забрать» в окне сундука. */
+export function chestTakeCenter(): [number, number] {
+  return [GAME_W / 2, CHEST_POPUP.y + CHEST_POPUP.buttonY];
+}
 
 /** Центр кнопки звука в правом верхнем углу меню. */
 export function menuSoundCenter(): [number, number] {
@@ -32,21 +66,20 @@ export function menuCardCenter(index: number): [number, number] {
   return [left + col * (cardW + gap) + cardW / 2, gridY + row * (cardH + gap) + cardH / 2];
 }
 
-/** Наименьший размер нажимаемого элемента по каждой стороне: меньше пальцем не попасть. */
-export const MIN_TOUCH = 44;
-
-// Экран снаряжения: заголовок, три слота с предметами-плашками, кнопки внизу.
+// Экран снаряжения: заголовок, счётчик рыбок, три слота с предметами-плашками и прокачкой, кнопки внизу.
 export const GEAR = {
-  titleY: 56,
-  subtitleY: 88,
-  listY: 122,
+  titleY: 40,
+  subtitleY: 82,
+  listY: 104,
   pad: 14,
-  headH: 22,
+  headH: 20,
   chipH: MIN_TOUCH,
   chipGap: 8,
   chipPadX: 14,
-  descH: 22,
-  blockGap: 16,
+  /** Строка под плашками: бонус надетого предмета и кнопка прокачки. */
+  descH: MIN_TOUCH,
+  upgradeW: 108,
+  blockGap: 8,
   buttonY: 588,
   buttonH: 50,
   backW: 120,
@@ -58,6 +91,11 @@ export const GEAR = {
 export function gearButtonCenter(button: 'back' | 'start'): [number, number] {
   const { pad, backW, startW, buttonGap, buttonY } = GEAR;
   return [button === 'back' ? pad + backW / 2 : pad + backW + buttonGap + startW / 2, buttonY];
+}
+
+/** Центр счётчика рыбок на экране снаряжения: справа, на одной строке с подзаголовком. */
+export function gearFishCenter(): [number, number] {
+  return [GAME_W - GEAR.pad - 40, GEAR.subtitleY];
 }
 
 // Книга котов: заголовок, счётчик, по строке на кота, кнопка «Назад».

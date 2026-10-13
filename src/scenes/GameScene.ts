@@ -144,7 +144,7 @@ export class GameScene extends Phaser.Scene {
     this.add.image(0, 0, boardKey).setOrigin(0);
 
     const worn = progress.gear;
-    const bonuses = gearBonuses(gear, worn);
+    const bonuses = gearBonuses(gear, worn, (slot, id) => progress.gearLevel(slot, id));
     this.economy = new Economy(this.level, gear.summon, bonuses);
     this.summoner = new Summon(cats, bonuses.summonWeights);
     this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult);

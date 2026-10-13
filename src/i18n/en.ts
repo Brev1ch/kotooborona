@@ -61,6 +61,15 @@ export const en: Record<StringKey, string> = {
   'book.unknown': '???',
   'book.recipe': '{first} + {second}',
 
+  'chest.progress': 'Chest — stars: {have} of {need}',
+  'chest.open': 'Open chest',
+  'chest.allOpened': 'All chests opened',
+  'chest.title': 'Chest opened!',
+  'chest.item': '{slot}: {name}',
+  'chest.fish': '+{fish}',
+  'chest.onlyFish': 'All items already collected',
+  'chest.take': 'Take',
+
   'level.opushka': 'Forest Edge',
 
   'cat.fire': 'Fire',
@@ -100,6 +109,10 @@ export const en: Record<StringKey, string> = {
   'gear.slot.staff': 'Staff',
   'gear.slot.mantle': 'Mantle',
   'gear.slot.amulet': 'Amulet',
+  'gear.level': 'Lv. {level}',
+  'gear.upgrade': 'Upgrade',
+  'gear.maxLevel': 'Max level',
+  'gear.locked': 'From a chest',
   'gear.bonus.none': 'No bonus',
   'gear.bonus.summonChance': '{element} cat: {chance}% chance instead of {base}%',
   'gear.bonus.summonCost': 'Summon costs {percent}% less',
