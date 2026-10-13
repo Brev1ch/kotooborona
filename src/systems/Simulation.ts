@@ -42,6 +42,13 @@ export interface SimResult {
   /** Сколько строений каждого вида поставлено и сколько сделано улучшений. */
   built: Record<BuildingKind, number>;
   upgrades: number;
+  /** Призывы по волнам: индекс — номер волны, во время которой призван кот (0 — до первой). */
+  summonsByWave: number[];
+  /** Сколько из призывов сделано сверх лимита волны. */
+  overLimitSummons: number;
+  /** Сколько монет и кристаллов принесли строения. */
+  buildingGold: number;
+  buildingCrystals: number;
   /** Самый высокий уровень кота за бой. */
   topCatLevel: number;
 }
@@ -67,7 +74,19 @@ export class Simulation {
   private readonly merger: Merge;
   private readonly summoner: Summon;
   private outcome: boolean | null = null;
-  private counts = { summons: 0, merges: 0, hybrids: 0, meteors: 0, sales: 0, upgrades: 0, topCatLevel: 0 };
+  private counts = {
+    summons: 0,
+    merges: 0,
+    hybrids: 0,
+    meteors: 0,
+    sales: 0,
+    upgrades: 0,
+    topCatLevel: 0,
+    overLimitSummons: 0,
+    buildingGold: 0,
+    buildingCrystals: 0,
+  };
+  private summonsByWave: number[] = [];
   private built: Record<BuildingKind, number> = { shop: 0, mine: 0, altar: 0 };
 
   /** `rng` возвращает число в [0, 1); `bonuses` — снаряжение игрока, по умолчанию стартовое первого уровня. */
@@ -121,6 +140,8 @@ export class Simulation {
       this.economy.startWave();
       const income = this.buildings.startWave(this.board);
       this.economy.reward(income.gold, income.crystals);
+      this.counts.buildingGold += income.gold;
+      this.counts.buildingCrystals += income.crystals;
     }
     this.apply(this.combat.update(dt, this.board));
 
@@ -133,9 +154,11 @@ export class Simulation {
     if (this.finished || !this.economy.canAffordSummon()) return false;
     const result = this.summoner.summon(this.board, this.economy.summonCost);
     if (!result) return false;
+    if (this.economy.overLimitMult > 1) this.counts.overLimitSummons++;
     this.economy.paySummon();
     this.board[result.slot] = result.cat;
     this.counts.summons++;
+    this.summonsByWave[this.waves.wave] = (this.summonsByWave[this.waves.wave] ?? 0) + 1;
     this.counts.topCatLevel = Math.max(this.counts.topCatLevel, result.cat.level);
     return true;
   }
@@ -236,6 +259,7 @@ export class Simulation {
       time: this.time,
       ...this.counts,
       built: { ...this.built },
+      summonsByWave: Array.from({ length: this.level.waves + 1 }, (_, wave) => this.summonsByWave[wave] ?? 0),
     };
   }
 

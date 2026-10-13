@@ -1,5 +1,5 @@
-import type { LevelConfig, Point } from '../data/types';
-import { isCat } from '../entities/Building';
+import type { BuildingKind, LevelConfig, Point } from '../data/types';
+import { isBuilding, isCat } from '../entities/Building';
 import type { Cat } from '../entities/Cat';
 import { positionAt } from './Path';
 import { seededRandom } from './Random';
@@ -15,6 +15,13 @@ export interface BotOptions {
   meteorDanger: number;
   /** Шаг симуляции, секунды. */
   dt: number;
+  /** Сколько клеток бот оставляет котам: строение ставится, только если свободных клеток не меньше. */
+  freeSlotsToBuild: number;
+  /** Алтарь и шахта — покупки на вырост: бот берёт их, только если после покупки останется столько монет на котов. */
+  spareGold: number;
+  /** Алтарь окупается, если до конца уровня осталось хотя бы столько волн; шахта — столько. */
+  altarWaves: number;
+  mineWaves: number;
 }
 
 /** Шаг, с которым бот размечает дорогу точками, и сколько таких точек должна прибавить перестановка, чтобы её стоило делать. */
@@ -23,15 +30,27 @@ const MOVE_GAIN = 4;
 /** Клетка и уровень кота в одном числе — ключ запомненного обзора. */
 const VIEW_KEY_BASE = 100;
 
-export const DEFAULT_BOT: BotOptions = { reaction: 0.4, meteorTargets: 4, meteorDanger: 0.8, dt: 1 / 30 };
+export const DEFAULT_BOT: BotOptions = {
+  reaction: 0.4,
+  meteorTargets: 4,
+  meteorDanger: 0.8,
+  dt: 1 / 30,
+  freeSlotsToBuild: 2,
+  spareGold: 20,
+  altarWaves: 3,
+  mineWaves: 3,
+};
 
 /**
  * Бот с простой стратегией, по одному действию за раз, в порядке важности:
  * 1. метеор — по самому плотному скоплению врагов или по тому, кто уже у ворот;
  * 2. слияние одинаковых котов — сначала самых высоких уровней;
  * 3. гибрид — если есть кристалл, а на поле нет врагов (ритуал выключает обоих котов) или поле забито;
- * 4. призыв — пока хватает монет и есть свободная клетка;
- * 5. перестановка — кот из клетки, откуда видно мало дороги, переезжает в свободную клетку получше.
+ * 4. призыв по обычной цене — пока волна даёт призывы, хватает монет и есть свободная клетка;
+ * 5. стройка и улучшение — лавка, пока успеет окупиться; шахта, когда кристаллы кончились; алтарь, когда монет с запасом;
+ * 6. продажа — строений, от которых на последней волне уже нет толку, и кота без пары, когда поле забито;
+ * 7. призыв сверх лимита — только если копить больше не на что;
+ * 8. перестановка — кот из клетки, откуда видно мало дороги, переезжает в свободную клетку получше.
  */
 export class Bot {
   private wait = 0;
@@ -57,7 +76,16 @@ export class Bot {
     if (this.wait > 0) return;
     // Сделал ход или нет — следующий раз бот смотрит на поле через то же время.
     this.wait = this.options.reaction;
-    void (this.tryMeteor() || this.tryMerge(false) || this.tryMerge(true) || this.sim.summon() || this.tryMove());
+    void (
+      this.tryMeteor() ||
+      this.tryMerge(false) ||
+      this.tryMerge(true) ||
+      this.trySummon(false) ||
+      this.tryBuild() ||
+      this.trySell() ||
+      this.trySummon(true) ||
+      this.tryMove()
+    );
   }
 
   private tryMeteor(): boolean {
@@ -112,6 +140,85 @@ export class Bot {
       }
     }
     return pick !== null && sim.drop(pick.from, pick.to);
+  }
+
+  /** Призыв: по обычной цене — всегда; сверх лимита — только когда монеты больше не на что копить. */
+  private trySummon(overLimit: boolean): boolean {
+    const { sim } = this;
+    if (sim.economy.overLimitMult > 1 !== overLimit) return false;
+    // Призывы по обычной цене — самая выгодная трата, их бот не пропускает; копит он вместо дорогих призывов сверх лимита.
+    if (overLimit && this.wanted() !== null) return false;
+    return sim.summon();
+  }
+
+  /** Волны, которые ещё начнутся: столько раз строение успеет принести доход. */
+  private get wavesLeft(): number {
+    return this.sim.level.waves - this.sim.waves.wave;
+  }
+
+  /**
+   * Покупка, на которую бот сейчас копит: строение или улучшение, которое успеет окупиться.
+   * Лавка и её улучшения — первыми: чем раньше, тем больше волн дохода.
+   */
+  private wanted(): { cost: number; buy: () => boolean } | null {
+    const { sim, options, wavesLeft } = this;
+    const { buildings, board, economy } = sim;
+    const free = board.filter((piece) => piece === null).length;
+    const canPlace = (kind: BuildingKind): boolean => free >= options.freeSlotsToBuild && buildings.blocked(board, kind) === null;
+    const build = (kind: BuildingKind, spare = 0) => ({ cost: buildings.cost(kind) + spare, buy: () => sim.build(kind) });
+
+    // На последней волне бот строения продаёт, поэтому настоящая цена покупки — то, что не вернётся при продаже.
+    const net = (cost: number): number => cost - economy.sellValue(cost);
+    const shop = buildings.stats('shop', 1);
+    if (canPlace('shop') && (shop.gold ?? 0) * wavesLeft >= net(shop.cost)) return build('shop');
+
+    // Улучшение лавки — если прибавка дохода за оставшиеся волны больше цены.
+    for (let slot = 0; slot < board.length; slot++) {
+      const piece = board[slot];
+      if (!isBuilding(piece) || piece.kind !== 'shop') continue;
+      const cost = buildings.upgradeCost(piece);
+      if (cost === null) continue;
+      const gain = (buildings.stats('shop', piece.level + 1).gold ?? 0) - (buildings.stats('shop', piece.level).gold ?? 0);
+      if (gain * wavesLeft >= net(cost)) return { cost, buy: () => sim.upgrade(slot) };
+    }
+
+    // Шахта — когда кристаллы кончились: без них гибридов не будет.
+    if (canPlace('mine') && economy.crystals === 0 && buildings.count(board, 'mine') === 0 && wavesLeft >= options.mineWaves) {
+      return build('mine', options.spareGold);
+    }
+    // Алтарь — когда монет хватает и на него, и на котов: лишний призыв каждую волну до конца уровня.
+    if (canPlace('altar') && wavesLeft >= options.altarWaves) return build('altar', options.spareGold);
+    return null;
+  }
+
+  private tryBuild(): boolean {
+    const wanted = this.wanted();
+    return wanted !== null && this.sim.economy.gold >= wanted.cost && wanted.buy();
+  }
+
+  /**
+   * Продаёт то, от чего больше нет толку: на последней волне — строения (дохода уже не будет, а клетка и монеты нужны котам);
+   * на забитом поле — самого дешёвого кота, которому не с кем слиться, чтобы призвать на его место другого.
+   */
+  private trySell(): boolean {
+    const { sim } = this;
+    const { board } = sim;
+    if (this.wavesLeft === 0) {
+      const building = board.findIndex((piece) => isBuilding(piece));
+      if (building >= 0) return sim.sell(building);
+    }
+    if (board.includes(null) || !sim.economy.canAffordSummon()) return false;
+
+    let pick: { slot: number; invested: number } | null = null;
+    board.forEach((cat, slot) => {
+      if (!isCat(cat) || cat.ritual > 0) return;
+      // Есть кот того же уровня — пара ещё может сложиться (хотя бы гибридом, когда появится кристалл).
+      const paired = board.some((other, at) => at !== slot && isCat(other) && other.level === cat.level);
+      if (paired) return;
+      if (!pick || cat.invested < pick.invested) pick = { slot, invested: cat.invested };
+    });
+    const sale = pick as { slot: number } | null;
+    return sale !== null && sim.sell(sale.slot);
   }
 
   /** Переставляет одного кота туда, откуда он достанет заметно больше дороги; первыми — коты высоких уровней. */
@@ -178,6 +285,23 @@ export interface LevelReport {
   avgTime: number;
   avgTopCatLevel: number;
   avgHybrids: number;
+  /** Сколько строений каждого вида бот ставит за бой, сколько раз улучшает и сколько продаёт (котов и строений). */
+  avgBuilt: Record<BuildingKind, number>;
+  avgUpgrades: number;
+  avgSales: number;
+  /** Призывов за волну в последней трети уровня и сколько из всех призывов сделано сверх лимита. */
+  avgLateSummons: number;
+  avgOverLimit: number;
+  /** Кристаллы со шахт и монеты с лавок за бой. */
+  avgMineCrystals: number;
+  avgShopGold: number;
+}
+
+/** Среднее число призывов за волну в последней трети уровня: показывает, держит ли лимит до конца. */
+function lateSummons(result: SimResult): number {
+  const waves = result.summonsByWave.slice(1);
+  const late = waves.slice(Math.floor((waves.length * 2) / 3));
+  return late.length === 0 ? 0 : late.reduce((sum, count) => sum + count, 0) / late.length;
 }
 
 /** Прогоняет уровень ботом `runs` раз с зёрнами `seed`, `seed + 1`, … и сводит итоги. */
@@ -203,5 +327,16 @@ export function reportLevel(
     avgTime: avg(wins, (result) => result.time),
     avgTopCatLevel: avg(results, (result) => result.topCatLevel),
     avgHybrids: avg(results, (result) => result.hybrids),
+    avgBuilt: {
+      shop: avg(results, (result) => result.built.shop),
+      mine: avg(results, (result) => result.built.mine),
+      altar: avg(results, (result) => result.built.altar),
+    },
+    avgUpgrades: avg(results, (result) => result.upgrades),
+    avgSales: avg(results, (result) => result.sales),
+    avgLateSummons: avg(results, lateSummons),
+    avgOverLimit: avg(results, (result) => result.overLimitSummons),
+    avgMineCrystals: avg(results, (result) => result.buildingCrystals),
+    avgShopGold: avg(results, (result) => result.buildingGold),
   };
 }

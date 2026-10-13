@@ -21,6 +21,7 @@ const TARGET_STARS = [2.85, 2.7, 2.55, 2.4, 2.25, 2.1, 1.95, 1.8, 1.65, 1.5];
 
 function row(number: number, level: LevelConfig, report: LevelReport): string {
   const [lost, one, two, three] = report.stars;
+  const built = report.avgBuilt;
   const pad = (value: string | number, width: number): string => String(value).padStart(width);
   return [
     pad(number, 2),
@@ -33,10 +34,23 @@ function row(number: number, level: LevelConfig, report: LevelReport): string {
     pad(`${Math.floor(report.avgTime / 60)}:${String(Math.round(report.avgTime % 60)).padStart(2, '0')}`, 5),
     pad(report.avgTopCatLevel.toFixed(1), 5),
     pad(report.avgHybrids.toFixed(1), 5),
+    pad(`${built.shop.toFixed(1)}/${built.mine.toFixed(1)}/${built.altar.toFixed(1)}`, 11),
+    pad(report.avgUpgrades.toFixed(1), 5),
+    pad(report.avgSales.toFixed(1), 5),
+    pad(report.avgLateSummons.toFixed(1), 6),
+    pad(report.avgOverLimit.toFixed(1), 6),
+    pad(report.avgMineCrystals.toFixed(1), 5),
+    pad(report.avgShopGold.toFixed(0), 5),
   ].join(' | ');
 }
 
-const HEADER = ' № | уровень   |  hp×  | побед | звёзд | 3/2/1/пораж. | потери | время | кот   | гибр.';
+const HEADER =
+  ' № | уровень   |  hp×  | побед | звёзд | 3/2/1/пораж. | потери | время | кот   | гибр. | лав/шах/алт | улуч. | прод. | приз/в | сверх  | крист | доход';
+const LEGEND = [
+  'лав/шах/алт — сколько лавок, шахт и алтарей бот ставит за бой; улуч. — улучшений; прод. — продано котов и строений;',
+  'приз/в — призывов за волну в последней трети уровня; сверх — призывов сверх лимита за бой;',
+  'крист — кристаллов со шахт за бой; доход — монет с лавок за бой.',
+].join('\n');
 
 /** Подбирает hpMult делением пополам: чем живучее враги, тем меньше звёзд у бота. */
 function tune(level: LevelConfig, target: number): LevelConfig {
@@ -57,5 +71,5 @@ it('отчёт о балансе главы', () => {
     const level = process.env.TUNE ? tune(source, TARGET_STARS[index]) : source;
     lines.push(row(index + 1, level, reportLevel(level, configs, RUNS, SEED)));
   });
-  console.log(`\nБот, ${RUNS} прогонов на уровень${process.env.TUNE ? ', hpMult подобран' : ''}\n${lines.join('\n')}\n`);
+  console.log(`\nБот, ${RUNS} прогонов на уровень${process.env.TUNE ? ', hpMult подобран' : ''}\n${lines.join('\n')}\n\n${LEGEND}\n`);
 });

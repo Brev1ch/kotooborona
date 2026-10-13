@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { cats, economy, enemies, gear, levels } from '../data';
 import type { LevelConfig } from '../data';
 import { Bot, DEFAULT_BOT, playLevel, reportLevel } from './Bot';
+import { isBuilding } from '../entities/Building';
 import { noBonuses } from './Loadout';
 import { seededRandom } from './Random';
 import { Simulation, type BattleConfigs } from './Simulation';
@@ -98,6 +99,102 @@ describe('Bot: стратегия', () => {
 
     expect(sim.board[0]).toMatchObject({ element: 'fire' });
     expect(sim.board[1]).toBeNull();
+  });
+});
+
+describe('Bot: строения и продажа', () => {
+  const ALL: LevelConfig['buildings'] = ['shop', 'mine', 'altar'];
+  const { cost, beforeFirstWave, overLimitMult } = economy.summon;
+  const shop = economy.buildings.kinds.shop;
+  /** Бот делает `count` ходов подряд; бой при этом стоит, волны не начинаются. */
+  const act = (bot: Bot, count: number): void => {
+    for (let i = 0; i < count; i++) bot.update(DEFAULT_BOT.reaction);
+  };
+  const cat = (level: number, element: 'fire' | 'storm' = 'storm') => ({ element, level, cooldown: 0, ritual: 0, invested: 10 });
+
+  it('сначала тратит призывы волны, потом строит лавку', () => {
+    const { sim, bot } = create({ buildings: ALL, waves: 8, startGold: beforeFirstWave * cost + shop[0].cost, startCrystals: 0 });
+    act(bot, 12);
+
+    expect(sim.result().summons).toBe(beforeFirstWave);
+    expect(sim.result().built).toEqual({ shop: 1, mine: 0, altar: 0 });
+    expect(sim.economy.gold).toBe(0);
+  });
+
+  it('копит на лавку, а не призывает сверх лимита', () => {
+    const spare = shop[0].cost - 10;
+    const { sim, bot } = create({ buildings: ALL, waves: 8, startGold: beforeFirstWave * cost + spare, startCrystals: 0 });
+    act(bot, 12);
+
+    // На призыв сверх лимита монет хватило бы, но лавка нужнее.
+    expect(spare).toBeGreaterThanOrEqual(cost * overLimitMult[0]);
+    expect(sim.result().overLimitSummons).toBe(0);
+    expect(sim.economy.gold).toBe(spare);
+  });
+
+  it('там, где строить нельзя, лишние монеты идут на призыв сверх лимита', () => {
+    const { sim, bot } = create({ buildings: undefined, startGold: beforeFirstWave * cost + 100, startCrystals: 0 });
+    act(bot, 12);
+
+    expect(sim.result().overLimitSummons).toBeGreaterThan(0);
+  });
+
+  it('лавку, которая не успеет окупиться, не строит', () => {
+    const { sim, bot } = create({ buildings: ['shop'], waves: 1, bossWaves: [], startGold: 500, startCrystals: 0 });
+    act(bot, 20);
+
+    expect(sim.result().built.shop).toBe(0);
+    expect(sim.result().overLimitSummons).toBeGreaterThan(0);
+  });
+
+  it('оставляет клетки котам: на почти занятом поле не строит', () => {
+    const { sim, bot } = create({ buildings: ALL, waves: 8, startGold: 500, startCrystals: 0 });
+    // Свободна одна клетка; у котов разные уровни, сливаться им не с кем.
+    for (let slot = 1; slot < sim.board.length; slot++) sim.board[slot] = cat(first.maxCatLevel);
+    act(bot, 3);
+
+    expect(sim.result().built).toEqual({ shop: 0, mine: 0, altar: 0 });
+  });
+
+  it('улучшает лавку, когда новые ставить уже нельзя', () => {
+    const { sim, bot } = create({ buildings: ['shop'], waves: 8, startGold: 10_000, startCrystals: 0 });
+    for (let i = 0; i < economy.buildings.maxPerKind; i++) sim.build('shop');
+    sim.economy.gold = beforeFirstWave * cost + shop[1].cost;
+    act(bot, 12);
+
+    expect(sim.result().upgrades).toBe(1);
+    expect(sim.economy.gold).toBe(0);
+  });
+
+  it('на последней волне продаёт строения: дохода от них уже не будет', () => {
+    const { sim, bot } = create({ buildings: ['shop'], waves: 1, bossWaves: [], startGold: 0, startCrystals: 0 });
+    sim.economy.gold = shop[0].cost;
+    sim.build('shop');
+    run(sim, bot, levels.waves.firstWaveDelay + 1);
+
+    expect(sim.waves.wave).toBe(1);
+    expect(sim.board.some(isBuilding)).toBe(false);
+    expect(sim.result().sales).toBe(1);
+  });
+
+  it('на забитом поле продаёт кота без пары и призывает другого', () => {
+    const { sim, bot } = create({ startGold: cost, startCrystals: 0 });
+    // Все коты на потолке уровня и слиться не могут; у кота 1-го уровня пары нет вовсе.
+    sim.board.fill(cat(first.maxCatLevel));
+    sim.board[3] = cat(1, 'fire');
+    act(bot, 2);
+
+    expect(sim.result().sales).toBe(1);
+    expect(sim.result().summons).toBe(1);
+    expect(sim.board[3]).toMatchObject({ level: 1, invested: cost });
+  });
+
+  it('пока есть свободная клетка, котов не продаёт', () => {
+    const { sim, bot } = create({ startGold: 0, startCrystals: 0 });
+    sim.board[3] = cat(1, 'fire');
+    act(bot, 3);
+
+    expect(sim.result().sales).toBe(0);
   });
 });
 
