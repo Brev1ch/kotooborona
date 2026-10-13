@@ -21,10 +21,3 @@ export function gearAtLevel(item: GearItem, level: number): GearItem {
   const clamped = Math.max(1, Math.min(maxGearLevel(item), Math.floor(level)));
   return clamped === 1 ? item : { ...item, ...item.upgrades?.[clamped - 2] };
 }
-
-/** Сколько рыбок стоит следующий уровень предмета; null — прокачивать дальше некуда. */
-export function upgradeCost(config: GearConfig, item: GearItem, level: number): number | null {
-  if (level >= maxGearLevel(item)) return null;
-  // Уровней у предмета больше, чем цен в списке, — дальше действует последняя цена.
-  return config.upgradeCost[Math.min(level, config.upgradeCost.length) - 1] ?? null;
-}

@@ -41,8 +41,8 @@ export function menuChestCenter(): [number, number] {
   return [GAME_W / 2, MENU.chestY];
 }
 
-// Окно открытого сундука поверх меню: заголовок, предмет, его бонус, рыбки, кнопка «Забрать».
-export const CHEST_POPUP = { y: 300, w: 300, h: 250, titleY: -92, itemY: -44, bonusY: -8, fishY: 36, buttonY: 86, buttonW: 200, buttonH: 50 };
+// Окно открытого сундука поверх меню: заголовок, предмет с редкостью и бонусами, рыбки, шансы редкостей, кнопка «Забрать».
+export const CHEST_POPUP = { y: 310, w: 316, h: 340, titleY: -140, itemY: -104, rarityY: -82, bonusY: -64, fishY: 40, chancesY: 76, buttonY: 132, buttonW: 200, buttonH: 50 };
 
 /** Центр кнопки «Забрать» в окне сундука. */
 export function chestTakeCenter(): [number, number] {
@@ -74,25 +74,68 @@ export function menuCardCenter(index: number): [number, number] {
 }
 
 // Экран снаряжения: заголовок, счётчик рыбок, три слота с предметами-плашками и прокачкой, кнопки внизу.
+// Экран снаряжения перед уровнем: три надетых предмета в ряд, под ними — инвентарь сеткой, внизу — «Назад» и «В бой».
 export const GEAR = {
-  titleY: 40,
-  subtitleY: 82,
-  listY: 104,
+  titleY: 34,
+  subtitleY: 70,
   pad: 14,
-  headH: 20,
-  chipH: MIN_TOUCH,
-  chipGap: 8,
-  chipPadX: 14,
-  /** Строка под плашками: бонус надетого предмета и кнопка прокачки. */
-  descH: MIN_TOUCH,
-  upgradeW: 108,
-  blockGap: 8,
-  buttonY: 588,
+  /** Надетые предметы: три плашки на всю ширину. */
+  wornY: 92,
+  wornW: 104,
+  wornH: 76,
+  wornGap: 10,
+  /** Заголовок инвентаря и сетка под ним. */
+  listTitleY: 188,
+  gridY: 204,
+  cols: 6,
+  rows: 5,
+  cell: 50,
+  cellGap: 6,
+  buttonY: 596,
   buttonH: 50,
   backW: 120,
   startW: 200,
   buttonGap: 12,
 };
+
+/** Центр плашки надетого предмета; `index` — номер слота с нуля. */
+export function gearWornCenter(index: number): [number, number] {
+  const { pad, wornW, wornH, wornGap, wornY } = GEAR;
+  return [pad + wornW / 2 + index * (wornW + wornGap), wornY + wornH / 2];
+}
+
+/** Центр ячейки инвентаря; `index` — номер предмета с нуля, слева направо и сверху вниз. */
+export function gearCellCenter(index: number): [number, number] {
+  const { pad, cols, cell, cellGap, gridY } = GEAR;
+  return [pad + 1 + cell / 2 + (index % cols) * (cell + cellGap), gridY + cell / 2 + Math.floor(index / cols) * (cell + cellGap)];
+}
+
+// Карточка предмета поверх экрана снаряжения: название, редкость, бонусы, сравнение с надетым и кнопки.
+export const ITEM_CARD = {
+  y: 310,
+  w: 316,
+  h: 444,
+  pad: 16,
+  titleY: -200,
+  rarityY: -176,
+  textY: -156,
+  lineGap: 4,
+  blockGap: 12,
+  /** Ряд действий (надеть и разобрать или улучшить) и «Закрыть» под ним. */
+  actionY: 142,
+  closeY: 194,
+  buttonH: 46,
+  buttonGap: 8,
+};
+
+/** Центр кнопки карточки предмета: `left` и `right` — два действия рядом, `wide` — одно во всю ширину, `close` — «Закрыть». */
+export function itemCardButtonCenter(button: 'left' | 'right' | 'wide' | 'close'): [number, number] {
+  const { y, w, pad, actionY, closeY, buttonGap } = ITEM_CARD;
+  const half = (w - pad * 2 - buttonGap) / 2;
+  if (button === 'close') return [GAME_W / 2, y + closeY];
+  if (button === 'wide') return [GAME_W / 2, y + actionY];
+  return [GAME_W / 2 + (button === 'left' ? -1 : 1) * (half + buttonGap) / 2, y + actionY];
+}
 
 /** Центр кнопки внизу экрана снаряжения: «Назад» слева, «В бой» справа. */
 export function gearButtonCenter(button: 'back' | 'start'): [number, number] {
@@ -324,6 +367,11 @@ export const COLORS = {
   claw: 0xf2e6d0,
   mound: 0x7a5c3a,
   moundDark: 0x4f3b26,
+  /** Редкости предметов. */
+  rarityCommon: 0x9aa3b8,
+  rarityRare: 0x4aa3df,
+  rarityEpic: 0xb48cf2,
+  rarityLegendary: 0xe0a948,
 };
 
 export const TEXT_COLORS = {

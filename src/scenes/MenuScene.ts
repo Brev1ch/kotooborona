@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
-import { gear, levels } from '../data';
+import { cats, gear, levels, type Rarity } from '../data';
 import { CHEST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import {
@@ -22,9 +22,8 @@ import { progress } from '../progress';
 import { campaignTiles, type CampaignTile } from '../systems/Campaign';
 import { chestState, rollChest, type ChestLoot } from '../systems/Chests';
 import { random } from '../systems/Random';
-import { findGear, gearAtLevel } from '../systems/Gear';
 import { MAX_STARS } from '../systems/Progress';
-import { describeGear, gearName } from './gearText';
+import { itemLines, itemTitle, rarityColor, rarityFill } from './itemText';
 import { SceneKey, type LevelSceneData } from './keys';
 import { fadeIn, fadeOut } from './transitions';
 import { addButton, addFishCounter, addFishIcon, addLockIcon, addPressFeel, addSoundButton, type FishCounter } from './widgets';
@@ -120,44 +119,45 @@ export class MenuScene extends Phaser.Scene {
 
   /** Открывает сундук: добыча сразу уходит в сохранение, окно только показывает её. */
   private openChest(): void {
-    const loot = rollChest(gear, (slot, id) => progress.ownsGear(slot, id), random);
-    progress.claimChest(loot);
+    const loot = rollChest(gear, cats, progress.newItemId(), random);
+    const shards = progress.claimChest(loot);
     progress.flush();
     audio.play('hybrid');
-    this.showLoot(loot);
+    this.showLoot(loot, shards);
   }
 
-  private showLoot(loot: ChestLoot): void {
-    const { y, w, h, titleY, itemY, bonusY, fishY, buttonW, buttonH } = CHEST_POPUP;
+  /** Окно сундука: предмет с редкостью и бонусами, рыбки и шансы редкостей. `shards` — осколки, если инвентарь был полон и предмет разобран. */
+  private showLoot(loot: ChestLoot, shards: number): void {
+    const { y, w, h, titleY, itemY, rarityY, bonusY, fishY, chancesY, buttonW, buttonH } = CHEST_POPUP;
     // Затемнение перехватывает касания, чтобы под окном ничего не нажималось.
     const dim = this.add
       .rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, COLORS.bg, CHEST_FEEL.dimAlpha)
       .setInteractive();
 
-    const panel = this.add.rectangle(0, 0, w, h, COLORS.panel).setStrokeStyle(1, COLORS.brass);
+    const { item } = loot;
+    const panel = this.add.rectangle(0, 0, w, h, COLORS.panel).setStrokeStyle(2, item ? rarityFill(item.rarity) : COLORS.brass);
     const title = this.add
       .text(0, titleY, t('chest.title'), { fontFamily: FONTS.display, fontSize: '22px', color: TEXT_COLORS.fg })
       .setOrigin(0.5);
-
-    const found = loot.item && findGear(gear, loot.item.slot, loot.item.id);
-    const item = this.add
-      .text(0, itemY, loot.item && found ? gearName(loot.item.slot, loot.item.id) : t('chest.onlyFish'), {
-        fontFamily: FONTS.display,
-        fontSize: '16px',
-        color: found ? TEXT_COLORS.brass : TEXT_COLORS.muted,
-        align: 'center',
-        wordWrap: { width: w - 32 },
-      })
-      .setOrigin(0.5);
-    const bonus = this.add
-      .text(0, bonusY, found ? describeGear(gearAtLevel(found, 1)) : '', {
-        fontFamily: FONTS.body,
-        fontSize: '13px',
-        color: TEXT_COLORS.fg,
-        align: 'center',
-        wordWrap: { width: w - 32 },
-      })
-      .setOrigin(0.5, 0);
+    const window = this.add.container(GAME_W / 2, y, [panel, title]);
+    const wrap = { width: w - 32 };
+    if (item) {
+      window.add([
+        this.add.text(0, itemY, itemTitle(item), { fontFamily: FONTS.display, fontSize: '16px', color: rarityColor(item.rarity) }).setOrigin(0.5),
+        this.add
+          .text(0, rarityY, t('item.rarity', { rarity: t(`rarity.${item.rarity}`) }), { fontFamily: FONTS.body, fontSize: '12px', color: TEXT_COLORS.muted })
+          .setOrigin(0.5),
+        this.add
+          .text(0, bonusY, shards > 0 ? t('chest.full', { shards }) : itemLines(item).join('\n'), {
+            fontFamily: FONTS.body,
+            fontSize: '13px',
+            color: shards > 0 ? TEXT_COLORS.danger : TEXT_COLORS.fg,
+            align: 'center',
+            wordWrap: wrap,
+          })
+          .setOrigin(0.5, 0),
+      ]);
+    }
 
     const fishText = this.add
       .text(0, fishY, t('chest.fish', { fish: loot.fish }), {
@@ -169,8 +169,19 @@ export class MenuScene extends Phaser.Scene {
     const fishW = fishText.width + 6 + LOOT_FISH;
     fishText.setX(-fishW / 2);
     const fishIcon = addFishIcon(this, fishW / 2 - LOOT_FISH / 2, fishY, LOOT_FISH);
+    // Шансы редкостей — из тех же данных, по которым выпал предмет.
+    const percent = (rarity: Rarity): number => Math.round(gear.items.rarities[rarity].chance * 100);
+    const chances = this.add
+      .text(0, chancesY, t('chest.chances', { common: percent('common'), rare: percent('rare'), epic: percent('epic'), legendary: percent('legendary') }), {
+        fontFamily: FONTS.body,
+        fontSize: '11px',
+        color: TEXT_COLORS.muted,
+        align: 'center',
+        wordWrap: wrap,
+      })
+      .setOrigin(0.5, 0);
+    window.add([fishText, fishIcon, chances]);
 
-    const window = this.add.container(GAME_W / 2, y, [panel, title, item, bonus, fishText, fishIcon]);
     const take = addButton(this, ...chestTakeCenter(), buttonW, buttonH, t('chest.take'), true, () => {
       dim.destroy();
       window.destroy();

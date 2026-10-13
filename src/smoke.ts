@@ -1,17 +1,18 @@
 import type Phaser from 'phaser';
 import { audio } from './audio';
-import { enemies, levels, type ElementId, type EnemyTypeId } from './data';
+import { cats, enemies, gear, levels, type ElementId, type EnemyTypeId, type GearSlot, type Rarity } from './data';
 import type { Enemy } from './entities/Enemy';
 import { BOARD_Y, GAME_H, GAME_W } from './layout';
 import { debugEnemy, parade, stress } from './debug';
 import { progress } from './progress';
 import { FLOAT_NAME, type GameScene } from './scenes/GameScene';
+import type { GearScene } from './scenes/GearScene';
 import type { IntroScene } from './scenes/IntroScene';
 import type { StoryScene } from './scenes/StoryScene';
 import type { UIScene } from './scenes/UIScene';
 import { GameEvent, SceneKey, type HudState, type LevelSceneData, type StorySceneData } from './scenes/keys';
-import type { GearSelection } from './systems/Progress';
-import { seedRandom } from './systems/Random';
+import { rollItem } from './systems/Items';
+import { seededRandom, seedRandom } from './systems/Random';
 
 // Зонд для смоук-проверки (smoke/game.smoke.ts). Игра — один canvas, поэтому тест
 // читает состояние отсюда. Модуль подключается только по параметру ?smoke (см. main.ts).
@@ -34,8 +35,12 @@ export interface SmokeState {
   targets: SmokeTarget[];
   /** Звук включён игроком. */
   sound: boolean;
-  /** Надетое снаряжение. */
-  gear: GearSelection;
+  /** Надетые предметы по слотам; null — слот пуст. */
+  worn: Record<GearSlot, SmokeItem | null>;
+  /** Предметы в инвентаре, не считая надетых, в порядке ячеек. */
+  bag: SmokeItem[];
+  /** Осколки игрока. */
+  shards: number;
   /** null, пока GameScene не запущена. */
   hud: HudState | null;
   /** id уровня идущего боя. */
@@ -61,13 +66,17 @@ export interface SmokeState {
   story: { line: number; total: number } | null;
   /** Рыбки игрока. */
   fish: number;
-  /** Уровни прокачки надетых предметов. */
-  gearLevels: GearSelectionLevels;
   /** Сколько сундуков открыто. */
   chests: number;
 }
 
-type GearSelectionLevels = Record<keyof GearSelection, number>;
+/** Предмет игрока глазами проверки. */
+export interface SmokeItem {
+  id: string;
+  slot: GearSlot;
+  rarity: string;
+  level: number;
+}
 
 /** Стоимость кадра для процессора: обновление и отправка отрисовки, без работы видеокарты. Время — в мс. */
 export interface FrameProfile {
@@ -115,6 +124,10 @@ export interface SmokeProbe {
   spawnEnemy(type: EnemyTypeId, distance: number): void;
   /** Открывает врага в бестиарии, как после победы над ним. */
   meetEnemy(type: EnemyTypeId): void;
+  /** Кладёт в инвентарь по предмету каждой редкости в каждый слот и оба легендарных; предметы в каждом прогоне одни и те же. */
+  giveItems(): void;
+  /** На сколько пикселей текст открытой карточки предмета заходит на её кнопки; 0 — помещается. */
+  cardOverflow(): number;
   /** id уровня, перед которым сейчас показана карточка нового врага; null — карточки нет. */
   introLevel(): string | null;
   /** Парад из src/debug.ts: по одному врагу каждого типа друг за другом. */
@@ -227,6 +240,8 @@ function collectTexts(
 
 /** Зерно случайности игры в проверке: призывы, состав волн и кристаллы в каждом прогоне одни и те же. */
 const SMOKE_SEED = 20241;
+/** Первое зерно предметов, которые проверка кладёт в инвентарь. */
+const ITEMS_SEED = 500;
 
 export function installSmokeProbe(game: Phaser.Game): void {
   seedRandom(SMOKE_SEED);
@@ -359,6 +374,19 @@ export function installSmokeProbe(game: Phaser.Game): void {
     meetEnemy(type) {
       progress.meetEnemy(type);
     },
+    giveItems() {
+      const give = (seed: number, rarity: Rarity, slot: GearSlot): void => {
+        progress.addItem(rollItem(gear.items, cats, seededRandom(seed), progress.newItemId(), { rarity, slot }));
+      };
+      let seed = ITEMS_SEED;
+      for (const rarity of ['common', 'rare', 'epic'] as const) {
+        for (const slot of ['staff', 'mantle', 'amulet'] as const) give(seed++, rarity, slot);
+      }
+      for (const { slot } of gear.items.legendaries) give(seed++, 'legendary', slot);
+    },
+    cardOverflow() {
+      return (game.scene.getScene(SceneKey.Gear) as GearScene).cardOverflow;
+    },
     introLevel() {
       const scene = game.scene.getScene(SceneKey.Intro) as IntroScene;
       return scene.scene.isActive() ? scene.levelId : null;
@@ -372,16 +400,17 @@ export function installSmokeProbe(game: Phaser.Game): void {
       const targets: SmokeTarget[] = [];
       for (const scene of active) collectTargets(scene.children.list, targets);
       const fading = active.some((scene) => scene.cameras.main?.fadeEffect.isRunning);
-      const gear = { ...progress.gear };
-      const gearLevels = {
-        staff: progress.gearLevel('staff', gear.staff),
-        mantle: progress.gearLevel('mantle', gear.mantle),
-        amulet: progress.gearLevel('amulet', gear.amulet),
+      const seen = ({ id, slot, rarity, level }: SmokeItem): SmokeItem => ({ id, slot, rarity, level });
+      const wornItem = (slot: GearSlot): SmokeItem | null => {
+        const item = progress.wornItem(slot);
+        return item ? seen(item) : null;
       };
+      const worn = { staff: wornItem('staff'), mantle: wornItem('mantle'), amulet: wornItem('amulet') };
+      const bag = progress.items.filter((item) => !progress.isWorn(item.id)).map(seen);
       const story = scenes.includes(SceneKey.Story)
         ? (game.scene.getScene(SceneKey.Story) as StoryScene).progressState()
         : null;
-      const common = { scenes, fading, targets, sound: audio.on, gear, gearLevels, story, fish: progress.fish, chests: progress.chestsOpened };
+      const common = { scenes, fading, targets, sound: audio.on, worn, bag, shards: progress.shards, story, fish: progress.fish, chests: progress.chestsOpened };
 
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);

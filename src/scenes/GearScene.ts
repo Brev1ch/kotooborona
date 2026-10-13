@@ -1,33 +1,43 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
-import { gear, type GearItem, type GearSlot } from '../data';
-import { GEAR_FEEL } from '../feel';
+import { gear, type GearSlot } from '../data';
 import { t, type StringKey } from '../i18n';
-import { COLORS, FONTS, GAME_W, GEAR, gearButtonCenter, gearFishCenter, MIN_TOUCH, TEXT_COLORS } from '../layout';
+import {
+  COLORS,
+  FONTS,
+  GAME_H,
+  GAME_W,
+  GEAR,
+  gearButtonCenter,
+  gearCellCenter,
+  gearFishCenter,
+  gearWornCenter,
+  ITEM_CARD,
+  itemCardButtonCenter,
+  TEXT_COLORS,
+} from '../layout';
 import { progress } from '../progress';
-import { gearAtLevel, GEAR_SLOTS, upgradeCost } from '../systems/Gear';
-import { describeGear } from './gearText';
+import { GEAR_SLOTS } from '../systems/Gear';
+import { salvageShards, upgradePrice, type Item } from '../systems/Items';
+import { drawSlotGlyph, itemAccent, itemLines, itemRarityLine, itemTitle, rarityColor, rarityFill } from './itemText';
 import { SceneKey, type LevelSceneData } from './keys';
 import { sceneBeforeBattle } from './IntroScene';
 import { fadeIn, fadeOut } from './transitions';
-import { addButton, addFishCounter, addFishIcon, addLockIcon, addPressFeel, type FishCounter } from './widgets';
+import { addButton, addFishCounter, addPressFeel, type FishCounter } from './widgets';
 
-interface Chip {
-  item: GearItem;
-  bg: Phaser.GameObjects.Rectangle;
-  label: Phaser.GameObjects.Text;
-  lock: Phaser.GameObjects.Graphics;
-}
-
-/** Размеры кнопки прокачки: сверху «Улучшить», снизу цена в рыбках. */
-const UPGRADE = { labelY: -9, costY: 10, icon: 14, gap: 4 };
-
-/** Экран перед уровнем: игрок выбирает по предмету в каждый из трёх слотов и прокачивает их за рыбки. */
+/**
+ * Экран перед уровнем: надетые предметы и инвентарь. Нажатие на предмет открывает карточку с бонусами:
+ * предмет из инвентаря можно надеть (сравнив с надетым) или разобрать на осколки, надетый — улучшить за осколки и рыбки.
+ */
 export class GearScene extends Phaser.Scene {
   private levelId!: string;
   private fish!: FishCounter;
-  /** Перерисовывает слоты: после прокачки меняются рыбки, а с ними — доступность всех кнопок. */
-  private refreshers: (() => void)[] = [];
+  /** Всё, что перерисовывается после каждого действия: надетые предметы, сетка инвентаря, счётчики. */
+  private content: Phaser.GameObjects.GameObject[] = [];
+  /** Части открытой карточки предмета; пусто — карточка закрыта. */
+  private card: Phaser.GameObjects.GameObject[] = [];
+  /** На сколько пикселей текст открытой карточки заходит на её кнопки; 0 — помещается. Читает смоук-проверка (src/smoke.ts). */
+  cardOverflow = 0;
 
   constructor() {
     super(SceneKey.Gear);
@@ -39,6 +49,8 @@ export class GearScene extends Phaser.Scene {
 
   create(): void {
     fadeIn(this);
+    this.content = [];
+    this.card = [];
     this.add
       .text(GAME_W / 2, GEAR.titleY, t(`level.${this.levelId}` as StringKey), {
         fontFamily: FONTS.display,
@@ -46,18 +58,8 @@ export class GearScene extends Phaser.Scene {
         color: TEXT_COLORS.fg,
       })
       .setOrigin(0.5);
-    this.add
-      .text(GEAR.pad, GEAR.subtitleY, t('gear.title'), {
-        fontFamily: FONTS.body,
-        fontSize: '14px',
-        color: TEXT_COLORS.muted,
-      })
-      .setOrigin(0, 0.5);
     this.fish = addFishCounter(this, ...gearFishCenter(), progress.fish);
-
-    this.refreshers = [];
-    let y = GEAR.listY;
-    for (const slot of GEAR_SLOTS) y = this.addSlot(slot, y) + GEAR.blockGap;
+    this.render();
 
     const data: LevelSceneData = { levelId: this.levelId };
     addButton(this, ...gearButtonCenter('back'), GEAR.backW, GEAR.buttonH, t('nav.back'), false, () => {
@@ -72,152 +74,166 @@ export class GearScene extends Phaser.Scene {
     });
   }
 
-  /**
-   * Слот: заголовок, предметы плашками в несколько рядов, под ними — уровень и бонус надетого предмета и кнопка прокачки.
-   * Предметы, которых у игрока ещё нет, приглушены и с замком. Возвращает нижний край блока.
-   */
-  private addSlot(slot: GearSlot, top: number): number {
-    const { pad, headH, chipH, chipGap, chipPadX, descH, upgradeW } = GEAR;
+  /** Рисует надетое и инвентарь заново: после действия с предметом меняется почти всё. */
+  private render(): void {
+    for (const object of this.content) object.destroy();
+    this.content = [];
+    this.fish.set(progress.fish);
+    const { pad, subtitleY, listTitleY, cell, wornW, wornH } = GEAR;
 
-    this.add
-      .text(pad, top, t(`gear.slot.${slot}`).toUpperCase(), {
+    this.content.push(
+      this.add
+        .text(pad, subtitleY, t('item.shards', { count: progress.shards }), { fontFamily: FONTS.body, fontSize: '14px', color: TEXT_COLORS.crystal })
+        .setOrigin(0, 0.5),
+    );
+
+    GEAR_SLOTS.forEach((slot, index) => this.addWorn(slot, ...gearWornCenter(index), wornW, wornH));
+
+    const bag = progress.items.filter((item) => !progress.isWorn(item.id));
+    this.content.push(
+      this.add
+        .text(pad, listTitleY, t('item.inventory', { count: progress.items.length, limit: progress.inventoryLimit }), {
+          fontFamily: FONTS.body,
+          fontSize: '13px',
+          color: TEXT_COLORS.muted,
+        })
+        .setOrigin(0, 0.5),
+    );
+    if (bag.length === 0) {
+      const [, y] = gearCellCenter(0);
+      this.content.push(
+        this.add
+          .text(GAME_W / 2, y, t('item.empty'), {
+            fontFamily: FONTS.body,
+            fontSize: '13px',
+            color: TEXT_COLORS.muted,
+            align: 'center',
+            wordWrap: { width: GAME_W - pad * 2 },
+          })
+          .setOrigin(0.5),
+      );
+    }
+    bag.forEach((item, index) => this.addCell(item, ...gearCellCenter(index), cell));
+  }
+
+  /** Плашка слота: значок, название слота, редкость и уровень надетого предмета. */
+  private addWorn(slot: GearSlot, x: number, y: number, width: number, height: number): void {
+    const item = progress.wornItem(slot);
+    const bg = this.add
+      .rectangle(0, 0, width, height, COLORS.panel)
+      .setStrokeStyle(2, item ? rarityFill(item.rarity) : COLORS.line)
+      // По имени плашку находит смоук-проверка.
+      .setName(`worn:${slot}`);
+    const glyph = this.add.graphics({ x: 0, y: -14 });
+    drawSlotGlyph(glyph, slot, 26, item ? rarityFill(item.rarity) : COLORS.line, item ? itemAccent(item) : COLORS.line);
+    const name = this.add
+      .text(0, 12, item ? itemTitle(item) : t(`gear.slot.${slot}`), {
         fontFamily: FONTS.body,
         fontSize: '11px',
-        color: TEXT_COLORS.muted,
+        color: item ? TEXT_COLORS.fg : TEXT_COLORS.muted,
+        align: 'center',
+        wordWrap: { width: width - 8 },
       })
-      .setLetterSpacing(0.6);
-
-    /** Предмет без плашки «надет», о котором сейчас рассказывает строка под плашками: игрок нажал на закрытый. */
-    let peeked: GearItem | null = null;
-    const chips: Chip[] = [];
-    let x = pad;
-    let y = top + headH;
-    for (const item of gear[slot]) {
-      const label = this.add
-        .text(0, 0, t(`gear.${slot}.${item.id}` as StringKey), { fontFamily: FONTS.body, fontSize: '14px' })
-        .setOrigin(0.5);
-      const owned = progress.ownsGear(slot, item.id);
-      const width = Math.max(MIN_TOUCH, Math.ceil(label.width) + chipPadX * 2);
-      if (x + width > GAME_W - pad) {
-        x = pad;
-        y += chipH + chipGap;
-      }
-      const bg = this.add
-        .rectangle(0, 0, width, chipH, COLORS.panel)
-        // По имени плашку находит смоук-проверка.
-        .setName(`gear:${slot}:${item.id}`)
-        .setInteractive({ useHandCursor: true });
-      // У закрытого предмета в углу плашки — замок: ширина плашки от него не меняется, и ряды не переносятся.
-      const lock = addLockIcon(this, width / 2 - GEAR_FEEL.lockInset, -chipH / 2 + GEAR_FEEL.lockInset, GEAR_FEEL.lockScale).setVisible(!owned);
-      const chip = this.add.container(x + width / 2, y + chipH / 2, [bg, label, lock]);
-      chips.push({ item, bg, label, lock });
-      x += width + chipGap;
-
-      addPressFeel(this, bg, chip);
-      bg.on('pointerdown', () => {
-        audio.play('click');
-        if (progress.ownsGear(slot, item.id)) {
-          peeked = null;
-          progress.selectGear(slot, item.id);
-        } else {
-          peeked = item;
-        }
-        refresh();
-      });
+      .setOrigin(0.5, 0);
+    const box = this.add.container(x, y, [bg, glyph, name]);
+    if (item) {
+      const level = this.add
+        .text(width / 2 - 6, -height / 2 + 5, t('gear.level', { level: item.level }), { fontFamily: FONTS.body, fontSize: '11px', color: TEXT_COLORS.muted })
+        .setOrigin(1, 0);
+      box.add(level);
+      this.makePressable(bg, box, item);
     }
+    this.content.push(box);
+  }
 
-    const rowY = y + chipH + chipGap + descH / 2;
-    const desc = this.add
-      .text(pad, rowY, '', {
-        fontFamily: FONTS.body,
-        fontSize: '13px',
-        color: TEXT_COLORS.brass,
-        wordWrap: { width: GAME_W - pad * 2 - upgradeW - chipGap },
-      })
-      .setOrigin(0, 0.5);
+  /** Ячейка инвентаря: рамка цвета редкости и значок слота. */
+  private addCell(item: Item, x: number, y: number, size: number): void {
+    const bg = this.add.rectangle(0, 0, size, size, COLORS.panel).setStrokeStyle(2, rarityFill(item.rarity)).setName(`item:${item.id}`);
+    const glyph = this.add.graphics();
+    drawSlotGlyph(glyph, item.slot, 28, rarityFill(item.rarity), itemAccent(item));
+    const box = this.add.container(x, y, [bg, glyph]);
+    this.makePressable(bg, box, item);
+    this.content.push(box);
+  }
 
-    // Кнопка прокачки надетого предмета.
-    const upBg = this.add
-      .rectangle(0, 0, upgradeW, descH, COLORS.brass)
-      .setName(`upgrade:${slot}`)
-      .setInteractive({ useHandCursor: true });
-    const upLabel = this.add
-      .text(0, UPGRADE.labelY, t('gear.upgrade'), { fontFamily: FONTS.display, fontSize: '13px', color: TEXT_COLORS.dark })
-      .setOrigin(0.5);
-    const upIcon = addFishIcon(this, 0, UPGRADE.costY, UPGRADE.icon);
-    const upCost = this.add
-      .text(0, UPGRADE.costY, '', { fontFamily: FONTS.display, fontSize: '13px', color: TEXT_COLORS.dark })
-      .setOrigin(0, 0.5);
-    const upButton = this.add.container(GAME_W - pad - upgradeW / 2, rowY, [upBg, upLabel, upIcon, upCost]);
-    const canUpgrade = (): boolean => {
-      const worn = gear[slot].find((candidate) => candidate.id === progress.gear[slot]);
-      const cost = worn ? upgradeCost(gear, worn, progress.gearLevel(slot, worn.id)) : null;
-      return peeked === null && cost !== null && progress.fish >= cost;
-    };
-    addPressFeel(this, upBg, upButton, canUpgrade);
-    upBg.on('pointerdown', () => {
-      if (!canUpgrade() || !progress.upgradeGear(slot, progress.gear[slot])) return;
-      audio.play('merge');
-      this.fish.set(progress.fish);
-      this.tweens.add({
-        targets: desc,
-        scale: { from: GEAR_FEEL.upgradePulse, to: 1 },
-        duration: GEAR_FEEL.upgradePulseMs,
-        ease: 'Cubic.easeOut',
-      });
-      for (const refreshSlot of this.refreshers) refreshSlot();
+  private makePressable(bg: Phaser.GameObjects.Rectangle, box: Phaser.GameObjects.Container, item: Item): void {
+    bg.setInteractive({ useHandCursor: true });
+    addPressFeel(this, bg, box, () => this.card.length === 0);
+    bg.on('pointerup', () => {
+      if (this.card.length > 0) return;
+      audio.play('click');
+      this.showCard(item);
     });
+  }
 
-    const refresh = (): void => {
-      const wornId = progress.gear[slot];
-      for (const { item, bg, label, lock } of chips) {
-        const owned = progress.ownsGear(slot, item.id);
-        const selected = item.id === wornId;
-        bg.setFillStyle(selected ? COLORS.brass : COLORS.panel);
-        bg.setStrokeStyle(1, item === peeked ? COLORS.range : COLORS.line, selected ? 0 : 1);
-        label.setColor(selected ? TEXT_COLORS.dark : owned ? TEXT_COLORS.fg : TEXT_COLORS.muted);
-        lock.setVisible(!owned);
-      }
+  private closeCard(): void {
+    for (const object of this.card) object.destroy();
+    this.card = [];
+    this.cardOverflow = 0;
+  }
 
-      if (peeked) {
-        // Закрытый предмет: что он даёт и откуда берётся. Прокачивать и надевать его пока нельзя.
-        desc.setColor(TEXT_COLORS.muted).setText(`${t('gear.locked')} · ${describeGear(peeked)}`);
-        upButton.setVisible(false);
-        return;
-      }
+  /** Карточка предмета: что он даёт, чем отличается от надетого, и что с ним можно сделать. */
+  private showCard(item: Item): void {
+    const { y, w, h, pad, titleY, rarityY, textY, lineGap, blockGap, buttonH, buttonGap } = ITEM_CARD;
+    const worn = progress.isWorn(item.id);
+    // Затемнение перехватывает касания, чтобы под карточкой ничего не нажималось.
+    const dim = this.add.rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, COLORS.shadow, 0.6).setInteractive();
+    const panel = this.add.rectangle(0, 0, w, h, COLORS.panel).setStrokeStyle(2, rarityFill(item.rarity));
+    const title = this.add
+      .text(0, titleY, itemTitle(item), { fontFamily: FONTS.display, fontSize: '18px', color: rarityColor(item.rarity) })
+      .setOrigin(0.5);
+    const rarity = this.add
+      .text(0, rarityY, itemRarityLine(item), { fontFamily: FONTS.body, fontSize: '12px', color: TEXT_COLORS.muted })
+      .setOrigin(0.5);
+    const window = this.add.container(GAME_W / 2, y, [panel, title, rarity]);
 
-      const worn = gear[slot].find((candidate) => candidate.id === wornId);
-      if (!worn) {
-        desc.setText('');
-        upButton.setVisible(false);
-        return;
-      }
-      const level = progress.gearLevel(slot, worn.id);
-      const cost = upgradeCost(gear, worn, level);
-      const text = describeGear(gearAtLevel(worn, level));
-      // Уровень показываем только у того, что прокачивается.
-      desc.setColor(TEXT_COLORS.brass).setText(worn.upgrades ? `${t('gear.level', { level })} · ${text}` : text);
-
-      upButton.setVisible(worn.upgrades !== undefined);
-      const affordable = cost !== null && progress.fish >= cost;
-      upBg.setFillStyle(affordable ? COLORS.brass : COLORS.panel).setStrokeStyle(1, COLORS.line, affordable ? 0 : 1);
-      const color = affordable ? TEXT_COLORS.dark : TEXT_COLORS.muted;
-      if (cost === null) {
-        upLabel.setText(t('gear.maxLevel')).setColor(color).setY(0);
-        upIcon.setVisible(false);
-        upCost.setVisible(false);
-        return;
-      }
-      upLabel.setText(t('gear.upgrade')).setColor(color).setY(UPGRADE.labelY);
-      upCost.setVisible(true).setText(String(cost)).setColor(color);
-      // Рыбка и цена вместе стоят по центру кнопки.
-      const width = UPGRADE.icon + UPGRADE.gap + upCost.width;
-      upIcon.setVisible(true).setX(-width / 2 + UPGRADE.icon / 2);
-      upCost.setX(-width / 2 + UPGRADE.icon + UPGRADE.gap);
+    // Строки идут друг за другом сверху вниз: высота каждой зависит от языка.
+    const left = -w / 2 + pad;
+    let top = textY;
+    const addLine = (text: string, color: string, size: string, gap: number): void => {
+      const line = this.add.text(left, top, text, { fontFamily: FONTS.body, fontSize: size, color, wordWrap: { width: w - pad * 2 } });
+      window.add(line);
+      top += line.height + gap;
     };
-    this.refreshers.push(refresh);
-    refresh();
+    for (const line of itemLines(item)) addLine(line, TEXT_COLORS.fg, '14px', lineGap);
+    const other = worn ? null : progress.wornItem(item.slot);
+    if (other) {
+      top += blockGap - lineGap;
+      addLine(t('item.wornNow', { rarity: t(`rarity.${other.rarity}`), level: other.level }), TEXT_COLORS.brass, '12px', lineGap);
+      for (const line of itemLines(other)) addLine(line, TEXT_COLORS.muted, '13px', lineGap);
+    }
+    this.card = [dim, window];
+    this.cardOverflow = Math.max(0, Math.ceil(top - (ITEM_CARD.actionY - buttonH / 2)));
 
-    return rowY + descH / 2;
+    const done = (): void => {
+      this.closeCard();
+      this.render();
+    };
+    const full = w - pad * 2;
+    const half = (full - buttonGap) / 2;
+    if (worn) {
+      const price = upgradePrice(gear.items, item);
+      const affordable = price !== null && progress.shards >= price.shards && progress.fish >= price.fish;
+      const label = price ? t('item.upgrade', { shards: price.shards, fish: price.fish }) : t('gear.maxLevel');
+      this.card.push(
+        addButton(this, ...itemCardButtonCenter('wide'), full, buttonH, label, affordable, () => {
+          if (!progress.upgradeItem(item.id)) return;
+          audio.play('merge');
+          done();
+        }),
+      );
+    } else {
+      this.card.push(
+        addButton(this, ...itemCardButtonCenter('left'), half, buttonH, t('item.equip'), true, () => {
+          progress.equip(item.id);
+          done();
+        }),
+        addButton(this, ...itemCardButtonCenter('right'), half, buttonH, t('item.salvage', { shards: salvageShards(gear.items, item) }), false, () => {
+          progress.salvage(item.id);
+          done();
+        }),
+      );
+    }
+    this.card.push(addButton(this, ...itemCardButtonCenter('close'), full, buttonH, t('item.close'), false, () => this.closeCard()));
   }
 }

@@ -32,7 +32,7 @@ import { CoinAd, SecondChance } from '../systems/Ads';
 import { Buildings } from '../systems/Buildings';
 import { catRange, Combat, isBurrowed, type Blast, type CombatEvent } from '../systems/Combat';
 import { Economy, starsFor } from '../systems/Economy';
-import { gearBonuses } from '../systems/Loadout';
+import { itemsBonuses } from '../systems/Items';
 import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
 import { Meteor } from '../systems/Meteor';
 import { Pool } from '../systems/Pool';
@@ -191,15 +191,16 @@ export class GameScene extends Phaser.Scene {
 
     // При заданном зерне (смоук-проверка) каждый бой идёт по одной и той же случайной последовательности.
     restartRandom();
-    const worn = progress.gear;
-    const bonuses = gearBonuses(gear, worn, (slot, id) => progress.gearLevel(slot, id));
+    const worn = progress.wornItems();
+    const bonuses = itemsBonuses(gear.items, worn);
     this.economy = new Economy(this.level, economy, bonuses);
     this.summoner = new Summon(cats, bonuses.summonWeights, random, bonuses.level2Chance);
     this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult, bonuses.meteorGround);
     this.coinAd = new CoinAd(ads.coins);
     this.secondChance = new SecondChance(ads.secondChance);
-    const staff = gear.staff.find((item) => item.id === worn.staff);
-    this.hero = new HeroView(this, ...this.level.hero, staff?.element ? elementColor(staff.element) : COLORS.meteor);
+    // Навершие посоха героя — цвета стихии, которую посох помогает призывать.
+    const staffElement = worn.find((item) => item.slot === 'staff')?.bonuses.find((bonus) => bonus.kind === 'summonChance')?.element;
+    this.hero = new HeroView(this, ...this.level.hero, staffElement ? elementColor(staffElement) : COLORS.meteor);
     this.merger = new Merge(cats, {
       maxCatLevel: this.level.maxCatLevel,
       ritualTime: gear.ritual.time * bonuses.ritualTimeMult,

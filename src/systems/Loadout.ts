@@ -1,6 +1,8 @@
-import type { CatsConfig, ElementId, GearConfig, GearItem, GearSlot } from '../data/types';
+import type { ElementId, GearConfig, GearSlot } from '../data/types';
 import { gearAtLevel, GEAR_SLOTS } from './Gear';
-import type { GearSelection } from './Progress';
+
+/** Выбор старого снаряжения (до инвентаря): id предмета из списка в каждом слоте. */
+export type GearSelection = Record<GearSlot, string>;
 
 /** Суммарный эффект надетого снаряжения на бой. */
 export interface GearBonuses {
@@ -46,6 +48,7 @@ export function noBonuses(): GearBonuses {
 }
 
 /**
+ * Бонусы старого снаряжения (до инвентаря): по ним проверяется, что перенесённые в инвентарь предметы дают то же самое.
  * Складывает бонусы надетых предметов с учётом их прокачки. Бонус не привязан к слоту: что написано у предмета в gear.json,
  * то и работает. Множители перемножаются, прибавки складываются; незнакомый id ничего не даёт.
  */
@@ -71,46 +74,4 @@ export function gearBonuses(
     bonuses.bonusGold += item.bonusGold ?? 0;
   }
   return bonuses;
-}
-
-/** Один бонус предмета в виде, готовом для описания игроку; доли переведены в целые проценты. */
-export type BonusLine =
-  /** Шанс призвать кота стихии с этим предметом и без него. */
-  | { kind: 'summonChance'; element: ElementId; chance: number; base: number }
-  /** На сколько процентов дешевле призыв сверх лимита волны. */
-  | { kind: 'overLimitCost'; percent: number }
-  /** На сколько процентов короче перезарядка метеора. */
-  | { kind: 'meteorCooldown'; percent: number }
-  /** На сколько процентов короче ритуал. */
-  | { kind: 'ritualTime'; percent: number }
-  | { kind: 'crystals'; count: number }
-  | { kind: 'gold'; count: number };
-
-function percentOff(mult: number): number {
-  return Math.round((1 - mult) * 100);
-}
-
-/** Бонусы предмета для экрана снаряжения; у предмета без бонусов список пуст. */
-export function itemBonuses(item: GearItem, cats: CatsConfig): BonusLine[] {
-  const lines: BonusLine[] = [];
-  if (item.element && item.summonWeight !== undefined && item.summonWeight !== 1) {
-    // Призываются только базовые стихии; у всех, кроме стихии предмета, вес 1.
-    const others = Object.values(cats.elements).filter((element) => !element.from).length - 1;
-    lines.push({
-      kind: 'summonChance',
-      element: item.element,
-      chance: Math.round((item.summonWeight / (item.summonWeight + others)) * 100),
-      base: Math.round(100 / (others + 1)),
-    });
-  }
-  if (item.overLimitCostMult !== undefined) {
-    lines.push({ kind: 'overLimitCost', percent: percentOff(item.overLimitCostMult) });
-  }
-  if (item.meteorCooldownMult !== undefined) {
-    lines.push({ kind: 'meteorCooldown', percent: percentOff(item.meteorCooldownMult) });
-  }
-  if (item.ritualTimeMult !== undefined) lines.push({ kind: 'ritualTime', percent: percentOff(item.ritualTimeMult) });
-  if (item.bonusCrystals) lines.push({ kind: 'crystals', count: item.bonusCrystals });
-  if (item.bonusGold) lines.push({ kind: 'gold', count: item.bonusGold });
-  return lines;
 }

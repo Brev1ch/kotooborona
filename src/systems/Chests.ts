@@ -1,9 +1,9 @@
-import type { GearConfig, GearSlot } from '../data/types';
-import { GEAR_SLOTS } from './Gear';
+import type { CatsConfig, GearConfig } from '../data/types';
+import { rollItem, type Item } from './Items';
 
-/** Что лежит в сундуке: предмет снаряжения (если ещё есть несобранные) и рыбки. */
+/** Что лежит в сундуке: предмет снаряжения и рыбки. */
 export interface ChestLoot {
-  item: { slot: GearSlot; id: string } | null;
+  item: Item | null;
   fish: number;
 }
 
@@ -22,18 +22,9 @@ export function chestState(totalStars: number, opened: number, thresholds: reado
 }
 
 /**
- * Содержимое сундука: случайный предмет из тех, которых у игрока ещё нет, и немного рыбок.
- * Когда собрано всё — только рыбки, но больше. `rng` возвращает число в [0, 1); подменяется в тестах.
+ * Содержимое сундука: предмет случайной редкости (шансы — в `gear.json` → `items.rarities`) со случайными бонусами и немного рыбок.
+ * `id` — id нового предмета в сохранении; `rng` возвращает число в [0, 1), подменяется в тестах.
  */
-export function rollChest(
-  gear: GearConfig,
-  owns: (slot: GearSlot, id: string) => boolean,
-  rng: () => number = Math.random,
-): ChestLoot {
-  const missing = GEAR_SLOTS.flatMap((slot) =>
-    gear[slot].filter((item) => !owns(slot, item.id)).map((item) => ({ slot, id: item.id })),
-  );
-  if (missing.length === 0) return { item: null, fish: gear.chests.fishInstead };
-  const item = missing[Math.min(Math.floor(rng() * missing.length), missing.length - 1)];
-  return { item, fish: gear.chests.fish };
+export function rollChest(gear: GearConfig, cats: CatsConfig, id: string, rng: () => number = Math.random): ChestLoot {
+  return { item: rollItem(gear.items, cats, rng, id), fish: gear.chests.fish };
 }

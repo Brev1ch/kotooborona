@@ -69,10 +69,13 @@ describe('строки, которые собираются из данных', 
     }
   });
 
-  it('у каждого предмета снаряжения и слота есть название', () => {
-    for (const slot of ['staff', 'mantle', 'amulet'] as const) {
-      expect(has(`gear.slot.${slot}`), slot).toBe(true);
-      for (const item of gear[slot]) expect(has(`gear.${slot}.${item.id}`), `${slot}.${item.id}`).toBe(true);
+  it('у каждого слота, редкости, вида бонуса и легендарного предмета есть строка', () => {
+    for (const slot of ['staff', 'mantle', 'amulet']) expect(has(`gear.slot.${slot}`), slot).toBe(true);
+    for (const rarity of Object.keys(gear.items.rarities)) expect(has(`rarity.${rarity}`), rarity).toBe(true);
+    for (const kind of Object.keys(gear.items.pool)) expect(has(`item.bonus.${kind}`), kind).toBe(true);
+    for (const { id, unique } of gear.items.legendaries) {
+      expect(has(`item.legendary.${id}`), id).toBe(true);
+      expect(has(`item.unique.${unique}`), unique).toBe(true);
     }
   });
 

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { GearConfig, GearSlot } from '../data/types';
+import { cats, gear } from '../data';
 import { chestState, rollChest } from './Chests';
+import { RARITIES } from './Items';
+import { seededRandom } from './Random';
 
 const thresholds = [2, 5, 9];
 
@@ -27,37 +29,38 @@ describe('chestState', () => {
 });
 
 describe('rollChest', () => {
-  const gear = {
-    chests: { stars: thresholds, fish: 15, fishInstead: 60 },
-    staff: [{ id: 'none' }, { id: 'fire' }, { id: 'water' }],
-    mantle: [{ id: 'thrift' }, { id: 'sorc' }],
-    amulet: [{ id: 'cry' }],
-  } as unknown as GearConfig;
-  const ownsOnly =
-    (...keys: string[]) =>
-    (slot: GearSlot, id: string): boolean =>
-      keys.includes(`${slot}:${id}`);
-  const starter = ownsOnly('staff:none', 'mantle:thrift', 'amulet:cry');
+  it('в сундуке — предмет с заданным id и рыбки из конфига', () => {
+    const loot = rollChest(gear, cats, 'i7', seededRandom(1));
 
-  it('даёт предмет, которого у игрока нет, и рыбки', () => {
-    // Не хватает: staff:fire, staff:water, mantle:sorc — в порядке слотов.
-    expect(rollChest(gear, starter, () => 0)).toEqual({ item: { slot: 'staff', id: 'fire' }, fish: 15 });
-    expect(rollChest(gear, starter, () => 0.5)).toEqual({ item: { slot: 'staff', id: 'water' }, fish: 15 });
-    expect(rollChest(gear, starter, () => 0.99)).toEqual({ item: { slot: 'mantle', id: 'sorc' }, fish: 15 });
+    expect(loot.fish).toBe(gear.chests.fish);
+    expect(loot.item).toMatchObject({ id: 'i7', level: 1 });
   });
 
-  it('уже собранные предметы не выпадают', () => {
-    const owns = ownsOnly('staff:none', 'staff:fire', 'staff:water', 'mantle:thrift', 'amulet:cry');
-    for (const roll of [0, 0.3, 0.7, 0.999]) {
-      expect(rollChest(gear, owns, () => roll).item).toEqual({ slot: 'mantle', id: 'sorc' });
+  it('одно зерно — один и тот же сундук', () => {
+    expect(rollChest(gear, cats, 'i1', seededRandom(42))).toEqual(rollChest(gear, cats, 'i1', seededRandom(42)));
+  });
+
+  it('предмет собран по правилам своей редкости', () => {
+    const rng = seededRandom(3);
+    for (let i = 0; i < 200; i++) {
+      const { item } = rollChest(gear, cats, `i${i}`, rng);
+      expect(item).not.toBeNull();
+      if (item) expect(item.bonuses).toHaveLength(gear.items.rarities[item.rarity].bonuses);
     }
   });
 
-  it('когда собрано всё, в сундуке только рыбки, но больше', () => {
-    expect(rollChest(gear, () => true, () => 0.4)).toEqual({ item: null, fish: 60 });
-  });
+  it('редкости выпадают с шансами из конфига', () => {
+    const rng = seededRandom(8);
+    const total = 5000;
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < total; i++) {
+      const rarity = rollChest(gear, cats, 'i', rng).item?.rarity ?? 'none';
+      counts[rarity] = (counts[rarity] ?? 0) + 1;
+    }
 
-  it('бросок на самой границе не выходит за список', () => {
-    expect(rollChest(gear, starter, () => 1).item).toEqual({ slot: 'mantle', id: 'sorc' });
+    for (const rarity of RARITIES) {
+      const share = (counts[rarity] ?? 0) / total;
+      expect(Math.abs(share - gear.items.rarities[rarity].chance), rarity).toBeLessThan(0.02);
+    }
   });
 });

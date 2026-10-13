@@ -14,6 +14,7 @@ import {
   gearButtonCenter,
   HUD_BUTTON_GAP,
   HUD_H,
+  itemCardButtonCenter,
   menuBestiaryCenter,
   menuBookCenter,
   menuCardCenter,
@@ -165,6 +166,11 @@ test.afterEach(async ({ page }, testInfo) => {
 /** Сохранение первой версии игры: до сундуков игроку было доступно всё снаряжение. */
 const OLD_SAVE = { version: 1, stars: {}, gear: { staff: 'none', mantle: 'thrift', amulet: 'cry' }, book: [], sound: true };
 
+/** Поверх экрана открыта карточка (врага или предмета): её затемнение — нажимаемый прямоугольник во весь экран. */
+function cardOpen(s: SmokeState): boolean {
+  return s.targets.some((target) => target.width >= GAME_W && target.height >= GAME_H);
+}
+
 /** Нажимаемый элемент с таким именем на текущем экране. */
 async function target(page: Page, name: string): Promise<SmokeTarget> {
   const found = (await state(page))?.targets.find((candidate) => candidate.name === name);
@@ -176,7 +182,7 @@ function center(t: SmokeTarget): [number, number] {
   return [t.x + t.width / 2, t.y + t.height / 2];
 }
 
-test('старое сохранение: меню → книга → снаряжение → бой → пауза → итоги боя', async ({ page }) => {
+test('старое сохранение: меню → книга → бестиарий → инвентарь → бой → пауза → итоги боя', async ({ page }) => {
   // Игрок с сохранением версии 1: оно должно прочитаться, а всё снаряжение — остаться доступным.
   await page.addInitScript((save) => localStorage.setItem('koto_save', JSON.stringify(save)), OLD_SAVE);
 
@@ -248,8 +254,6 @@ test('старое сохранение: меню → книга → снаря�
         (s) => `После нажатия «Назад» в бестиарии игра не вернулась в меню за ${SCREEN_TIMEOUT / 1000} с: ${scenesText(s)}`,
       );
     };
-    /** Карточка врага открыта: её затемнение — нажимаемый прямоугольник во весь экран. */
-    const cardOpen = (s: SmokeState): boolean => s.targets.some((target) => target.width >= GAME_W && target.height >= GAME_H);
 
     // У игрока, не прошедшего ни одного уровня, все враги — силуэты, и нажимается только «Назад».
     await open();
@@ -296,45 +300,61 @@ test('старое сохранение: меню → книга → снаря�
     checkConsole('снаряжение');
   });
 
-  for (const slot of GEAR_SLOTS) {
-    await test.step(`снаряжение: ${slot}`, async () => {
-      const before = await state(page);
-      const prefix = `gear:${slot}:`;
-      const chips = (before?.targets ?? []).filter((target) => target.name.startsWith(prefix));
-      if (chips.length < 2) throw new Error(`В слоте ${slot} плашек: ${chips.length}, выбирать не из чего`);
-
-      // Нажимаем у самых углов: ненадетый предмет, обратно надетый, затем последний в слоте.
-      const worn = chips.find((chip) => chip.name === prefix + before?.gear[slot]) ?? chips[0];
-      const other = chips.find((chip) => chip !== worn) ?? chips[1];
-      const last = chips[chips.length - 1] === worn ? other : chips[chips.length - 1];
-      const taps: [SmokeTarget, boolean, boolean][] = [
-        [other, false, false],
-        [worn, true, true],
-        [last, true, false],
-        [worn, false, true],
-        [last, false, false],
-      ];
-      for (const [chip, right, bottom] of taps) {
-        const id = chip.name.slice(prefix.length);
-        const [x, y] = corner(chip, right, bottom);
-        await tap(page, x, y);
-        await waitFor(
-          page,
-          SUMMON_TIMEOUT,
-          (s) => s.gear[slot] === id,
-          (s) =>
-            `Нажатие в точку (${Math.round(x)}, ${Math.round(y)}) у угла плашки ${targetText(chip)} не надело предмет: ` +
-            `в слоте ${slot} остался «${s?.gear[slot] ?? '?'}»`,
-        );
-        await page.waitForTimeout(PRESS_SETTLE_MS);
-      }
-      checkConsole(`снаряжение: ${slot}`);
-    });
-  }
-
-  await test.step('снаряжение выбрано', async () => {
+  await test.step('инвентарь: карточка, сравнение с надетым, надеть', async () => {
+    // Игроку со старым сохранением все предметы прежнего снаряжения перешли в инвентарь; надетое осталось надетым.
+    const before = await state(page);
+    if (!before || before.bag.length !== 7) throw new Error(`В инвентаре после переноса ${before?.bag.length ?? '?'} предметов, ожидалось 7`);
+    for (const slot of GEAR_SLOTS) if (!before.worn[slot]) throw new Error(`После переноса слот ${slot} пуст`);
     await page.screenshot({ path: `${SHOTS}/${shot('gear')}` });
-    checkConsole('снаряжение выбрано');
+
+    // Нажимаем у самого угла ячейки: карточка предмета с бонусами и сравнением.
+    const item = before.bag[0];
+    const [x, y] = corner(await target(page, `item:${item.id}`), false, false);
+    await tap(page, x, y);
+    await waitFor(page, SUMMON_TIMEOUT, cardOpen, () => `Нажатие у угла ячейки предмета ${item.id} не открыло карточку`);
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${shot('gear-card')}` });
+    await checkTouchSizes(page, 'карточка предмета из инвентаря');
+
+    await tap(page, ...itemCardButtonCenter('left'));
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.worn[item.slot]?.id === item.id && !cardOpen(s),
+      (s) => `«Надеть» не надело предмет ${item.id}: в слоте ${item.slot} «${s?.worn[item.slot]?.id ?? 'пусто'}»`,
+    );
+    // Прежний предмет слота вернулся в инвентарь.
+    const after = await state(page);
+    if (!after?.bag.some((other) => other.id === before.worn[item.slot]?.id)) throw new Error('Снятый предмет пропал из инвентаря');
+    checkConsole('надеть предмет');
+  });
+
+  await test.step('инвентарь: разобрать, карточка надетого', async () => {
+    const before = await state(page);
+    const item = before?.bag[before.bag.length - 1];
+    if (!before || !item) throw new Error('В инвентаре нечего разбирать');
+    await tap(page, ...corner(await target(page, `item:${item.id}`), true, true));
+    await waitFor(page, SUMMON_TIMEOUT, cardOpen, () => `Ячейка предмета ${item.id} не открыла карточку`);
+    await tap(page, ...itemCardButtonCenter('right'));
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.bag.length === before.bag.length - 1 && s.shards > before.shards && !cardOpen(s),
+      (s) => `«Разобрать» не сработало: предметов ${s?.bag.length ?? '?'}, осколков ${s?.shards ?? '?'}`,
+    );
+
+    // Надетый предмет: карточка с улучшением вместо «Надеть» и «Разобрать»; «Закрыть» ничего не меняет.
+    await tap(page, ...corner(await target(page, 'worn:mantle'), true, false));
+    await waitFor(page, SUMMON_TIMEOUT, cardOpen, () => 'Плашка надетой мантии не открыла карточку');
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${shot('gear-worn-card')}` });
+    await checkTouchSizes(page, 'карточка надетого предмета');
+    await tap(page, ...itemCardButtonCenter('close'));
+    await waitFor(page, SUMMON_TIMEOUT, (s) => !cardOpen(s), () => '«Закрыть» не закрыло карточку');
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${shot('gear-after')}` });
+    await checkTouchSizes(page, 'снаряжение после действий');
+    checkConsole('разобрать предмет');
   });
 
   await test.step('сценка перед главой', async () => {
@@ -596,7 +616,7 @@ test('старое сохранение: меню → книга → снаря�
   });
 });
 
-test('новый игрок: закрытое снаряжение → победа → сундук → прокачка', async ({ page }) => {
+test('новый игрок: стартовое снаряжение → победа → сундук → разбор и улучшение', async ({ page }) => {
   await test.step('меню и экран снаряжения', async () => {
     await page.goto('/?smoke');
     await waitFor(
@@ -614,17 +634,23 @@ test('новый игрок: закрытое снаряжение → побе�
     );
     await checkTouchSizes(page, 'снаряжение нового игрока');
 
-    // Предмета из сундука у нового игрока нет: нажатие показывает, что он даёт, но не надевает.
-    await tap(page, ...center(await target(page, 'gear:staff:fire')));
-    await page.waitForTimeout(PRESS_SETTLE_MS);
-    const after = await state(page);
-    if (after?.gear.staff !== 'none') throw new Error(`Закрытый предмет наделся: в слоте посоха «${after?.gear.staff}»`);
-    await page.screenshot({ path: `${SHOTS}/${shot('new-gear-locked')}` });
+    // У нового игрока три стартовых предмета надеты, инвентарь пуст.
+    const fresh = await state(page);
+    if (!fresh || fresh.bag.length !== 0) throw new Error(`У нового игрока в инвентаре ${fresh?.bag.length ?? '?'} предметов`);
+    for (const slot of GEAR_SLOTS) if (!fresh.worn[slot]) throw new Error(`У нового игрока слот ${slot} пуст`);
+    await page.screenshot({ path: `${SHOTS}/${shot('new-gear')}` });
 
-    // Рыбок ещё нет: прокачка недоступна.
-    await tap(page, ...center(await target(page, 'upgrade:mantle')));
+    // Ни осколков, ни рыбок ещё нет: улучшение недоступно.
+    await tap(page, ...center(await target(page, 'worn:mantle')));
+    await waitFor(page, SUMMON_TIMEOUT, cardOpen, () => 'Плашка надетой мантии не открыла карточку');
+    await tap(page, ...itemCardButtonCenter('wide'));
     await page.waitForTimeout(PRESS_SETTLE_MS);
-    if ((await state(page))?.gearLevels.mantle !== 1) throw new Error('Предмет прокачался без рыбок');
+    if ((await state(page))?.worn.mantle?.level !== 1) throw new Error('Предмет прокачался без осколков и рыбок');
+    const stuck = await state(page);
+    if (stuck && cardOpen(stuck)) {
+      await tap(page, ...itemCardButtonCenter('close'));
+      await waitFor(page, SUMMON_TIMEOUT, (s) => !cardOpen(s), () => '«Закрыть» не закрыло карточку');
+    }
     checkConsole('снаряжение нового игрока');
   });
 
@@ -693,19 +719,42 @@ test('новый игрок: закрытое снаряжение → побе�
     checkConsole('сундук');
   });
 
-  await test.step('прокачка', async () => {
+  await test.step('предмет из сундука: разобрать и улучшить надетое', async () => {
     const before = await state(page);
-    await tap(page, ...center(await target(page, 'upgrade:mantle')));
+    const item = before?.bag[0];
+    if (!before || !item) throw new Error('Предмет из сундука не попал в инвентарь');
+    await page.screenshot({ path: `${SHOTS}/${shot('new-gear-item')}` });
+    await checkTouchSizes(page, 'снаряжение с предметом из сундука');
+
+    // Осколки дают только разобранные предметы.
+    await tap(page, ...center(await target(page, `item:${item.id}`)));
+    await waitFor(page, SUMMON_TIMEOUT, cardOpen, () => 'Ячейка предмета из сундука не открыла карточку');
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${shot('new-gear-item-card')}` });
+    await checkTouchSizes(page, 'карточка предмета из сундука');
+    await tap(page, ...itemCardButtonCenter('right'));
     await waitFor(
       page,
       SUMMON_TIMEOUT,
-      (s) => s.gearLevels.mantle === 2 && s.fish < (before?.fish ?? 0),
-      (s) => `Мантия не прокачалась: уровень ${s?.gearLevels.mantle ?? '?'}, рыбок ${before?.fish} → ${s?.fish ?? '?'}`,
+      (s) => s.bag.length === 0 && s.shards > 0,
+      (s) => `Предмет из сундука не разобран: предметов ${s?.bag.length ?? '?'}, осколков ${s?.shards ?? '?'}`,
+    );
+
+    const ready = await state(page);
+    await tap(page, ...center(await target(page, 'worn:mantle')));
+    await waitFor(page, SUMMON_TIMEOUT, cardOpen, () => 'Плашка надетой мантии не открыла карточку');
+    await tap(page, ...itemCardButtonCenter('wide'));
+    await waitFor(
+      page,
+      SUMMON_TIMEOUT,
+      (s) => s.worn.mantle?.level === 2 && s.fish < (ready?.fish ?? 0) && s.shards < (ready?.shards ?? 0),
+      (s) =>
+        `Мантия не улучшилась: уровень ${s?.worn.mantle?.level ?? '?'}, рыбок ${ready?.fish} → ${s?.fish ?? '?'}, осколков ${ready?.shards} → ${s?.shards ?? '?'}`,
     );
     await page.waitForTimeout(SPAWN_SETTLE_MS);
     await page.screenshot({ path: `${SHOTS}/${shot('new-gear-upgraded')}` });
-    await checkTouchSizes(page, 'снаряжение после прокачки');
-    checkConsole('прокачка');
+    await checkTouchSizes(page, 'снаряжение после улучшения');
+    checkConsole('улучшение');
   });
 });
 
@@ -1208,6 +1257,55 @@ async function hurryIntoBattle(page: Page, step: string): Promise<void> {
 }
 
 /** Парад: сколько ждём, пока последний враг выйдет на видимую часть дороги, и сколько — пока крот дойдёт до подкопа под огнём котов. */
+test('инвентарь: предметы всех редкостей, карточки с самыми длинными текстами помещаются', async ({ page }) => {
+  await page.goto('/?smoke');
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.Menu),
+    (s) => `Игра не дошла до меню: ${scenesText(s)}`,
+  );
+  // По предмету каждой редкости в каждый слот и оба легендарных: одни и те же в каждом прогоне.
+  await page.evaluate(() => window.__smoke?.giveItems());
+  await tap(page, ...menuCardCenter(0));
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.Gear),
+    (s) => `Игра не дошла до экрана снаряжения: ${scenesText(s)}`,
+  );
+  const before = await state(page);
+  if (!before || before.bag.length < 11) throw new Error(`В инвентаре ${before?.bag.length ?? '?'} предметов, ожидалось не меньше 11`);
+  await page.screenshot({ path: `${SHOTS}/inventory-full.png` });
+  await checkTouchSizes(page, 'инвентарь с предметами всех редкостей');
+
+  // Надеваем эпические и легендарные: дальше карточки остальных сравниваются с самыми длинными описаниями.
+  for (const rarity of ['epic', 'legendary']) {
+    for (const item of before.bag.filter((entry) => entry.rarity === rarity)) {
+      await tap(page, ...center(await target(page, `item:${item.id}`)));
+      await waitFor(page, SUMMON_TIMEOUT, cardOpen, () => `Ячейка предмета ${item.id} не открыла карточку`);
+      await page.waitForTimeout(PRESS_SETTLE_MS);
+      await page.screenshot({ path: `${SHOTS}/item-card-${item.slot}-${rarity}.png` });
+      await checkTouchSizes(page, `карточка предмета ${item.slot} ${rarity}`);
+      const overflow = (await page.evaluate(() => window.__smoke?.cardOverflow())) ?? 0;
+      if (overflow > 0) throw new Error(`Текст карточки предмета ${item.slot} ${rarity} заходит на кнопки на ${overflow} px`);
+      await tap(page, ...itemCardButtonCenter('left'));
+      await waitFor(page, SUMMON_TIMEOUT, (s) => !cardOpen(s), () => `Карточка предмета ${item.id} не закрылась после «Надеть»`);
+      await page.waitForTimeout(PRESS_SETTLE_MS);
+    }
+  }
+  await page.screenshot({ path: `${SHOTS}/inventory-legendary-worn.png` });
+  await checkTouchSizes(page, 'инвентарь с надетыми легендарными');
+
+  // Карточка надетого легендарного предмета: улучшение вместо «Надеть».
+  await tap(page, ...center(await target(page, 'worn:staff')));
+  await waitFor(page, SUMMON_TIMEOUT, cardOpen, () => 'Плашка надетого посоха не открыла карточку');
+  await page.waitForTimeout(PRESS_SETTLE_MS);
+  await page.screenshot({ path: `${SHOTS}/item-card-worn-legendary.png` });
+  await checkTouchSizes(page, 'карточка надетого легендарного посоха');
+  checkConsole('инвентарь со всеми редкостями');
+});
+
 /** Парад выходит 12 секунд игрового времени; на загруженной машине кадры длиннее, и по часам это дольше. */
 const PARADE_TIMEOUT = 40_000;
 const PARADE_SETTLE_MS = 1_000;
