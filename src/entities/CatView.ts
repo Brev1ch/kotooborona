@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { cats, elementColor } from '../data';
+import { addArtOrShape } from '../art';
+import { cats, elementColor, type ElementId } from '../data';
 import { RITUAL_FEEL, SHOT_FEEL } from '../feel';
 import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
-import { addBakedShape } from '../scenes/textures';
+import { artId } from '../systems/Art';
 import type { Cat } from './Cat';
 import { PieceView } from './PieceView';
 
@@ -22,7 +23,18 @@ export function drawCatShape(g: Phaser.GameObjects.Graphics, earLeft: number, ea
   g.fillCircle(0, BODY_Y, BODY_RADIUS);
 }
 
-/** Временный вид кота: круг цвета стихии, уши и цифра уровня. */
+/**
+ * Картинка кота стихии: готовый арт, а пока его нет — силуэт, запечённый в текстуру, по одной на стихию.
+ * У гибрида уши силуэта в цветах исходных стихий.
+ */
+export function addCatImage(scene: Phaser.Scene, element: ElementId): Phaser.GameObjects.Image {
+  const [earLeft, earRight] = cats.elements[element].from ?? [element, element];
+  return addArtOrShape(scene, artId.cat(element), `cat-${element}`, SHAPE_W, SHAPE_H, (shape) => {
+    drawCatShape(shape, elementColor(earLeft), elementColor(earRight), elementColor(element));
+  });
+}
+
+/** Вид кота: картинка стихии и цифра уровня. */
 export class CatView extends PieceView {
   private readonly shape: Phaser.GameObjects.Image;
   /** Масштаб картинки силуэта в покое: текстура крупнее, чем кот на экране. */
@@ -33,11 +45,7 @@ export class CatView extends PieceView {
   constructor(scene: Phaser.Scene, x: number, y: number, cat: Cat) {
     super(scene, x, y);
 
-    // У гибрида уши в цветах исходных стихий. Силуэт запечён в текстуру: по одной на стихию.
-    const [earLeft, earRight] = cats.elements[cat.element].from ?? [cat.element, cat.element];
-    const g = addBakedShape(scene, `cat-${cat.element}`, SHAPE_W, SHAPE_H, (shape) => {
-      drawCatShape(shape, elementColor(earLeft), elementColor(earRight), elementColor(cat.element));
-    });
+    const g = addCatImage(scene, cat.element);
     const shapeScale = g.scale;
 
     const level = scene.add

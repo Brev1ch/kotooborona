@@ -1,8 +1,10 @@
 import type Phaser from 'phaser';
+import { art } from '../art';
 import { audio } from '../audio';
 import { BUTTON_FEEL } from '../feel';
 import { t } from '../i18n';
 import { COLORS, FONTS, MIN_TOUCH, TEXT_COLORS } from '../layout';
+import { artId, type ButtonArt, type IconArt } from '../systems/Art';
 import { ensureTextures, Texture } from './textures';
 
 /**
@@ -58,6 +60,25 @@ interface ButtonParts {
   text: Phaser.GameObjects.Text;
 }
 
+/**
+ * Фон кнопки из арта поверх её прямоугольника: прямоугольник остаётся областью нажатия, но становится прозрачным.
+ * Картинки нет — кнопка остаётся прямоугольником. Возвращает то, что нужно положить в кнопку между фоном и подписью.
+ */
+function addPlate(scene: Phaser.Scene, bg: Phaser.GameObjects.Rectangle, kind: ButtonArt): Phaser.GameObjects.GameObject[] {
+  const plate = art.addPlate(scene, artId.button(kind), bg.width, bg.height);
+  if (!plate) return [];
+  bg.setFillStyle(bg.fillColor, 0).setStrokeStyle();
+  return [plate];
+}
+
+/** Значок валюты в квадрате `size`: готовый арт, а пока его нет — текстура, нарисованная кодом. */
+function addIcon(scene: Phaser.Scene, icon: IconArt, x: number, y: number, size: number): Phaser.GameObjects.Image {
+  const picture = art.addIcon(scene, artId.icon(icon), x, y, size);
+  if (picture) return picture;
+  ensureTextures(scene);
+  return scene.add.image(x, y, Texture[icon]).setDisplaySize(size, size);
+}
+
 /** Плашка с подписью: главная — латунная, второстепенная — контурная. */
 function makeButton(
   scene: Phaser.Scene,
@@ -79,7 +100,7 @@ function makeButton(
       color: primary ? TEXT_COLORS.dark : TEXT_COLORS.fg,
     })
     .setOrigin(0.5);
-  return { button: scene.add.container(x, y, [bg, text]), bg, text };
+  return { button: scene.add.container(x, y, [bg, ...addPlate(scene, bg, primary ? 'primary' : 'normal'), text]), bg, text };
 }
 
 /** Кнопка перехода между экранами. Срабатывает один раз, на отпускание. */
@@ -189,7 +210,7 @@ export function addAdButton(
   icon.fillTriangle(-3, -4, -3, 4, 5, 0);
   text.setX(left + AD_ICON.width + AD_ICON.gap);
 
-  const button = scene.add.container(x, y, [bg, icon, text]);
+  const button = scene.add.container(x, y, [bg, ...addPlate(scene, bg, 'ad'), icon, text]);
   addPressFeel(scene, bg, button);
   bg.on('pointerdown', () => audio.play('click'));
   bg.on('pointerup', onClick);
@@ -205,8 +226,7 @@ export function fitText(text: Phaser.GameObjects.Text, maxWidth: number): Phaser
 
 /** Рыбка шириной `size`. */
 export function addFishIcon(scene: Phaser.Scene, x: number, y: number, size: number): Phaser.GameObjects.Image {
-  ensureTextures(scene);
-  return scene.add.image(x, y, Texture.fish).setDisplaySize(size, size);
+  return addIcon(scene, 'fish', x, y, size);
 }
 
 /** Замок: предмет или уровень ещё закрыт. */
@@ -256,12 +276,10 @@ export function addFishCounter(scene: Phaser.Scene, x: number, y: number, value:
 
 /** Значок кристалла высотой `size`. Нарисован, а не взят из шрифта: на всех устройствах выглядит одинаково. */
 export function addCrystalIcon(scene: Phaser.Scene, x: number, y: number, size: number): Phaser.GameObjects.Image {
-  ensureTextures(scene);
-  return scene.add.image(x, y, Texture.crystal).setDisplaySize(size, size);
+  return addIcon(scene, 'crystal', x, y, size);
 }
 
 /** Монета диаметром `size`. */
 export function addCoinIcon(scene: Phaser.Scene, x: number, y: number, size: number): Phaser.GameObjects.Image {
-  ensureTextures(scene);
-  return scene.add.image(x, y, Texture.coin).setDisplaySize(size, size);
+  return addIcon(scene, 'coin', x, y, size);
 }

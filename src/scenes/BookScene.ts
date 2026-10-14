@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { cats, elementColor } from '../data';
-import { drawCatShape } from '../entities/CatView';
+import { cats } from '../data';
+import { addCatImage } from '../entities/CatView';
 import { t } from '../i18n';
 import { BOOK, bookBackCenter, COLORS, FONTS, GAME_W, TEXT_COLORS } from '../layout';
 import { progress } from '../progress';
@@ -45,13 +45,10 @@ export class BookScene extends Phaser.Scene {
   private addRow(entry: BookEntry, y: number): void {
     const { element, known, recipe } = entry;
 
-    const icon = this.add.graphics({ x: BOOK.iconX, y }).setScale(BOOK.iconScale);
-    if (known) {
-      const [earLeft, earRight] = recipe ?? [element, element];
-      drawCatShape(icon, elementColor(earLeft), elementColor(earRight), elementColor(element));
-    } else {
-      drawCatShape(icon, COLORS.line, COLORS.line, COLORS.line);
-    }
+    // Неоткрытый кот — силуэт.
+    const icon = addCatImage(this, element).setPosition(BOOK.iconX, y);
+    icon.setScale(icon.scale * BOOK.iconScale);
+    if (!known) icon.setTintFill(COLORS.line);
 
     const title = known ? t('book.catName', { name: t(`cat.${element}`) }) : t('book.unknown');
     // Рецепт неоткрытого кота — названия двух стихий, которые нужно смешать.

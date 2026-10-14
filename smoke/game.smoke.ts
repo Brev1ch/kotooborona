@@ -37,6 +37,9 @@ import { GEAR_SLOTS } from '../src/systems/Progress';
 
 /** Куда складываются снимки: у русской локали — в корень, у остальных — в свою папку. */
 let SHOTS = 'screenshots';
+/** Проект `art`: игра получает заглушки всех картинок манифеста и рисует ими, а не кодом. Их собирает запуск проверки (`playwright.config.ts`). */
+const SMOKE_ART = 'node_modules/.cache/smoke-art';
+let WITH_ART = false;
 const CATS = 3;
 
 const SCREEN_TIMEOUT = 10_000;
@@ -145,11 +148,18 @@ function scenesText(s: SmokeState | null): string {
   return `активные сцены: [${s.scenes.join(', ')}]`;
 }
 
-test.beforeEach(({ page }, testInfo) => {
+test.beforeEach(async ({ page }, testInfo) => {
   errors.length = 0;
   shots = 0;
   const locale = testInfo.project.name;
   SHOTS = locale === 'ru' ? 'screenshots' : `screenshots/${locale}`;
+  WITH_ART = locale === 'art';
+  if (WITH_ART) {
+    await page.route('**/assets/art/**', (route) => {
+      const file = new URL(route.request().url()).pathname.split('/assets/art/')[1];
+      return route.fulfill({ path: `${SMOKE_ART}/out/${file}` });
+    });
+  }
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
     const { url } = msg.location();
@@ -932,6 +942,10 @@ test('все уровни главы запускаются, кот продаё
         (s) => s.scenes.includes(SceneKey.UI) && s.hud !== null,
         (s) => `Уровень ${id} не запустился: ${scenesText(s)}`,
       );
+      // Арт: атласы загружены при запуске, из фонов — только фон этого уровня; без арта не загружено ничего.
+      const loaded = (await state(page))?.art ?? [];
+      const expected = WITH_ART ? ['art:ui', 'art:units', `bg-${id}`] : [];
+      if (loaded.join() !== expected.join()) throw new Error(`Уровень ${id}: загружен арт [${loaded.join(', ')}], а должен быть [${expected.join(', ')}]`);
       // Коты на поле показывают, где клетки, а первая волна — где дорога.
       for (let n = 0; n < CATS; n++) await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
       await waitFor(

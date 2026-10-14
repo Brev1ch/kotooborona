@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { art, cats, economy, enemies, gear, levels, story } from '../data';
 import type { BuildingKind, ElementId, EnemyTypeId, GearSlot } from '../data/types';
-import { artId, itemArtId } from './Art';
+import { ArtCatalog, artId, itemArtId, readArtIndex, type ArtIndex } from './Art';
 import type { Item } from './Items';
 
 const ids = new Set(art.images.map((image) => image.id));
@@ -111,5 +111,91 @@ describe('картинка предмета', () => {
   it('легендарный предмет берёт картинку по своему главному бонусу', () => {
     const phoenix = item('staff', [{ kind: 'summonChance', value: 2, element: 'fire' }], { rarity: 'legendary', legendary: 'phoenix' });
     expect(itemArtId(gear.items, phoenix)).toBe('item-staff-summonChance');
+  });
+});
+
+describe('каталог готового арта', () => {
+  const frame = { frame: { x: 0, y: 0, w: 10, h: 10 } };
+  const index: ArtIndex = {
+    atlases: {
+      units: { file: 'units.webp', bytes: 1000, frames: { 'cat-fire': frame, 'enemy-mouse': frame } },
+      ui: { file: 'ui.webp', bytes: 500, frames: { 'button-primary': frame } },
+      old: { file: 'old.webp', bytes: 70, frames: { gone: frame } },
+    },
+    images: {
+      'bg-opushka': { file: 'backgrounds/opushka.webp', bytes: 300 },
+      'bg-lager': { file: 'backgrounds/lager.webp', bytes: 400 },
+    },
+  };
+  const catalog = new ArtCatalog(art, index);
+
+  it('без списка готового картинок нет: всё рисуется кодом', () => {
+    const empty = new ArtCatalog(art);
+    for (const image of art.images) expect(empty.find(image.id)).toBeNull();
+    expect(empty.startupLoads('opushka')).toEqual([]);
+    expect(empty.levelLoads('opushka')).toEqual([]);
+  });
+
+  it('готовая картинка атласа — кадр атласа с размером на экране вдвое меньше картинки', () => {
+    expect(catalog.find('cat-fire')).toEqual({ key: 'art:units', frame: 'cat-fire', width: 48, height: 58, scale: 2 });
+  });
+
+  it('картинки, которой в атласе нет, нет и в игре', () => {
+    expect(catalog.find('cat-water')).toBeNull();
+    expect(catalog.find('hero')).toBeNull();
+  });
+
+  it('имени, которого нет в манифесте, нет, даже если оно есть в списке', () => {
+    expect(catalog.find('gone')).toBeNull();
+    expect(catalog.find('nothing')).toBeNull();
+  });
+
+  it('у фона кнопки известны нерастягиваемые края', () => {
+    expect(catalog.find('button-primary')).toMatchObject({ slice: 24, width: 48, height: 48 });
+  });
+
+  it('фон уровня — отдельная картинка', () => {
+    expect(catalog.find('bg-lager')).toEqual({ key: 'bg-lager', width: 360, height: 540, scale: 2 });
+    expect(catalog.find('bg-dub')).toBeNull();
+  });
+
+  it('при запуске грузятся атласы манифеста и фон первого уровня, остальные фоны — нет', () => {
+    const loads = catalog.startupLoads('opushka');
+    expect(loads.map((load) => load.key)).toEqual(['art:units', 'art:ui', 'bg-opushka']);
+    expect(loads[0]).toEqual({ key: 'art:units', file: 'units.webp', bytes: 1000, frames: index.atlases.units.frames });
+    expect(loads.reduce((sum, load) => sum + load.bytes, 0)).toBe(1800);
+  });
+
+  it('при входе в уровень грузится только его фон', () => {
+    expect(catalog.levelLoads('lager')).toEqual([{ key: 'bg-lager', file: 'backgrounds/lager.webp', bytes: 400 }]);
+    expect(catalog.levelLoads('dub')).toEqual([]);
+  });
+
+  it('фоны других уровней при входе в уровень освобождаются', () => {
+    const keys = catalog.otherLevelKeys('lager');
+    expect(keys).toHaveLength(levels.levels.length - 1);
+    expect(keys).toContain('bg-opushka');
+    expect(keys).not.toContain('bg-lager');
+  });
+});
+
+describe('чтение списка готового арта', () => {
+  it.each([null, undefined, 5, 'x', [], {}, { atlases: 3, images: [] }])('испорченный список %j — пустой', (raw) => {
+    expect(readArtIndex(raw)).toEqual({ atlases: {}, images: {} });
+  });
+
+  it('пропускает записи без файла и без кадров, остальное читает', () => {
+    const read = readArtIndex({
+      atlases: {
+        units: { file: 'units.webp', bytes: 10, width: 1024, frames: { a: { frame: {} }, b: 5 } },
+        broken: { file: 'broken.webp' },
+        nameless: { frames: {} },
+      },
+      images: { 'bg-opushka': { file: 'backgrounds/opushka.webp', bytes: 7 }, bad: { bytes: 1 }, worse: 'x' },
+    });
+    expect(read).toEqual({
+      atlases: { units: { file: 'units.webp', bytes: 10, frames: { a: { frame: {} } } } },
+      images: { 'bg-opushka': { file: 'backgrounds/opushka.webp', bytes: 7 } },
+    });
   });
 });

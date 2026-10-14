@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { art } from '../art';
 import { audio } from '../audio';
 import { story, type StoryScene as StoryData, type StorySpeaker } from '../data';
 import { drawEnemyBody } from '../entities/EnemyView';
@@ -7,6 +8,7 @@ import { STORY_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { COLORS, FONTS, GAME_H, GAME_W, STORY, storySkipCenter, TEXT_COLORS } from '../layout';
 import { progress } from '../progress';
+import { artId } from '../systems/Art';
 import { storyBefore } from '../systems/Story';
 import { SceneKey, type LevelSceneData, type StorySceneData } from './keys';
 import { fadeIn, fadeOut } from './transitions';
@@ -132,9 +134,11 @@ export class StoryScene extends Phaser.Scene {
     });
   }
 
-  /** Портрет говорящего — та же фигура, что в бою, только крупно. */
-  private addPortrait(speaker: StorySpeaker): Phaser.GameObjects.Container | Phaser.GameObjects.Graphics {
+  /** Портрет говорящего: готовый арт, а пока его нет — та же фигура, что в бою, только крупно. */
+  private addPortrait(speaker: StorySpeaker): Phaser.GameObjects.Container | Phaser.GameObjects.Graphics | Phaser.GameObjects.Image {
     const { portraitY } = STORY;
+    const picture = art.add(this, artId.portrait(speaker));
+    if (picture) return picture.setPosition(GAME_W / 2, portraitY);
     if (speaker === 'archmage') {
       const hero = new HeroView(this, GAME_W / 2, portraitY, COLORS.meteor).setScale(STORY_FEEL.heroScale);
       hero.setReady(true);

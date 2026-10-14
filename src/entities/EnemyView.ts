@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
+import { addArtOrShape, art } from '../art';
 import { elementColor, enemies, enemyColor, type EnemyTypeId } from '../data';
 import { ENEMY_FEEL, STATUS_FEEL } from '../feel';
 import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
 import { addBakedShape, ensureTextures, Texture } from '../scenes/textures';
+import { artId } from '../systems/Art';
 import type { Enemy } from './Enemy';
 
 /** Прямоугольник вокруг центра врага, в который помещается всё нарисованное `drawEnemyBody`: ширина и высота. */
@@ -130,8 +132,38 @@ export function drawEnemyBody(g: Phaser.GameObjects.Graphics, type: EnemyTypeId)
   }
 }
 
+/** Тело врага носом вправо: готовый арт, а пока его нет — рисунок кодом, запечённый в текстуру. Щит в картинку не входит. */
+function addEnemyBody(scene: Phaser.Scene, type: EnemyTypeId): Phaser.GameObjects.Image {
+  const [width, height] = enemyBodySize(type);
+  return addArtOrShape(scene, artId.enemy(type), `enemy-${type}`, width, height, (g) => drawEnemyBody(g, type));
+}
+
 /**
- * Портрет врага для бестиария и карточек: та же запечённая картинка, что на поле, вписанная в квадрат `size`.
+ * Картинка щитоносца для портрета: готовое тело и поверх него щит, который на поле рисуется отдельно.
+ * Собирается в свою текстуру один раз; null — арта тела нет.
+ */
+function addShieldedArt(scene: Phaser.Scene, type: EnemyTypeId): Phaser.GameObjects.Image | null {
+  const ref = art.find(scene, artId.enemy(type));
+  if (!ref) return null;
+  const key = `portrait-art-${type}`;
+  const r = enemies.types[type].radius;
+  // Щит выступает вперёд дальше, чем тело: поле текстуры шире картинки.
+  const width = ref.width + r * 2;
+  if (!scene.textures.exists(key)) {
+    const texture = scene.textures.addDynamicTexture(key, Math.ceil(width * ref.scale), Math.ceil(ref.height * ref.scale));
+    if (!texture) return null;
+    const plate = scene.make.graphics({}, false);
+    drawShieldPlate(plate, r * 1.3, r);
+    plate.setScale(ref.scale);
+    texture.stamp(ref.key, ref.frame, texture.width / 2, texture.height / 2);
+    texture.draw(plate, texture.width / 2, texture.height / 2);
+    plate.destroy();
+  }
+  return scene.add.image(0, 0, key).setScale(1 / ref.scale);
+}
+
+/**
+ * Портрет врага для бестиария и карточек: та же картинка, что на поле, вписанная в квадрат `size`.
  * Неизвестный враг (`known = false`) — силуэт.
  */
 export function addEnemyPortrait(
@@ -145,17 +177,22 @@ export function addEnemyPortrait(
   const [width, height] = enemyBodySize(type);
   const { radius: r, shield } = enemies.types[type];
   // На поле щит — отдельная картинка, которая пропадает, когда он сломан; на портрете он нарисован вместе с телом.
-  const image = addBakedShape(scene, shield > 0 ? `portrait-${type}` : `enemy-${type}`, width, height, (g) => {
-    drawEnemyBody(g, type);
-    if (shield > 0) drawShieldPlate(g, r * 1.3, r);
-  }).setPosition(x, y);
+  const image =
+    shield > 0
+      ? (addShieldedArt(scene, type) ??
+        addBakedShape(scene, `portrait-${type}`, width, height, (g) => {
+          drawEnemyBody(g, type);
+          drawShieldPlate(g, r * 1.3, r);
+        }))
+      : addEnemyBody(scene, type);
+  image.setPosition(x, y);
   image.setScale(image.scale * Math.min(size / width, size / height));
   return known ? image : image.setTintFill(COLORS.line);
 }
 
 /**
- * Временный вид врага: мышь сверху, носом по ходу движения, с полоской здоровья.
- * Тело, щит и метки эффектов — картинки из запечённых текстур: на поле десятки врагов, и рисовать каждого заново каждый кадр дорого.
+ * Вид врага: мышь сверху, носом по ходу движения, с полоской здоровья.
+ * Тело, щит и метки эффектов — картинки из арта и запечённых текстур: на поле десятки врагов, и рисовать каждого заново каждый кадр дорого.
  */
 export class EnemyView extends Phaser.GameObjects.Container {
   private readonly radius: number;
@@ -185,11 +222,8 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.radius = r;
     ensureTextures(scene);
 
-    const key = `enemy-${enemy.type}`;
-    const [width, height] = enemyBodySize(enemy.type);
-    const draw = (g: Phaser.GameObjects.Graphics): void => drawEnemyBody(g, enemy.type);
-    const body = addBakedShape(scene, key, width, height, draw);
-    this.flash = addBakedShape(scene, key, width, height, draw).setTintFill(COLORS.flash).setAlpha(0);
+    const body = addEnemyBody(scene, enemy.type);
+    this.flash = addEnemyBody(scene, enemy.type).setTintFill(COLORS.flash).setAlpha(0);
     this.turning = scene.add.container(0, 0, [body, this.flash]);
 
     if (enemies.types[enemy.type].burrow) {

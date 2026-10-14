@@ -1,1 +1,1 @@
-{"atlases":{},"images":{}}
+{"atlases":{"units":{"file":"units.webp","bytes":4326,"width":1024,"height":120,"frames":{"cat-fire":{"frame":{"x":2,"y":2,"w":78,"h":116},"rotated":false,"trimmed":true,"spriteSourceSize":{"x":9,"y":0,"w":78,"h":116},"sourceSize":{"w":96,"h":116}}}}},"images":{}}

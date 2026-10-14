@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
+import { addArtOrShape } from '../art';
 import type { BuildingKind } from '../data';
 import { COLORS, DEPTH } from '../layout';
-import { addBakedShape } from '../scenes/textures';
+import { artId } from '../systems/Art';
 import type { Building } from './Building';
 import { PieceView } from './PieceView';
 
@@ -46,9 +47,9 @@ const DRAW: Record<BuildingKind, (g: Phaser.GameObjects.Graphics) => void> = {
   },
 };
 
-/** Картинка строения с отметками уровня; запекается один раз на каждый вид и уровень. */
+/** Картинка строения: готовый арт своего уровня, а пока его нет — рисунок с отметками уровня, запечённый один раз на каждый вид и уровень. */
 export function addBuildingIcon(scene: Phaser.Scene, kind: BuildingKind, level: number): Phaser.GameObjects.Image {
-  return addBakedShape(scene, `building-${kind}-${level}`, SHAPE_W, SHAPE_H, (g) => {
+  return addArtOrShape(scene, artId.building(kind, level), `building-${kind}-${level}`, SHAPE_W, SHAPE_H, (g) => {
     DRAW[kind](g);
     for (let pip = 0; pip < PIPS; pip++) {
       g.fillStyle(pip < level ? COLORS.brass : COLORS.line);
@@ -57,7 +58,7 @@ export function addBuildingIcon(scene: Phaser.Scene, kind: BuildingKind, level: 
   });
 }
 
-/** Временный вид строения: рисунок и точки уровня под ним. */
+/** Вид строения: его картинка. */
 export class BuildingView extends PieceView {
   constructor(scene: Phaser.Scene, x: number, y: number, building: Building) {
     super(scene, x, y);

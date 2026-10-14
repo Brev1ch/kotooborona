@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
+import { art } from '../art';
 import { cats, elementColor, gear, type GearSlot, type Rarity } from '../data';
 import { t } from '../i18n';
 import { COLORS } from '../layout';
+import { itemArtId } from '../systems/Art';
 import { shownBonus, type Item } from '../systems/Items';
 
 export { itemTitle } from './itemTitle';
@@ -42,6 +44,31 @@ export function itemLines(item: Item): string[] {
 export function itemAccent(item: Item): number {
   const element = item.bonuses.find((bonus) => bonus.element)?.element;
   return element ? elementColor(element) : rarityFill(item.rarity);
+}
+
+/** Камень стихии на картинке предмета: доля её размера и сдвиг от центра к правому нижнему углу. */
+const GEM = { radius: 0.17, offset: 0.3 };
+
+/**
+ * Значок предмета в квадрате `size` с центром в (x, y): готовая картинка по слоту и главному бонусу, а пока её нет — значок слота.
+ * Стихию показывает цвет камня: на рисунке кодом это его часть, на готовой картинке — камень в углу.
+ * `artSize` — размер готовой картинки, если ей можно занять больше места, чем значку.
+ */
+export function addItemGlyph(scene: Phaser.Scene, item: Item, x: number, y: number, size: number, artSize = size): Phaser.GameObjects.GameObject {
+  const glyph = scene.add.graphics({ x, y });
+  const picture = art.addIcon(scene, itemArtId(gear.items, item), 0, 0, artSize);
+  if (!picture) {
+    drawSlotGlyph(glyph, item.slot, size, rarityFill(item.rarity), itemAccent(item));
+    return glyph;
+  }
+  const element = item.bonuses.find((bonus) => bonus.element)?.element;
+  if (element) {
+    glyph.fillStyle(COLORS.bg);
+    glyph.fillCircle(artSize * GEM.offset, artSize * GEM.offset, artSize * GEM.radius + 1.5);
+    glyph.fillStyle(elementColor(element));
+    glyph.fillCircle(artSize * GEM.offset, artSize * GEM.offset, artSize * GEM.radius);
+  }
+  return scene.add.container(x, y, [picture, glyph.setPosition(0, 0)]);
 }
 
 /**

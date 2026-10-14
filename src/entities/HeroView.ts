@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
+import { art } from '../art';
 import type { Point } from '../data';
 import { HERO_FEEL } from '../feel';
 import { COLORS, DEPTH } from '../layout';
 import { addBakedShape, CIRCLE_RADIUS, ensureTextures, Texture } from '../scenes/textures';
+import { artId } from '../systems/Art';
 
 const ORB_X = 20;
 const ORB_Y = -19;
@@ -15,7 +17,10 @@ const PART_H = 76;
 const ORB_SCALE = HERO_FEEL.orbRadius / CIRCLE_RADIUS;
 const HALO_SCALE = ORB_SCALE * HERO_FEEL.haloScale;
 
-/** Временный вид героя: кот в мантии и шляпе мага, с посохом. Сфера на посохе показывает готовность умения. */
+/**
+ * Вид героя: кот в мантии и шляпе мага, с посохом. Сфера на посохе показывает готовность умения:
+ * её и ореол рисует игра и поверх готового арта, поэтому на картинке героя посох без сферы.
+ */
 export class HeroView extends Phaser.GameObjects.Container {
   private readonly staff: Phaser.GameObjects.Container;
   private readonly orb: Phaser.GameObjects.Image;
@@ -27,6 +32,19 @@ export class HeroView extends Phaser.GameObjects.Container {
 
     // Неподвижные части запечены в текстуры; сфера и ореол — круги из общей текстуры, окрашенные в цвет посоха.
     ensureTextures(scene);
+    this.halo = scene.add.image(ORB_X, ORB_Y, Texture.disc).setTint(orbColor);
+    this.orb = scene.add.image(ORB_X, ORB_Y, Texture.disc).setTint(orbColor);
+    const picture = art.add(scene, artId.hero);
+    this.staff = scene.add.container(0, 0, [this.halo, this.orb]);
+    this.add(picture ? [picture, this.staff] : [...this.drawParts(), this.staff]);
+    this.setDepth(DEPTH.cat);
+    scene.add.existing(this);
+    this.setReady(true);
+  }
+
+  /** Герой, нарисованный кодом: мантия и голова; посох встаёт под сферу. Голова покачивается. */
+  private drawParts(): Phaser.GameObjects.Image[] {
+    const { scene } = this;
     const body = addBakedShape(scene, 'hero-body', PART_W, PART_H, (g) => {
       g.fillStyle(COLORS.shadow, HERO_FEEL.shadowAlpha);
       g.fillEllipse(0, 22, 40, 10);
@@ -58,13 +76,7 @@ export class HeroView extends Phaser.GameObjects.Container {
       g.lineStyle(3, COLORS.heroStaff);
       g.lineBetween(17, 22, ORB_X, -16);
     });
-    this.halo = scene.add.image(ORB_X, ORB_Y, Texture.disc).setTint(orbColor);
-    this.orb = scene.add.image(ORB_X, ORB_Y, Texture.disc).setTint(orbColor);
-    this.staff = scene.add.container(0, 0, [stick, this.halo, this.orb]);
-
-    this.add([body, head, this.staff]);
-    this.setDepth(DEPTH.cat);
-    scene.add.existing(this);
+    this.staff.addAt(stick, 0);
 
     scene.tweens.add({
       targets: head,
@@ -74,7 +86,7 @@ export class HeroView extends Phaser.GameObjects.Container {
       yoyo: true,
       repeat: -1,
     });
-    this.setReady(true);
+    return [body, head];
   }
 
   /** Точка в координатах поля, откуда вылетает метеор. */

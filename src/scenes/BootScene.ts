@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
+import { art } from '../art';
 import { audio } from '../audio';
+import { levels } from '../data';
 import { loadFonts } from '../fonts';
 import { setLang, t } from '../i18n';
 import { platform } from '../platform';
@@ -13,6 +15,8 @@ export class BootScene extends Phaser.Scene {
 
   preload(): void {
     audio.preload(this);
+    // Арт: атласы и фон первого уровня; фоны остальных грузит сцена боя при входе в уровень.
+    art.preload(this, levels.levels[0].id);
   }
 
   create(): void {

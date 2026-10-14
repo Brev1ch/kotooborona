@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { art } from '../art';
 import { audio } from '../audio';
 import {
   ads,
@@ -56,6 +57,7 @@ import {
   type UpgradeOffer,
   type BuildOffer,
 } from './keys';
+import { artId } from '../systems/Art';
 import { bakeTexture, CIRCLE_RADIUS, ensureTextures, Texture } from './textures';
 import { fadeIn } from './transitions';
 import { addCrystalIcon } from './widgets';
@@ -177,6 +179,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  preload(): void {
+    // Фон уровня грузится при входе в него: при запуске игры загружен только фон первого.
+    art.preloadLevel(this, this.level.id);
+  }
+
   create(): void {
     // Камера обрезана по игровому полю, поэтому координаты сцены совпадают
     // с координатами из levels.json, а дорога за краем поля не видна.
@@ -185,10 +192,14 @@ export class GameScene extends Phaser.Scene {
     fadeIn(this);
 
     // Дорога, ворота и клетки не меняются — запекаются в одну картинку.
-    const boardKey = `board-${this.level.id}`;
+    // На готовом фоне дорога и ворота уже нарисованы: поверх него кодом ложатся только клетки.
+    const background = art.add(this, artId.background(this.level.id))?.setOrigin(0).setDisplaySize(BOARD_W, BOARD_H);
+    const boardKey = `${background ? 'slots' : 'board'}-${this.level.id}`;
     bakeTexture(this, boardKey, BOARD_W, BOARD_H, (g) => {
-      this.drawRoad(g, this.level.path);
-      this.drawGate(g, this.level.path[this.level.path.length - 1]);
+      if (!background) {
+        this.drawRoad(g, this.level.path);
+        this.drawGate(g, this.level.path[this.level.path.length - 1]);
+      }
       this.drawSlots(g, this.level.slots);
     });
     this.add.image(0, 0, boardKey).setOrigin(0);

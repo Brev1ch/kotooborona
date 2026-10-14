@@ -19,7 +19,7 @@ import {
 import { progress } from '../progress';
 import { GEAR_SLOTS } from '../systems/Gear';
 import { salvageShards, upgradePrice, type Item } from '../systems/Items';
-import { drawSlotGlyph, itemAccent, itemLines, itemRarityLine, itemTitle, rarityColor, rarityFill } from './itemText';
+import { addItemGlyph, drawSlotGlyph, itemLines, itemRarityLine, itemTitle, rarityColor, rarityFill } from './itemText';
 import { SceneKey, type LevelSceneData } from './keys';
 import { sceneBeforeBattle } from './IntroScene';
 import { fadeIn, fadeOut } from './transitions';
@@ -124,8 +124,9 @@ export class GearScene extends Phaser.Scene {
       .setStrokeStyle(2, item ? rarityFill(item.rarity) : COLORS.line)
       // По имени плашку находит смоук-проверка.
       .setName(`worn:${slot}`);
-    const glyph = this.add.graphics({ x: 0, y: -14 });
-    drawSlotGlyph(glyph, slot, 26, item ? rarityFill(item.rarity) : COLORS.line, item ? itemAccent(item) : COLORS.line);
+    // Пустой слот — его значок контуром.
+    const glyph = item ? addItemGlyph(this, item, 0, -14, 26) : this.add.graphics({ x: 0, y: -14 });
+    if (!item) drawSlotGlyph(glyph as Phaser.GameObjects.Graphics, slot, 26, COLORS.line);
     const name = this.add
       .text(0, 12, item ? itemTitle(item, true) : t(`gear.slot.${slot}`), {
         fontFamily: FONTS.body,
@@ -149,8 +150,8 @@ export class GearScene extends Phaser.Scene {
   /** Ячейка инвентаря: рамка цвета редкости и значок слота. */
   private addCell(item: Item, x: number, y: number, size: number): void {
     const bg = this.add.rectangle(0, 0, size, size, COLORS.panel).setStrokeStyle(2, rarityFill(item.rarity)).setName(`item:${item.id}`);
-    const glyph = this.add.graphics();
-    drawSlotGlyph(glyph, item.slot, 28, rarityFill(item.rarity), itemAccent(item));
+    // Готовой картинке в ячейке отдано больше места, чем значку слота.
+    const glyph = addItemGlyph(this, item, 0, 0, 28, 40);
     const box = this.add.container(x, y, [bg, glyph]);
     this.makePressable(bg, box, item);
     this.content.push(box);
