@@ -44,6 +44,8 @@ export interface SaveData {
   pending: PendingChests;
   /** Когда взят последний сундук за рекламу: время в миллисекундах; 0 — ещё не брали. */
   adChestAt: number;
+  /** Обучение на первом уровне пройдено или пропущено: показывается один раз, «Пройти обучение заново» сбрасывает. */
+  onboarded: boolean;
 }
 
 type RawSave = Record<string, unknown>;
@@ -68,6 +70,8 @@ const MIGRATIONS: readonly Migration[] = [
   (save) => ({ ...save, ...chestsForPerfectLevels(save.stars) }),
   // 6 → 7: у музыки свой выключатель. Кто выключил звук, когда выключатель был один, остаётся и без музыки.
   (save) => ({ ...save, music: save.sound !== false }),
+  // 7 → 8: интерактивное обучение на первом уровне. Кто уже проходил уровни, умеет играть: ему обучение не показывается.
+  (save) => ({ ...save, onboarded: isRecord(save.stars) && Object.values(save.stars).some((value) => typeof value === 'number' && value >= 1) }),
 ];
 
 /** Сундуки за уровни, пройденные на три звезды до того, как за это стали давать сундук: по одному за каждый. */
@@ -223,6 +227,7 @@ export function defaultSave(rules: SaveRules, version = MIGRATIONS.length + 1): 
     perfect: [],
     pending: { big: 0, small: 0 },
     adChestAt: 0,
+    onboarded: false,
   };
 }
 
@@ -290,6 +295,7 @@ export function parseSave(raw: unknown, rules: SaveRules, migrations: readonly M
   // Поля нет в сохранениях, сделанных до появления звука: остаётся включённым.
   if (typeof save.sound === 'boolean') data.sound = save.sound;
   if (typeof save.music === 'boolean') data.music = save.music;
+  if (typeof save.onboarded === 'boolean') data.onboarded = save.onboarded;
 
   if (typeof save.fish === 'number' && Number.isFinite(save.fish)) data.fish = Math.max(0, Math.floor(save.fish));
 
@@ -539,6 +545,17 @@ export class Progress {
     this.touch();
   }
 
+  /** Обучение на первом уровне пройдено или пропущено. */
+  get onboarded(): boolean {
+    return this.data.onboarded;
+  }
+
+  setOnboarded(done: boolean): void {
+    if (this.data.onboarded === done) return;
+    this.data.onboarded = done;
+    this.touch();
+  }
+
   get fish(): number {
     return this.data.fish;
   }
@@ -563,7 +580,7 @@ export class Progress {
     this.timer = null;
     if (!this.dirty) return;
     this.dirty = false;
-    const { version, stars, items, worn, shards, nextItem, book, sound, music, fish, chests, bestiary, perfect, pending, adChestAt } = this.data;
+    const { version, stars, items, worn, shards, nextItem, book, sound, music, fish, chests, bestiary, perfect, pending, adChestAt, onboarded } = this.data;
     const snapshot = {
       ...this.extra,
       version,
@@ -581,6 +598,7 @@ export class Progress {
       perfect: [...perfect],
       pending: { ...pending },
       adChestAt,
+      onboarded,
     };
     // Не записалось — изменения уйдут со следующей записью.
     this.storage.save(SAVE_KEY, snapshot).catch(() => {

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cats as catsJson, gear as gearJson } from '../data';
 import type { CatsConfig, EnemiesConfig, GearConfig } from '../data/types';
 import { itemsBonuses, type Item } from './Items';
-import { CURRENT_VERSION, parseSave, Progress, SAVE_KEY, type Migration, type SaveRules, type SaveStorage } from './Progress';
+import { CURRENT_VERSION, defaultSave, parseSave, Progress, SAVE_KEY, type Migration, type SaveRules, type SaveStorage } from './Progress';
 
 // Из конфигов нужны только старое снаряжение (по нему переносятся сохранения), правила предметов и списки стихий и врагов.
 const rules: SaveRules = {
@@ -53,6 +53,7 @@ const defaults = {
   perfect: [] as string[],
   pending: { big: 0, small: 0 },
   adChestAt: 0,
+  onboarded: false,
 };
 
 /** Предмет инвентаря для тестов. */
@@ -108,6 +109,7 @@ describe('parseSave: чтение сохранения', () => {
       perfect: ['opushka'],
       pending: { big: 1, small: 2 },
       adChestAt: 1700000000000,
+      onboarded: true,
     };
 
     expect(parseSave(raw, rules)).toEqual({ data: raw, extra: {}, foreignItems: [] });
@@ -279,7 +281,7 @@ describe('parseSave: настоящие миграции с версии 1', () 
     progress.flush();
 
     expect(saves).toEqual([
-      { ...defaults, ...{ stars: v1.stars, book: v1.book, sound: false, music: false }, fish: 5, items: ALL, worn: { staff: 'i4', mantle: 'i5', amulet: 'i6' }, nextItem: 7, bestiary: ['mouse', 'rat', 'boss'], perfect: ['opushka'], pending: { big: 1, small: 0 } },
+      { ...defaults, ...{ stars: v1.stars, book: v1.book, sound: false, music: false }, fish: 5, items: ALL, worn: { staff: 'i4', mantle: 'i5', amulet: 'i6' }, nextItem: 7, bestiary: ['mouse', 'rat', 'boss'], perfect: ['opushka'], pending: { big: 1, small: 0 }, onboarded: true },
     ]);
     expect(Object.keys(saves[0] as object)).not.toEqual(expect.arrayContaining(['gear', 'owned', 'gearLevels']));
   });
@@ -303,7 +305,7 @@ describe('parseSave: версия 4 → 5, инвентарь', () => {
   it('игрок со стартовым снаряжением получает три стартовых предмета', () => {
     const { data } = parseSave(v4({}), rules);
 
-    expect(data).toEqual({ ...defaults, stars: { opushka: 2 }, fish: 30, chests: 2, bestiary: ['mouse'] });
+    expect(data).toEqual({ ...defaults, stars: { opushka: 2 }, fish: 30, chests: 2, bestiary: ['mouse'], onboarded: true });
   });
 
   it('предметы из сундуков переходят в инвентарь в порядке получения, после стартовых', () => {
@@ -718,7 +720,7 @@ describe('parseSave: версия 5 → 6, сундуки за три звезд
   it('остальное сохранение не меняется', () => {
     const { data } = parseSave(v5({ opushka: 3 }), rules);
 
-    expect(data).toEqual({ ...defaults, stars: { opushka: 3 }, shards: 3, fish: 30, chests: 2, bestiary: ['mouse'], perfect: ['opushka'], pending: { big: 1, small: 0 } });
+    expect(data).toEqual({ ...defaults, stars: { opushka: 3 }, shards: 3, fish: 30, chests: 2, bestiary: ['mouse'], perfect: ['opushka'], pending: { big: 1, small: 0 }, onboarded: true });
   });
 
   it('без уровней на три звезды сундуков нет', () => {
@@ -883,7 +885,8 @@ describe('parseSave: версия 6 → 7, свой выключатель у м
 
   it('остальное сохранение не меняется', () => {
     const { data } = parseSave(v6({ stars: { opushka: 3 }, fish: 12, perfect: ['opushka'], pending: { big: 1, small: 2 } }), rules);
-    expect(data).toEqual({ ...defaults, stars: { opushka: 3 }, fish: 12, perfect: ['opushka'], pending: { big: 1, small: 2 } });
+    // Пройденный уровень — игрок уже умеет играть: обучение ему не показывается (версия 7 → 8).
+    expect(data).toEqual({ ...defaults, stars: { opushka: 3 }, fish: 12, perfect: ['opushka'], pending: { big: 1, small: 2 }, onboarded: true });
   });
 
   it('сохранение первой версии доходит до текущей с музыкой по настройке звука', () => {
@@ -895,6 +898,26 @@ describe('parseSave: версия 6 → 7, свой выключатель у м
     expect(parseSave({ version: V, sound: false, music: true }, rules).data).toMatchObject({ sound: false, music: true });
     expect(parseSave({ version: V, sound: true, music: false }, rules).data).toMatchObject({ sound: true, music: false });
     expect(parseSave({ version: V, music: 'off' }, rules).data.music).toBe(true);
+  });
+});
+
+describe('parseSave: версия 7 → 8, обучение на первом уровне', () => {
+  const v7 = (extra: object) => ({ ...defaults, version: 7, onboarded: undefined, ...extra });
+
+  it('новый игрок обучение ещё не проходил', () => {
+    expect(defaultSave(rules).onboarded).toBe(false);
+    expect(parseSave(v7({ stars: {} }), rules).data.onboarded).toBe(false);
+  });
+
+  it('кто уже прошёл хотя бы один уровень, обучение не увидит', () => {
+    expect(parseSave(v7({ stars: { opushka: 1 } }), rules).data.onboarded).toBe(true);
+    expect(parseSave({ version: 1, stars: { tropinka: 2 }, gear: {}, book: [] }, rules).data.onboarded).toBe(true);
+  });
+
+  it('в текущей версии флаг читается как есть, мусор — не пройдено', () => {
+    expect(parseSave({ version: V, onboarded: true }, rules).data.onboarded).toBe(true);
+    expect(parseSave({ version: V, stars: { opushka: 3 }, onboarded: false }, rules).data.onboarded).toBe(false);
+    expect(parseSave({ version: V, onboarded: 'yes' }, rules).data.onboarded).toBe(false);
   });
 });
 

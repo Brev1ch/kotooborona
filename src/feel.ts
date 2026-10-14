@@ -459,6 +459,25 @@ export const TUTORIAL_FEEL = {
   ringAlpha: 0.5,
 };
 
+/**
+ * Интерактивное обучение на первом уровне (`scenes/OnboardingOverlay.ts`): всё, кроме цели шага, затемнено на `dimAlpha`;
+ * вокруг цели — зазор `holePad`. Рука-указатель: касание кнопки — нажимается и отпускается за `tapMs`; перетаскивание —
+ * едет от кота к коту за `dragMs`, задерживаясь на концах на `holdMs`.
+ */
+export const ONBOARDING_FEEL = {
+  dimAlpha: 0.62,
+  holePad: 4,
+  handSize: 34,
+  handTapLift: 10,
+  tapMs: 380,
+  dragMs: 750,
+  holdMs: 260,
+  /** Строка подсказки: над целью на столько, но не выше `textMinY`. */
+  textGap: 16,
+  textMinY: 64,
+  textAlpha: 0.94,
+};
+
 /** Сценки перед уровнями. */
 export const STORY_FEEL = {
   heroScale: 3,
