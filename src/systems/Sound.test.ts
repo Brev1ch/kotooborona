@@ -97,6 +97,19 @@ describe('SoundGate: выключение и паузы', () => {
     expect(gate.audible).toBe(true);
   });
 
+  it('потеря фокуса окном глушит звук и музыку, пока фокус не вернётся, и не снимает паузу рекламы', () => {
+    const gate = new SoundGate(rules);
+    gate.pause('ad');
+    gate.pause('blur');
+    gate.resume('blur');
+    expect([gate.audible, gate.musicAudible]).toEqual([false, false]);
+    gate.resume('ad');
+    gate.pause('blur');
+    expect([gate.audible, gate.musicAudible]).toEqual([false, false]);
+    gate.resume('blur');
+    expect([gate.audible, gate.musicAudible]).toEqual([true, true]);
+  });
+
   it('повторная пауза по той же причине снимается одним resume', () => {
     const gate = new SoundGate(rules);
     gate.pause('ad');

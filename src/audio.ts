@@ -75,6 +75,10 @@ class GameAudio {
       if (document.hidden) this.pause('hidden');
       else this.resume('hidden');
     });
+    // Яндекс Игры, 1.3: и когда окно потеряло фокус (игрок нажал на интерфейс площадки или ушёл в другое окно).
+    // При запуске фокус не проверяется: игра в рамке площадки получает его только с первым касанием.
+    window.addEventListener('blur', () => this.pause('blur'));
+    window.addEventListener('focus', () => this.resume('blur'));
     if (document.hidden) this.gate.pause('hidden');
     this.apply();
   }
