@@ -4,11 +4,13 @@ import { audio } from '../audio';
 import { BUTTON_FEEL } from '../feel';
 import { t } from '../i18n';
 import { COLORS, FONTS, MIN_TOUCH, TEXT_COLORS } from '../layout';
-import { artId, type ButtonArt, type IconArt } from '../systems/Art';
+import { artId, type IconArt } from '../systems/Art';
+import { addPlate, PLATE_SHADOW } from './plate';
 import { ensureTextures, Texture } from './textures';
 
 /**
- * Отклик на нажатие: пока `hit` держат, `target` сжат; отпустили или увели палец — пружинит обратно.
+ * Отклик на нажатие: пока `hit` держат, `target` опущен на `BUTTON_FEEL.pressDrop` — кнопка садится на свою тень
+ * (тень плашки при этом остаётся на месте); отпустили или увели палец — пружинит обратно.
  * `enabled` — можно ли сейчас нажимать: выключенная кнопка не откликается.
  */
 export function addPressFeel(
@@ -18,37 +20,37 @@ export function addPressFeel(
   enabled: () => boolean = () => true,
 ): void {
   const { width, height } = hit;
-  // Сжатая кнопка не должна терять нажатие у края: область нажатия растёт настолько же, насколько сжалась картинка.
-  const setHitArea = (scale: number): void => {
+  const drop = BUTTON_FEEL.pressDrop;
+  // Опущенная кнопка не должна терять нажатие у верхнего края: область нажатия растёт вверх ровно на сдвиг.
+  const setHitArea = (lift: number): void => {
     const area = hit.input?.hitArea as Phaser.Geom.Rectangle | undefined;
-    area?.setTo((width - width / scale) / 2, (height - height / scale) / 2, width / scale, height / scale);
+    area?.setTo(0, -lift, width, height + lift);
   };
+  const shadow = target.getByName(PLATE_SHADOW) as Phaser.GameObjects.Image | null;
   let pressed = false;
+  let baseY = 0;
+  let shadowY = 0;
+
+  const move = (down: boolean, duration: number, ease: string, onComplete?: () => void): void => {
+    scene.tweens.killTweensOf(target);
+    if (shadow) scene.tweens.killTweensOf(shadow);
+    scene.tweens.add({ targets: target, y: baseY + (down ? drop : 0), duration, ease, onComplete });
+    if (shadow) scene.tweens.add({ targets: shadow, y: shadowY - (down ? drop : 0), duration, ease });
+  };
 
   hit.on('pointerdown', () => {
-    if (!enabled()) return;
+    if (!enabled() || pressed) return;
     pressed = true;
-    setHitArea(BUTTON_FEEL.pressScale);
-    scene.tweens.killTweensOf(target);
-    scene.tweens.add({
-      targets: target,
-      scale: BUTTON_FEEL.pressScale,
-      duration: BUTTON_FEEL.pressMs,
-      ease: BUTTON_FEEL.pressEase,
-    });
+    baseY = target.y;
+    shadowY = shadow?.y ?? 0;
+    setHitArea(drop);
+    move(true, BUTTON_FEEL.pressMs, BUTTON_FEEL.pressEase);
   });
 
   const release = (): void => {
     if (!pressed) return;
     pressed = false;
-    scene.tweens.killTweensOf(target);
-    scene.tweens.add({
-      targets: target,
-      scale: 1,
-      duration: BUTTON_FEEL.releaseMs,
-      ease: BUTTON_FEEL.releaseEase,
-      onComplete: () => setHitArea(1),
-    });
+    move(false, BUTTON_FEEL.releaseMs, BUTTON_FEEL.releaseEase, () => setHitArea(0));
   };
   hit.on('pointerup', release);
   hit.on('pointerout', release);
@@ -60,17 +62,6 @@ interface ButtonParts {
   text: Phaser.GameObjects.Text;
 }
 
-/**
- * Фон кнопки из арта поверх её прямоугольника: прямоугольник остаётся областью нажатия, но становится прозрачным.
- * Картинки нет — кнопка остаётся прямоугольником. Возвращает то, что нужно положить в кнопку между фоном и подписью.
- */
-function addPlate(scene: Phaser.Scene, bg: Phaser.GameObjects.Rectangle, kind: ButtonArt): Phaser.GameObjects.GameObject[] {
-  const plate = art.addPlate(scene, artId.button(kind), bg.width, bg.height);
-  if (!plate) return [];
-  bg.setFillStyle(bg.fillColor, 0).setStrokeStyle();
-  return [plate];
-}
-
 /** Значок валюты в квадрате `size`: готовый арт, а пока его нет — текстура, нарисованная кодом. */
 function addIcon(scene: Phaser.Scene, icon: IconArt, x: number, y: number, size: number): Phaser.GameObjects.Image {
   const picture = art.addIcon(scene, artId.icon(icon), x, y, size);
@@ -79,7 +70,7 @@ function addIcon(scene: Phaser.Scene, icon: IconArt, x: number, y: number, size:
   return scene.add.image(x, y, Texture[icon]).setDisplaySize(size, size);
 }
 
-/** Плашка с подписью: главная — латунная, второстепенная — контурная. */
+/** Плашка с подписью: главная — латунная, второстепенная — тёмная. */
 function makeButton(
   scene: Phaser.Scene,
   x: number,
@@ -89,10 +80,7 @@ function makeButton(
   label: string,
   primary: boolean,
 ): ButtonParts {
-  const bg = scene.add
-    .rectangle(0, 0, width, height, primary ? COLORS.brass : COLORS.panel)
-    .setStrokeStyle(1, COLORS.line, primary ? 0 : 1)
-    .setInteractive({ useHandCursor: true });
+  const bg = scene.add.rectangle(0, 0, width, height, primary ? COLORS.brass : COLORS.panel).setInteractive({ useHandCursor: true });
   const text = scene.add
     .text(0, 0, label, {
       fontFamily: FONTS.display,
@@ -100,7 +88,9 @@ function makeButton(
       color: primary ? TEXT_COLORS.dark : TEXT_COLORS.fg,
     })
     .setOrigin(0.5);
-  return { button: scene.add.container(x, y, [bg, ...addPlate(scene, bg, primary ? 'primary' : 'normal'), text]), bg, text };
+  const button = scene.add.container(x, y, [bg, text]);
+  addPlate(scene, bg, { fill: primary ? COLORS.brass : COLORS.panel });
+  return { button, bg, text };
 }
 
 /** Кнопка перехода между экранами. Срабатывает один раз, на отпускание. */
@@ -154,13 +144,10 @@ export function addSoundToggle(
  * Состояние каждой хранится в сохранении.
  */
 export function addSoundButton(scene: Phaser.Scene, x: number, y: number, kind: SoundKind = 'sound'): Phaser.GameObjects.Container {
-  const bg = scene.add
-    .rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel)
-    .setStrokeStyle(1, COLORS.line)
-    .setName(kind)
-    .setInteractive({ useHandCursor: true });
+  const bg = scene.add.rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel).setName(kind).setInteractive({ useHandCursor: true });
   const icon = scene.add.graphics();
   const button = scene.add.container(x, y, [bg, icon]);
+  addPlate(scene, bg, { fill: COLORS.panel });
 
   const draw = (on: boolean): void => {
     const color = on ? COLORS.range : COLORS.line;
@@ -233,7 +220,8 @@ export function addAdButton(
   icon.fillTriangle(-3, -4, -3, 4, 5, 0);
   text.setX(left + AD_ICON.width + AD_ICON.gap);
 
-  const button = scene.add.container(x, y, [bg, ...addPlate(scene, bg, 'ad'), icon, text]);
+  const button = scene.add.container(x, y, [bg, icon, text]);
+  addPlate(scene, bg, { fill: COLORS.reward });
   addPressFeel(scene, bg, button);
   bg.on('pointerdown', () => audio.play('click'));
   bg.on('pointerup', onClick);

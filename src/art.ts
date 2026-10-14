@@ -68,19 +68,7 @@ class GameArt {
     return scene.add.image(x, y, ref.key, ref.frame).setDisplaySize(ref.width * fit, ref.height * fit);
   }
 
-  /**
-   * Фон кнопки, растянутый до `width`×`height`: края не тянутся, подпись остаётся текстом поверх.
-   * null — картинки нет или отрисовка без WebGL, где растягивать по краям нечем: тогда кнопка — прямоугольник.
-   */
-  addPlate(scene: Phaser.Scene, id: string, width: number, height: number): Phaser.GameObjects.NineSlice | null {
-    const ref = this.find(scene, id);
-    if (!ref || !ref.slice || scene.renderer.type !== Phaser.WEBGL) return null;
-    const { slice, scale } = ref;
-    // Кнопка ниже двух краёв: сжимаем картинку целиком, иначе края наедут друг на друга.
-    const shrink = Math.min(1, (height * scale) / (slice * 2 + 1), (width * scale) / (slice * 2 + 1));
-    const k = scale / shrink;
-    return scene.add.nineslice(0, 0, ref.key, ref.frame, width * k, height * k, slice, slice, slice, slice).setScale(1 / k);
-  }
+
 }
 
 export const art = new GameArt();

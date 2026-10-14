@@ -12,7 +12,6 @@
 //     на траве и на дороге (копия — docs/screens/enemies-preview.png); у врагов одного размера линии тоже совпадают.
 //   Враги (группа `enemies`) — в своём едином масштабе тела, умноженном на `size` из enemies.json; вырезаются с мягким краем.
 //   Картинка атласа: прозрачные края обрезаются, остаток вписывается в размер из манифеста по центру.
-//   Фон кнопки (`slice`): растягивается ровно в размер, края не обрезаются.
 //   Фон уровня: обрезается под размер и лежит отдельным файлом — игра грузит его при входе в уровень.
 // Рядом пишется index.json: какие картинки готовы, где они в атласах и сколько весят,
 // а в docs/ART_LIST.md — список всех картинок для художника с отметкой готовности.
@@ -106,13 +105,11 @@ async function writePlaceholder(image) {
   let body;
   if (group === 'backgrounds') {
     body = `<rect width="${w}" height="${h}" fill="${color}"/><rect x="40" y="40" width="${w - 80}" height="${h - 80}" fill="none" stroke="#5f8f6f" stroke-width="6"/>`;
-  } else if (image.slice) {
-    body = `<rect width="${w}" height="${h}" rx="${image.slice}" fill="${color}"/><rect x="4" y="4" width="${w - 8}" height="${h - 8}" rx="${image.slice - 4}" fill="none" stroke="#ffffff" stroke-opacity="0.6" stroke-width="3"/>`;
   } else {
     const pad = Math.round(Math.min(w, h) * 0.1);
     body = `<ellipse cx="${w / 2}" cy="${h / 2}" rx="${w / 2 - pad}" ry="${h / 2 - pad}" fill="${color}" stroke="#ffffff" stroke-width="2"/>`;
   }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${body}${image.slice ? '' : label}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${body}${label}</svg>`;
   const file = join(SRC, image.file);
   mkdirSync(dirname(file), { recursive: true });
   await sharp(Buffer.from(svg)).png().toFile(file);
@@ -245,19 +242,15 @@ function softEdges(data, width, height, background, alpha) {
 /** Картинка атласа: точки и размер после обрезки и подгонки. */
 async function prepareFrame(image, file) {
   let pipeline = await withAlpha(file, { soft: image.group === 'enemies' });
-  if (image.slice) {
-    pipeline = pipeline.resize(image.width, image.height, { fit: 'fill' });
-  } else {
-    // Обрезка отдельным шагом: sharp меняет размер раньше, чем обрезает, если сделать это одной цепочкой.
-    let trimmed;
-    try {
-      trimmed = await pipeline.trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 1 }).png().toBuffer();
-    } catch {
-      // Обрезать нечего: картинка без прозрачных краёв.
-      trimmed = await (await withAlpha(file, { soft: image.group === 'enemies' })).png().toBuffer();
-    }
-    pipeline = sharp(trimmed).resize(image.width, image.height, { fit: 'inside' });
+  // Обрезка отдельным шагом: sharp меняет размер раньше, чем обрезает, если сделать это одной цепочкой.
+  let trimmed;
+  try {
+    trimmed = await pipeline.trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 1 }).png().toBuffer();
+  } catch {
+    // Обрезать нечего: картинка без прозрачных краёв.
+    trimmed = await (await withAlpha(file, { soft: image.group === 'enemies' })).png().toBuffer();
   }
+  pipeline = sharp(trimmed).resize(image.width, image.height, { fit: 'inside' });
   const { data, info } = await pipeline.raw().toBuffer({ resolveWithObject: true });
   const { width, height } = info;
   // Где обрезанная картинка стоит внутри полного размера.

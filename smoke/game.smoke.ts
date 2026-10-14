@@ -970,6 +970,8 @@ async function checkBuildings(page: Page, id: string): Promise<void> {
 }
 
 test('все уровни главы запускаются, кот продаётся; на четвёртом — стройка, на последнем выходит король', async ({ page }) => {
+  // Десять уровней подряд: обычно полторы минуты, на загруженной машине — дольше общего предела в две.
+  test.setTimeout(240_000);
   await page.goto('/?smoke');
   await waitFor(
     page,

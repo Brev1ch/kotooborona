@@ -6,6 +6,7 @@ import { t } from '../i18n';
 import { BUILD_PANEL, buildRowCenter, COLORS, CONTROLS_Y, FONTS, GAME_H, GAME_W, TEXT_COLORS } from '../layout';
 import type { GameScene } from './GameScene';
 import type { BuildOffer, UpgradeOffer } from './keys';
+import { addPlate } from './plate';
 import { addCoinIcon, addPressFeel } from './widgets';
 
 const COIN_SIZE = 12;
@@ -162,7 +163,7 @@ export class BuildPanel {
     const right = width / 2 - pad;
     const mainColor = row.disabled ? TEXT_COLORS.muted : TEXT_COLORS.fg;
 
-    const bg = this.scene.add.rectangle(0, 0, width, rowH, COLORS.panel).setStrokeStyle(1, COLORS.line).setName(`build-${row.kind}`);
+    const bg = this.scene.add.rectangle(0, 0, width, rowH, COLORS.panel).setName(`build-${row.kind}`);
     const icon = addBuildingIcon(this.scene, row.kind, row.level).setPosition(left + iconX, 0);
     icon.setScale(icon.scale * iconScale).setAlpha(row.disabled ? 0.5 : 1);
     // В строке улучшения название уже стоит в заголовке окна: строка говорит, что именно купит нажатие.
@@ -194,6 +195,7 @@ export class BuildPanel {
     }
 
     const container = this.scene.add.container(x, y, parts);
+    addPlate(this.scene, bg, { fill: row.disabled ? COLORS.bg : COLORS.panel });
     if (!row.disabled) {
       bg.setInteractive({ useHandCursor: true });
       addPressFeel(this.scene, bg, container);

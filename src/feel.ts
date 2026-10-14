@@ -355,17 +355,29 @@ export const METEOR_FEEL = {
   shakeMs: 260,
   shakeIntensity: 0.012,
   /** Обводка кнопки в режиме прицеливания. */
-  buttonAimStroke: 2,
   /** Заполнение кнопки, пока идёт перезарядка. */
   buttonFillAlpha: 0.35,
 };
 
 /** Кнопка сжимается, пока её держат, и пружинит обратно, когда отпустили. */
+/**
+ * Кнопки — мультяшные плашки кодом (`scenes/plate.ts`): скругление `radius`, толстая тёмно-коричневая обводка `outline`
+ * (как у персонажей), блик сверху (`highlight` — доля высоты, `highlightAlpha`), тень снизу глубиной `shadowDepth`.
+ * Нажатие — кнопка садится на тень: сдвиг вниз на `pressDrop` за `pressMs`, обратно — за `releaseMs`.
+ */
 export const BUTTON_FEEL = {
-  pressScale: 0.94,
-  pressMs: 60,
+  radius: 12,
+  outline: 3,
+  outlineColor: 0x3a2418,
+  highlight: 0.36,
+  highlightAlpha: 0.14,
+  shadowDepth: 4,
+  shadowColor: 0x140c08,
+  shadowAlpha: 0.55,
+  pressDrop: 3,
+  pressMs: 50,
   pressEase: 'Quad.easeOut',
-  releaseMs: 180,
+  releaseMs: 140,
   releaseEase: 'Back.easeOut',
 };
 

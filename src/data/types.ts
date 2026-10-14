@@ -370,7 +370,7 @@ export interface StoryConfig {
 }
 
 /** Группа картинок: по ней собран список для художника и выбран атлас. */
-export type ArtGroup = 'cats' | 'enemies' | 'hero' | 'buildings' | 'items' | 'icons' | 'buttons' | 'portraits' | 'backgrounds';
+export type ArtGroup = 'cats' | 'enemies' | 'hero' | 'buildings' | 'items' | 'icons' | 'portraits' | 'backgrounds';
 
 /** Картинка, которую ждёт игра. Пока файла нет, на её месте — рисунок кодом. */
 export interface ArtImage {
@@ -399,8 +399,6 @@ export interface ArtImage {
   anchors?: Record<string, [number, number]>;
   /** Только у врагов: картинка не своего типа, а его состояния (щитоносец со сломанным щитом) — размер как у этого типа. */
   sizeOf?: EnemyTypeId;
-  /** Фон кнопки: края такой ширины в пикселях не растягиваются. */
-  slice?: number;
   /** Фон поля: грузится при входе в уровень с этим фоном (`background` в levels.json). */
   background?: BackgroundId;
 }

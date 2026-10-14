@@ -29,6 +29,7 @@ import { MAX_STARS } from '../systems/Progress';
 import { itemLines, itemTitle, rarityColor, rarityFill } from './itemText';
 import { SceneKey, type LevelSceneData } from './keys';
 import { fadeIn, fadeOut } from './transitions';
+import { addPlate } from './plate';
 import { addAdButton, addButton, fitText, addFishCounter, addFishIcon, addLockIcon, addPressFeel, addSoundButton, type FishCounter } from './widgets';
 
 const CARD_PAD = 14;
@@ -107,10 +108,7 @@ export class MenuScene extends Phaser.Scene {
     const ready = source !== null;
     const open = t(source === 'small' ? 'chest.openSmall' : 'chest.open');
 
-    const bg = this.add
-      .rectangle(0, 0, chestW, chestH, ready ? COLORS.brass : COLORS.panel)
-      .setStrokeStyle(1, COLORS.line, ready ? 0 : 1)
-      .setName('chest');
+    const bg = this.add.rectangle(0, 0, chestW, chestH, ready ? COLORS.brass : COLORS.panel).setName('chest');
     const text = ready
       ? waiting > 1
         ? t('chest.count', { label: open, count: waiting })
@@ -129,6 +127,7 @@ export class MenuScene extends Phaser.Scene {
       .star(-label.width / 2 - 14, 0, 5, CHEST_STAR.inner, CHEST_STAR.outer, ready ? COLORS.bg : COLORS.brass)
       .setVisible(ready || need !== null);
     const chest = this.add.container(...menuChestCenter(), [bg, star, label]);
+    addPlate(this, bg, { fill: ready ? COLORS.brass : COLORS.panel });
     this.chest = chest;
     if (!source) return;
 
@@ -159,7 +158,7 @@ export class MenuScene extends Phaser.Scene {
       this.adChest = addAdButton(this, ...menuAdChestCenter(), adChestW, chestH, t('chest.ad'), () => void this.watchAdForChest());
       return;
     }
-    const bg = this.add.rectangle(0, 0, adChestW, chestH, COLORS.panel).setStrokeStyle(1, COLORS.line);
+    const bg = this.add.rectangle(0, 0, adChestW, chestH, COLORS.panel);
     const label = this.add
       .text(0, -MENU.adChestLine, t('chest.ad'), { fontFamily: FONTS.body, fontSize: '12px', color: TEXT_COLORS.muted })
       .setOrigin(0.5);
@@ -167,6 +166,7 @@ export class MenuScene extends Phaser.Scene {
       .text(0, MENU.adChestLine, clock(wait), { fontFamily: FONTS.display, fontSize: '14px', color: TEXT_COLORS.muted })
       .setOrigin(0.5);
     this.adChest = this.add.container(...menuAdChestCenter(), [bg, label, this.adTimer]);
+    addPlate(this, bg, { fill: COLORS.panel });
   }
 
   /** Раз в секунду: отсчёт убывает, а когда пауза прошла — на его месте снова кнопка. */
@@ -282,7 +282,7 @@ export class MenuScene extends Phaser.Scene {
     const open = tile.unlocked && tile.levelId !== null;
     const left = -cardW / 2 + CARD_PAD;
 
-    const bg = this.add.rectangle(0, 0, cardW, cardH, COLORS.panel).setStrokeStyle(1, open ? COLORS.brass : COLORS.line);
+    const bg = this.add.rectangle(0, 0, cardW, cardH, COLORS.panel);
     const number = this.add
       .text(left + NUMBER_W / 2, 0, String(tile.number), {
         fontFamily: FONTS.display,
@@ -291,6 +291,8 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     const card = this.add.container(x, y, [bg, number]);
+    // Открытый уровень — латунный ободок, закрытый — тусклый.
+    addPlate(this, bg, open ? { fill: COLORS.panel, outline: COLORS.brass } : { fill: COLORS.panel });
 
     if (!open || tile.levelId === null) {
       card.add(addLockIcon(this, cardW / 2 - CARD_PAD - 10, 0));

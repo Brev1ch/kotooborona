@@ -30,7 +30,7 @@ function generate(scene: Phaser.Scene, key: string, size: number, draw: (g: Phas
 }
 
 /** Во сколько раз запечённая фигура крупнее, чем на экране: остаётся чёткой, когда её увеличивает анимация. */
-const SHAPE_SCALE = 2;
+export const SHAPE_SCALE = 2;
 
 /**
  * Запекает нарисованное в текстуру: Graphics заново разбивается на треугольники каждый кадр,
@@ -51,6 +51,14 @@ export function bakeTexture(
  * Запекает фигуру, нарисованную вокруг начала координат, и ставит её картинкой с тем же центром.
  * `width` и `height` — прямоугольник вокруг центра, в который фигура помещается целиком.
  */
+/** Запекает фигуру вокруг начала координат в текстуру `key`, не ставя картинку; картинку с ней масштабировать на `1 / SHAPE_SCALE`. */
+export function bakeShape(scene: Phaser.Scene, key: string, width: number, height: number, draw: (g: Phaser.GameObjects.Graphics) => void): void {
+  generateSized(scene, key, width, height, SHAPE_SCALE, (g) => {
+    g.translateCanvas(width / 2, height / 2);
+    draw(g);
+  });
+}
+
 export function addBakedShape(
   scene: Phaser.Scene,
   key: string,

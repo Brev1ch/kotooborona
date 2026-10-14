@@ -97,14 +97,9 @@ describe('манифест арта', () => {
     expect(art.images.filter((image) => image.group === 'portraits')).toHaveLength(speakers.size);
   });
 
-  it('есть значки валют и три фона кнопок с нерастягиваемыми краями', () => {
+  it('есть значки валют, а фонов кнопок нет: кнопки рисует код', () => {
     for (const icon of ['coin', 'crystal', 'fish'] as const) expect(ids).toContain(artId.icon(icon));
-    for (const kind of ['normal', 'primary', 'ad'] as const) {
-      const image = byId(artId.button(kind));
-      expect(image?.slice).toBeGreaterThan(0);
-      // Середина между краями должна остаться.
-      expect(image!.slice! * 2).toBeLessThan(Math.min(image!.width, image!.height));
-    }
+    expect(art.images.some((image) => image.id.startsWith('button-'))).toBe(false);
   });
 
   it('всё, кроме фонов уровней, собрано в атласы', () => {
@@ -158,7 +153,7 @@ describe('каталог готового арта', () => {
   const index: ArtIndex = {
     atlases: {
       units: { file: 'units.webp', bytes: 1000, frames: { 'cat-fire': frame, 'enemy-mouse': frame } },
-      ui: { file: 'ui.webp', bytes: 500, frames: { 'button-primary': frame } },
+      ui: { file: 'ui.webp', bytes: 500, frames: { 'icon-coin': frame } },
       old: { file: 'old.webp', bytes: 70, frames: { gone: frame } },
     },
     images: {
@@ -187,10 +182,6 @@ describe('каталог готового арта', () => {
   it('имени, которого нет в манифесте, нет, даже если оно есть в списке', () => {
     expect(catalog.find('gone')).toBeNull();
     expect(catalog.find('nothing')).toBeNull();
-  });
-
-  it('у фона кнопки известны нерастягиваемые края', () => {
-    expect(catalog.find('button-primary')).toMatchObject({ slice: 24, width: 48, height: 48 });
   });
 
   it('фон поля — отдельная картинка', () => {

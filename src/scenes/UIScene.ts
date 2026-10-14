@@ -66,6 +66,7 @@ import { addBakedShape, bakeTexture } from './textures';
 import { fadeIn, fadeOut } from './transitions';
 import { TutorialOverlay } from './TutorialOverlay';
 import { addAdButton, addButton, addCoinIcon, addCrystalIcon, addFishIcon, addPressFeel, addSoundToggle } from './widgets';
+import { addPlate, type Plate } from './plate';
 
 const STAT_GAP = HUD_GAP;
 /** Доли ширины показателей — монеты, кристаллы, волна, жизни: длинной подписи «Кристаллы» и числу волн «10/11» нужно больше места. */
@@ -147,6 +148,10 @@ export class UIScene extends Phaser.Scene {
   private banner: Phaser.GameObjects.Container | null = null;
   private summonButton!: Phaser.GameObjects.Container;
   private summonBg!: Phaser.GameObjects.Rectangle;
+  private summonPlate!: Plate;
+  private speedPlate!: Plate;
+  private meteorPlate!: Plate;
+  private coinAdPlate!: Plate;
   private summonLabel!: Phaser.GameObjects.Text;
   private summonCost!: Phaser.GameObjects.Text;
   /** Вторая строка кнопки: остаток призывов волны или штраф за призыв сверх лимита. */
@@ -339,6 +344,7 @@ export class UIScene extends Phaser.Scene {
       this.summonCoin,
     ]);
 
+    this.summonPlate = addPlate(this, this.summonBg, { fill: COLORS.brass });
     addPressFeel(this, this.summonBg, this.summonButton, () => this.canSummon);
     // Призыв по нажатию, а не по отпусканию: кнопку жмут часто и быстро.
     this.summonBg.on('pointerdown', () => {
@@ -350,10 +356,7 @@ export class UIScene extends Phaser.Scene {
   /** Кнопка «Строить»: открывает список строений. На уровнях, где строить нельзя, она тусклая и не нажимается. */
   private addBuildButton(): Phaser.GameObjects.Container {
     const open = (this.level.buildings ?? []).length > 0;
-    const bg = this.add
-      .rectangle(0, 0, BUILD_W, SUMMON_H, COLORS.panel)
-      .setStrokeStyle(1, open ? COLORS.brass : COLORS.line)
-      .setName('build');
+    const bg = this.add.rectangle(0, 0, BUILD_W, SUMMON_H, COLORS.panel).setName('build');
     // Молоток: рукоять и боёк.
     const icon = addBakedShape(this, 'build-icon', BUILD_ICON, BUILD_ICON, (g) => {
       g.fillStyle(COLORS.heroStaff);
@@ -368,6 +371,8 @@ export class UIScene extends Phaser.Scene {
       );
     }).setAlpha(open ? 1 : 0.3);
     const button = this.add.container(BUILD_X, CONTROLS_CENTER_Y, [bg, icon]);
+    // На уровне без строений кнопка тусклая: ободок не тёмный, а под цвет фона.
+    addPlate(this, bg, open ? { fill: COLORS.panel } : { fill: COLORS.bg, outline: COLORS.line });
     if (!open) return button;
 
     bg.setInteractive({ useHandCursor: true });
@@ -459,15 +464,12 @@ export class UIScene extends Phaser.Scene {
 
   /** Кнопка скорости боя: показывает текущую скорость, в ускоренном бою — латунная. */
   private addSpeedButton(): void {
-    this.speedBg = this.add
-      .rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel)
-      .setStrokeStyle(1, COLORS.line)
-      .setName('speed')
-      .setInteractive({ useHandCursor: true });
+    this.speedBg = this.add.rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel).setName('speed').setInteractive({ useHandCursor: true });
     this.speedLabel = this.add
       .text(0, 0, '', { fontFamily: FONTS.display, fontSize: '15px', color: TEXT_COLORS.fg })
       .setOrigin(0.5);
     const button = this.add.container(...speedButtonCenter(), [this.speedBg, this.speedLabel]);
+    this.speedPlate = addPlate(this, this.speedBg, { fill: COLORS.panel });
 
     addPressFeel(this, this.speedBg, button);
     this.speedBg.on('pointerdown', () => audio.play('click'));
@@ -475,17 +477,14 @@ export class UIScene extends Phaser.Scene {
   }
 
   private addPauseButton(): void {
-    const bg = this.add
-      .rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel)
-      .setStrokeStyle(1, COLORS.line)
-      .setName('pause')
-      .setInteractive({ useHandCursor: true });
+    const bg = this.add.rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel).setName('pause').setInteractive({ useHandCursor: true });
     const { width, height, gap } = PAUSE_BAR;
     const icon = this.add.graphics();
     icon.fillStyle(COLORS.range);
     icon.fillRect(-gap / 2 - width, -height / 2, width, height);
     icon.fillRect(gap / 2, -height / 2, width, height);
     const button = this.add.container(...pauseButtonCenter(), [bg, icon]);
+    addPlate(this, bg, { fill: COLORS.panel });
 
     addPressFeel(this, bg, button);
     bg.on('pointerdown', () => audio.play('click'));
@@ -552,6 +551,7 @@ export class UIScene extends Phaser.Scene {
       this.meteorStatus,
     ]);
     this.shownMeteor = '';
+    this.meteorPlate = addPlate(this, this.meteorBg, { fill: COLORS.meteor });
 
     addPressFeel(this, this.meteorBg, this.meteorButton, () => this.gameScene.meteorState().ready);
     // Повторное нажатие отменяет прицеливание.
@@ -586,6 +586,7 @@ export class UIScene extends Phaser.Scene {
       .setOrigin(0.5);
     const button = this.add.container(COIN_AD_X, CONTROLS_CENTER_Y, [this.coinAdBg, this.coinAdAmount, coin, this.coinAdStatus]);
     this.shownCoinAd = '';
+    this.coinAdPlate = addPlate(this, this.coinAdBg, { fill: COLORS.reward });
 
     addPressFeel(this, this.coinAdBg, button, () => this.gameScene.coinAdState().ready);
     this.coinAdBg.on('pointerup', () => void this.watchCoinAd());
@@ -623,8 +624,7 @@ export class UIScene extends Phaser.Scene {
     if (shown === this.shownCoinAd) return;
     this.shownCoinAd = shown;
 
-    this.coinAdBg.setFillStyle(ready ? COLORS.reward : COLORS.panel);
-    this.coinAdBg.setStrokeStyle(1, COLORS.line, ready ? 0 : 1);
+    this.coinAdPlate.setStyle({ fill: ready ? COLORS.reward : COLORS.panel });
     this.coinAdAmount.setColor(ready ? TEXT_COLORS.fg : TEXT_COLORS.muted);
     this.coinAdStatus
       .setColor(ready ? TEXT_COLORS.fg : TEXT_COLORS.muted)
@@ -659,12 +659,8 @@ export class UIScene extends Phaser.Scene {
     this.shownMeteor = shown;
 
     this.meteorFill.setVisible(!ready);
-    this.meteorBg.setFillStyle(ready ? COLORS.meteor : COLORS.panel);
-    this.meteorBg.setStrokeStyle(
-      aiming ? METEOR_FEEL.buttonAimStroke : 1,
-      aiming ? COLORS.range : COLORS.line,
-      aiming || !ready ? 1 : 0,
-    );
+    // Прицеливание — светлая обводка вместо тёмной.
+    this.meteorPlate.setStyle({ fill: ready ? COLORS.meteor : COLORS.panel, ...(aiming ? { outline: COLORS.range } : {}) });
     this.meteorLabel.setColor(ready ? TEXT_COLORS.dark : TEXT_COLORS.muted);
     this.meteorStatus
       .setColor(ready ? TEXT_COLORS.dark : TEXT_COLORS.fg)
@@ -675,7 +671,7 @@ export class UIScene extends Phaser.Scene {
     const { gold, crystals, summonCost, summonsLeft, summonLimit, overLimitMult, canSummon, lives, wave, totalWaves, speed, upcoming } =
       this.gameScene.hudState();
     const fast = speed > 1;
-    this.speedBg.setFillStyle(fast ? COLORS.brass : COLORS.panel);
+    this.speedPlate.setStyle({ fill: fast ? COLORS.brass : COLORS.panel });
     this.speedLabel.setText(t('hud.speed', { speed })).setColor(fast ? TEXT_COLORS.dark : TEXT_COLORS.fg);
     this.canSummon = canSummon;
 
@@ -692,8 +688,7 @@ export class UIScene extends Phaser.Scene {
     this.summonCoin.setX(this.summonCost.x - this.summonCost.width - COIN_RADIUS - 4);
 
     const textColor = canSummon ? TEXT_COLORS.dark : TEXT_COLORS.muted;
-    this.summonBg.setFillStyle(canSummon ? COLORS.brass : COLORS.panel);
-    this.summonBg.setStrokeStyle(1, COLORS.line, canSummon ? 0 : 1);
+    this.summonPlate.setStyle({ fill: canSummon ? COLORS.brass : COLORS.panel });
     this.summonLabel.setColor(textColor);
     this.summonCost.setColor(textColor);
     this.summonLimit.setColor(textColor);

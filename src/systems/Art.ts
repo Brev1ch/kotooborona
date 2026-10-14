@@ -1,8 +1,6 @@
 import type { ArtConfig, ArtImage, BackgroundId, BuildingKind, ElementId, EnemyTypeId, ItemsConfig, StorySpeaker } from '../data/types';
 import { mainBonus, type Item } from './Items';
 
-/** Виды фона кнопки: обычная, главная и кнопка наградной рекламы. */
-export type ButtonArt = 'normal' | 'primary' | 'ad';
 export type IconArt = 'coin' | 'crystal' | 'fish';
 
 /** Имена картинок в манифесте `data/art.json`: по ним отрисовка ищет готовый арт. */
@@ -15,7 +13,6 @@ export const artId = {
   /** `level` — с единицы. */
   building: (kind: BuildingKind, level: number): string => `building-${kind}-${level}`,
   icon: (icon: IconArt): string => `icon-${icon}`,
-  button: (kind: ButtonArt): string => `button-${kind}`,
   portrait: (speaker: StorySpeaker): string => `portrait-${speaker}`,
   background: (background: BackgroundId): string => `bg-${background}`,
 };
@@ -87,8 +84,6 @@ export interface ArtRef {
   /** Размер на экране в логических координатах. */
   width: number;
   height: number;
-  /** Нерастягиваемые края фона кнопки, в пикселях картинки. */
-  slice?: number;
   /** Во сколько раз картинка крупнее, чем на экране. */
   scale: number;
 }
@@ -111,7 +106,7 @@ export class ArtCatalog {
     const image = this.byId.get(id);
     if (!image) return null;
     const { scale } = this.manifest;
-    const size = { width: image.width / scale, height: image.height / scale, scale, ...(image.slice ? { slice: image.slice } : {}) };
+    const size = { width: image.width / scale, height: image.height / scale, scale };
     if (image.atlas) return this.index.atlases[image.atlas]?.frames[id] ? { key: atlasKey(image.atlas), frame: id, ...size } : null;
     return this.index.images[id] ? { key: id, ...size } : null;
   }
