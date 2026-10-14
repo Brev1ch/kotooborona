@@ -194,6 +194,9 @@ export class EnemyView extends Phaser.GameObjects.Container {
   private heading = 0;
   /** Белый силуэт поверх тела: вспыхивает при попадании. */
   private readonly flash: Phaser.GameObjects.Image;
+  /** Тело врага: у картинки анфас отражается по горизонтали, когда враг идёт влево. */
+  private readonly figureImage: Phaser.GameObjects.Image;
+  private facingLeft = false;
   /** Зелёный огонёк на кристалле посоха; только у лекаря. */
   private healGlow: Phaser.GameObjects.Image | null = null;
   /** Щит и число на нём; только у врага, который пришёл со щитом. */
@@ -231,6 +234,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
     const { feetY } = this.figure;
     const bodyY = ref ? -ref.height / 2 : 0;
     const body = addEnemyBody(scene, enemy.type).setY(bodyY);
+    this.figureImage = body;
     this.flash = addEnemyBody(scene, enemy.type).setY(bodyY).setTintFill(COLORS.flash).setAlpha(0);
     this.turning = scene.add.container(0, 0, [body, this.flash]);
     this.react = scene.add.container(0, 0, [this.turning]);
@@ -301,6 +305,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.setPosition(x, y);
     // Картинка анфас смотрит на зрителя и по ходу не поворачивается.
     if (!this.figure.upright) this.turning.setRotation(angle);
+    else this.face(angle);
     this.heading = angle;
     if (burrowed !== this.shownBurrowed) {
       this.shownBurrowed = burrowed;
@@ -328,6 +333,20 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.bar.fillRect(-width / 2, top, width, ENEMY_FEEL.hpBarHeight);
     this.bar.fillStyle(COLORS.hp);
     this.bar.fillRect(-width / 2, top, width * Phaser.Math.Clamp(enemy.hp / enemy.maxHp, 0, 1), ENEMY_FEEL.hpBarHeight);
+  }
+
+  /**
+   * Картинка анфас смотрит на зрителя и не поворачивается, а идя влево — отражается. На подъёме и спуске (путь почти
+   * вертикален) сохраняет прежнее направление: иначе дрожала бы на каждом изгибе.
+   */
+  private face(angle: number): void {
+    const dx = Math.cos(angle);
+    const left = dx < -ENEMY_FEEL.upright.turnBelow ? true : dx > ENEMY_FEEL.upright.turnBelow ? false : this.facingLeft;
+    if (left === this.facingLeft) return;
+    this.facingLeft = left;
+    this.figureImage.setFlipX(left);
+    this.flash.setFlipX(left);
+    if (this.healGlow) this.healGlow.setX(-this.healGlow.x);
   }
 
   /** Кольцо замедления или заморозки, точки огня и яда над врагом. */
