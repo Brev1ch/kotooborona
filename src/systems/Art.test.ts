@@ -25,6 +25,13 @@ describe('манифест арта', () => {
     expect(art.images.filter((image) => image.group === 'cats')).toHaveLength(Object.keys(cats.elements).length);
   });
 
+  it('коты — квадратные и стоят по нижнему краю: в клетке у всех одна линия земли', () => {
+    for (const image of art.images.filter((entry) => entry.group === 'cats')) {
+      expect(image.width).toBe(image.height);
+      expect(image.align).toBe('bottom');
+    }
+  });
+
   it('у каждого типа врага есть картинка', () => {
     for (const type of Object.keys(enemies.types) as EnemyTypeId[]) expect(ids).toContain(artId.enemy(type));
     expect(art.images.filter((image) => image.group === 'enemies')).toHaveLength(Object.keys(enemies.types).length);
@@ -137,7 +144,7 @@ describe('каталог готового арта', () => {
   });
 
   it('готовая картинка атласа — кадр атласа с размером на экране вдвое меньше картинки', () => {
-    expect(catalog.find('cat-fire')).toEqual({ key: 'art:units', frame: 'cat-fire', width: 48, height: 58, scale: 2 });
+    expect(catalog.find('cat-fire')).toEqual({ key: 'art:units', frame: 'cat-fire', width: 60, height: 60, scale: 2 });
   });
 
   it('картинки, которой в атласе нет, нет и в игре', () => {

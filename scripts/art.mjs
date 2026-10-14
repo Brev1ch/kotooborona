@@ -2,8 +2,10 @@
 //
 // Исходники в репозитории не лежат: это png с прозрачным фоном, имена — из поля `file` манифеста
 // (assets-src/art/cats/fire.png и так далее). Каких файлов нет — тех картинок в игре нет, на их месте рисунок кодом.
-//   Картинка атласа без прозрачности (генератор рисует на белом): однотонный фон убирается заливкой от краёв,
-//     поэтому белое внутри контура (глаза, блики) остаётся.
+//   Картинка атласа без прозрачности (генератор рисует на светлой бумаге): фон убирается заливкой от краёв,
+//     поэтому белое внутри контура (глаза, грудка, облако) остаётся.
+//   Картинка с `align: bottom` (коты) встаёт в свой квадрат по нижнему краю, остальные — по центру.
+//   Рядом с исходниками пишется preview.png: все готовые коты в ряд на траве и на тёмном поле — проверить вырезку глазами.
 //   Картинка атласа: прозрачные края обрезаются, остаток вписывается в размер из манифеста по центру.
 //   Фон кнопки (`slice`): растягивается ровно в размер, края не обрезаются.
 //   Фон уровня: обрезается под размер и лежит отдельным файлом — игра грузит его при входе в уровень.
@@ -25,8 +27,17 @@ const ATLAS_MAX = 2048;
 const ATLAS_WIDTH = 1024;
 /** Зазор между кадрами атласа: соседний кадр не просвечивает по краю при масштабировании. */
 const PADDING = 2;
-/** Фон исходника без прозрачности: насколько цвет точки может отличаться от цвета угла, оставаясь фоном (расстояние в RGB). */
-const BACKGROUND_TOLERANCE = 48;
+/**
+ * Фон исходника без прозрачности — светлая бумага: точка считается фоном, если самый тёмный её канал не темнее MIN_LIGHT,
+ * а разброс каналов (насыщенность) не больше MAX_CHROMA. ERODE — на сколько точек сжимается маска после заливки.
+ */
+const BACKGROUND_MIN_LIGHT = 222;
+const BACKGROUND_MAX_CHROMA = 22;
+const BACKGROUND_ERODE = 1;
+/** Островок вне фигуры остаётся, только если он не меньше этой доли самой большой фигуры. */
+const BACKGROUND_MIN_ISLAND = 0.01;
+/** Превью котов: высота кота в ряду и фоны, на которых он проверяется, — трава и тёмное поле. */
+const PREVIEW = { file: 'preview.png', size: 64, gap: 8, backgrounds: ['#5d9b4b', '#1e2740'] };
 const ATLAS_WEBP = { quality: 90, alphaQuality: 100, effort: 6 };
 const BACKGROUND_WEBP = { quality: 82, effort: 6 };
 
@@ -87,8 +98,9 @@ if (process.argv.includes('--placeholders')) {
 }
 
 /**
- * Исходник с прозрачностью — как есть. У исходника без неё фон убирается: заливка от краёв по цвету левого верхнего угла.
- * Точки на границе получают прозрачность по тому, насколько они похожи на фон: край не остаётся с белой каймой.
+ * Исходник с прозрачностью — как есть. У исходника без неё убирается фон: заливка от всех краёв по точкам, похожим на бумагу
+ * (светлым и малонасыщенным). Белое внутри контура (грудка, облако пара, вихрь) заливка не достаёт, и оно остаётся.
+ * Затем маска сжимается на точку: светлая кайма вдоль контура уходит вместе с фоном.
  */
 async function withAlpha(file) {
   const { data, info } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -98,12 +110,16 @@ async function withAlpha(file) {
   const raw = { raw: { width, height, channels: 4 } };
   if (!opaque) return sharp(data, raw);
 
-  const [br, bg, bb] = data;
-  const distance = (p) => Math.hypot(data[p * 4] - br, data[p * 4 + 1] - bg, data[p * 4 + 2] - bb);
+  const isPaper = (p) => {
+    const r = data[p * 4];
+    const g = data[p * 4 + 1];
+    const b = data[p * 4 + 2];
+    return Math.min(r, g, b) >= BACKGROUND_MIN_LIGHT && Math.max(r, g, b) - Math.min(r, g, b) <= BACKGROUND_MAX_CHROMA;
+  };
   const background = new Uint8Array(width * height);
   const stack = [];
   const visit = (p) => {
-    if (background[p] || distance(p) > BACKGROUND_TOLERANCE) return;
+    if (background[p] || !isPaper(p)) return;
     background[p] = 1;
     stack.push(p);
   };
@@ -117,12 +133,39 @@ async function withAlpha(file) {
     if (p >= width) visit(p - width);
     if (p < width * (height - 1)) visit(p + width);
   }
-  for (let p = 0; p < width * height; p++) {
-    if (background[p]) { data[p * 4 + 3] = 0; continue; }
-    const x = p % width;
-    const edge = (x > 0 && background[p - 1]) || (x < width - 1 && background[p + 1]) || (p >= width && background[p - width]) || (p < width * (height - 1) && background[p + width]);
-    if (edge) data[p * 4 + 3] = Math.round(255 * Math.min(1, distance(p) / (BACKGROUND_TOLERANCE * 3)));
+  // Сжатие маски: точка рядом с фоном тоже становится прозрачной.
+  for (let step = 0; step < BACKGROUND_ERODE; step++) {
+    const edge = [];
+    for (let p = 0; p < width * height; p++) {
+      if (background[p]) continue;
+      const x = p % width;
+      if ((x > 0 && background[p - 1]) || (x < width - 1 && background[p + 1]) || (p >= width && background[p - width]) || (p < width * (height - 1) && background[p + width])) edge.push(p);
+    }
+    for (const p of edge) background[p] = 1;
   }
+  // Крапинки бумаги темнее порога остаются островками в стороне от фигуры и растягивают её рамку: мелкие островки уходят в фон.
+  const island = new Int32Array(width * height);
+  const sizes = [0];
+  for (let start = 0; start < width * height; start++) {
+    if (background[start] || island[start]) continue;
+    const id = sizes.length;
+    let size = 0;
+    island[start] = id;
+    stack.push(start);
+    while (stack.length > 0) {
+      const p = stack.pop();
+      size++;
+      const x = p % width;
+      for (const q of [x > 0 ? p - 1 : -1, x < width - 1 ? p + 1 : -1, p - width, p + width]) {
+        if (q < 0 || q >= width * height || background[q] || island[q]) continue;
+        island[q] = id;
+        stack.push(q);
+      }
+    }
+    sizes.push(size);
+  }
+  const keep = Math.max(...sizes) * BACKGROUND_MIN_ISLAND;
+  for (let p = 0; p < width * height; p++) if (background[p] || sizes[island[p]] < keep) data[p * 4 + 3] = 0;
   return sharp(data, raw);
 }
 
@@ -195,11 +238,41 @@ for (const name of atlasNames) {
       frame: { x: frame.x, y: frame.y, w: frame.width, h: frame.height },
       rotated: false,
       trimmed: frame.width !== fullW || frame.height !== fullH,
-      spriteSourceSize: { x: Math.floor((fullW - frame.width) / 2), y: Math.floor((fullH - frame.height) / 2), w: frame.width, h: frame.height },
+      spriteSourceSize: { x: Math.floor((fullW - frame.width) / 2), y: frame.image.align === 'bottom' ? fullH - frame.height : Math.floor((fullH - frame.height) / 2), w: frame.width, h: frame.height },
       sourceSize: { w: fullW, h: fullH },
     };
   }
   index.atlases[name] = { file, bytes: statSync(join(OUT, file)).size, width: ATLAS_WIDTH, height, frames: entries };
+}
+
+// Превью: только для настоящих исходников, заглушкам смоук-проверки оно не нужно.
+const previewCats = ready.filter((image) => image.group === 'cats');
+if (OUT === 'public/assets/art' && previewCats.length > 0) {
+  const { size, gap, backgrounds } = PREVIEW;
+  const tiles = [];
+  for (const image of previewCats) {
+    const frame = await prepareFrame(image, join(SRC, image.file));
+    const input = await sharp(frame.data, { raw: { width: frame.width, height: frame.height, channels: 4 } }).resize(size, size, { fit: 'inside' }).png().toBuffer({ resolveWithObject: true });
+    tiles.push(input);
+  }
+  const width = gap + previewCats.length * (size + gap);
+  const rowHeight = size + gap * 2;
+  const rows = backgrounds.map((background, row) => ({
+    input: { create: { width, height: rowHeight, channels: 4, background } },
+    left: 0,
+    top: row * rowHeight,
+  }));
+  const cats = backgrounds.flatMap((_, row) =>
+    tiles.map(({ data, info }, index) => ({
+      input: data,
+      left: gap + index * (size + gap) + Math.floor((size - info.width) / 2),
+      top: row * rowHeight + gap + size - info.height,
+    })),
+  );
+  await sharp({ create: { width, height: rowHeight * backgrounds.length, channels: 4, background: '#000000' } })
+    .composite([...rows, ...cats])
+    .png()
+    .toFile(join(SRC, PREVIEW.file));
 }
 
 for (const image of ready.filter((entry) => !entry.atlas)) {
@@ -239,6 +312,6 @@ if (total > BUDGET) fail('Арт не укладывается в бюджет')
 if (existsSync(SRC)) {
   const known = new Set(manifest.images.map((image) => image.file));
   const walk = (dir) => readdirSync(join(SRC, dir), { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)]));
-  const stray = walk('').filter((file) => file.endsWith('.png') && !known.has(file.split('\\').join('/')));
+  const stray = walk('').filter((file) => file.endsWith('.png') && file !== PREVIEW.file && !known.has(file.split('\\').join('/')));
   if (stray.length > 0) console.warn(`Нет в манифесте (проверьте имена): ${stray.join(', ')}`);
 }
