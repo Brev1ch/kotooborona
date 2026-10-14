@@ -353,3 +353,31 @@ export interface StoryScene {
 export interface StoryConfig {
   scenes: StoryScene[];
 }
+
+/** Группа картинок: по ней собран список для художника и выбран атлас. */
+export type ArtGroup = 'cats' | 'enemies' | 'hero' | 'buildings' | 'items' | 'icons' | 'buttons' | 'portraits' | 'backgrounds';
+
+/** Картинка, которую ждёт игра. Пока файла нет, на её месте — рисунок кодом. */
+export interface ArtImage {
+  id: string;
+  /** Исходник в `assets-src/art/`. */
+  file: string;
+  /** Размер готовой картинки в пикселях: логический размер на экране, умноженный на `scale` манифеста. */
+  width: number;
+  height: number;
+  group: ArtGroup;
+  /** Что нарисовано — для списка художнику. */
+  use: string;
+  /** Атлас, в который картинка собирается; без поля — отдельный файл. Атласы грузятся при запуске. */
+  atlas?: string;
+  /** Фон кнопки: края такой ширины в пикселях не растягиваются. */
+  slice?: number;
+  /** Фон уровня: грузится при входе в этот уровень. */
+  level?: string;
+}
+
+export interface ArtConfig {
+  /** Во сколько раз картинки крупнее логических размеров экрана. */
+  scale: number;
+  images: ArtImage[];
+}
