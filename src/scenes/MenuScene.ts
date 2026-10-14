@@ -18,7 +18,10 @@ import {
   menuCardCenter,
   menuChestCenter,
   menuMusicCenter,
+  menuSettingsCenter,
   menuSoundCenter,
+  MIN_TOUCH,
+  SETTINGS,
   TEXT_COLORS,
 } from '../layout';
 import { progress } from '../progress';
@@ -29,6 +32,8 @@ import { MAX_STARS } from '../systems/Progress';
 import { itemLines, itemTitle, rarityColor, rarityFill } from './itemText';
 import { SceneKey, type LevelSceneData } from './keys';
 import { fadeIn, fadeOut } from './transitions';
+import { sceneBeforeBattle } from './IntroScene';
+import { onboardingEnabled } from './OnboardingOverlay';
 import { addPlate } from './plate';
 import { addAdButton, addButton, fitText, addFishCounter, addFishIcon, addLockIcon, addPressFeel, addSoundButton, type FishCounter } from './widgets';
 
@@ -72,6 +77,7 @@ export class MenuScene extends Phaser.Scene {
     this.fish = addFishCounter(this, MENU.fishX, MENU.fishY, progress.fish);
     addSoundButton(this, ...menuSoundCenter());
     addSoundButton(this, ...menuMusicCenter(), 'music');
+    this.addSettingsButton();
     audio.music(this, 'menu');
 
     this.chest = null;
@@ -319,6 +325,56 @@ export class MenuScene extends Phaser.Scene {
     bg.setInteractive({ useHandCursor: true });
     addPressFeel(this, bg, card);
     bg.on('pointerdown', () => audio.play('click'));
-    bg.once('pointerup', () => fadeOut(this, () => this.scene.start(SceneKey.Gear, data)));
+    // Новый игрок с первого уровня идёт сразу в бой, без снаряжения: в первую минуту ему там нечего делать.
+    const first = tile.levelId === levels.levels[0].id && !progress.onboarded && onboardingEnabled();
+    bg.once('pointerup', () => fadeOut(this, () => this.scene.start(first ? sceneBeforeBattle(data.levelId) : SceneKey.Gear, data)));
+  }
+
+  /** Кнопка настроек: шестерёнка, открывает окно с «Пройти обучение заново». */
+  private addSettingsButton(): void {
+    const bg = this.add.rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel).setName('settings').setInteractive({ useHandCursor: true });
+    const icon = this.add.graphics();
+    // Шестерёнка: восемь зубцов вокруг кольца.
+    icon.fillStyle(COLORS.range);
+    for (let i = 0; i < 8; i++) {
+      const angle = (i * Math.PI) / 4;
+      icon.fillCircle(Math.cos(angle) * 9, Math.sin(angle) * 9, 3.2);
+    }
+    icon.fillCircle(0, 0, 8.5);
+    icon.fillStyle(COLORS.panel);
+    icon.fillCircle(0, 0, 3.5);
+    const button = this.add.container(...menuSettingsCenter(), [bg, icon]);
+    addPlate(this, bg, { fill: COLORS.panel });
+    addPressFeel(this, bg, button);
+    bg.on('pointerdown', () => audio.play('click'));
+    bg.on('pointerup', () => this.openSettings());
+  }
+
+  /** Окно настроек поверх меню: «Пройти обучение заново» и «Закрыть». */
+  private openSettings(): void {
+    if (this.busy) return;
+    this.busy = true;
+    const { panelW, panelH, titleY, firstY, buttonW, buttonH, gap } = SETTINGS;
+    const dim = this.add.rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, COLORS.bg, CHEST_FEEL.dimAlpha).setInteractive();
+    const panel = this.add.rectangle(0, 0, panelW, panelH, COLORS.panel);
+    const title = this.add
+      .text(0, titleY, t('settings.title'), { fontFamily: FONTS.display, fontSize: '20px', color: TEXT_COLORS.fg })
+      .setOrigin(0.5);
+    const box = this.add.container(GAME_W / 2, GAME_H / 2, [panel, title]);
+    addPlate(this, panel, { fill: COLORS.panel });
+    const close = (): void => {
+      dim.destroy();
+      box.destroy();
+      this.busy = false;
+    };
+    // Обучение заново: флаг снят, и сразу — первый уровень, как у нового игрока.
+    const replay = addButton(this, 0, firstY, buttonW, buttonH, t('settings.replayTutorial'), true, () => {
+      progress.setOnboarded(false);
+      const data: LevelSceneData = { levelId: levels.levels[0].id };
+      fadeOut(this, () => this.scene.start(sceneBeforeBattle(data.levelId), data));
+    });
+    (replay.list[0] as Phaser.GameObjects.Rectangle).setName('settings-replay');
+    const back = addButton(this, 0, firstY + buttonH + gap, buttonW, buttonH, t('settings.close'), false, close);
+    box.add([replay, back]);
   }
 }

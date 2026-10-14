@@ -66,6 +66,7 @@ import { BuildPanel } from './BuildPanel';
 import { GameEvent, SceneKey, type DragGhost, type LevelResult, type LevelSceneData, type RewardDrop, type SellOffer, type StorySceneData } from './keys';
 import { addBakedShape, bakeTexture, drawChargeRing, ensureTextures, Texture } from './textures';
 import { fadeIn, fadeOut } from './transitions';
+import { OnboardingOverlay } from './OnboardingOverlay';
 import { TutorialOverlay } from './TutorialOverlay';
 import { addAdButton, addButton, addCoinIcon, addCrystalIcon, addFishIcon, addPressFeel, addSoundToggle } from './widgets';
 import { addPlate, type Plate } from './plate';
@@ -206,6 +207,7 @@ export class UIScene extends Phaser.Scene {
   /** Обучение: есть только на уровнях с подсказками и пока уровень не пройден. */
   private tutorial: Tutorial | null = null;
   private tutorialOverlay: TutorialOverlay | null = null;
+  private onboardingOverlay: OnboardingOverlay | null = null;
   /** Игрок уже уходит с экрана итога: кнопки больше не действуют. */
   private leaving = false;
 
@@ -269,6 +271,7 @@ export class UIScene extends Phaser.Scene {
     this.resultOverlay = null;
     this.adBusy = false;
     this.leaving = false;
+    this.onboardingOverlay = null;
 
     this.gameScene.events.on(GameEvent.Changed, this.refresh, this);
     this.gameScene.events.on(GameEvent.Discovered, this.showDiscovered, this);
@@ -386,7 +389,9 @@ export class UIScene extends Phaser.Scene {
     bg.setInteractive({ useHandCursor: true });
     addPressFeel(this, bg, button);
     bg.on('pointerdown', () => audio.play('click'));
-    bg.on('pointerup', () => this.buildPanel?.showBuild());
+    bg.on('pointerup', () => {
+      if (this.allowsButton()) this.buildPanel?.showBuild();
+    });
     return button;
   }
 
@@ -481,7 +486,9 @@ export class UIScene extends Phaser.Scene {
 
     addPressFeel(this, this.speedBg, button);
     this.speedBg.on('pointerdown', () => audio.play('click'));
-    this.speedBg.on('pointerup', () => this.gameScene.toggleSpeed());
+    this.speedBg.on('pointerup', () => {
+      if (this.allowsButton()) this.gameScene.toggleSpeed();
+    });
   }
 
   private addPauseButton(): void {
@@ -496,7 +503,9 @@ export class UIScene extends Phaser.Scene {
 
     addPressFeel(this, bg, button);
     bg.on('pointerdown', () => audio.play('click'));
-    bg.on('pointerup', () => this.openPause());
+    bg.on('pointerup', () => {
+      if (this.allowsButton()) this.openPause();
+    });
   }
 
   /** Останавливает бой и показывает меню паузы: «Продолжить», звук, «В меню». */
@@ -570,8 +579,8 @@ export class UIScene extends Phaser.Scene {
     addPressFeel(this, this.meteorBg, this.meteorButton, () => this.gameScene.meteorState().ready);
     // Повторное нажатие отменяет прицеливание.
     this.meteorBg.on('pointerdown', () => {
-      // Заряд не полон: кнопка качается, выстрела нет.
-      if (!this.gameScene.meteorState().ready) {
+      // Заряд не полон или обучение показывает другое: кнопка качается, выстрела нет.
+      if (!this.gameScene.meteorState().ready || !this.gameScene.onboardingAllows({ kind: 'meteor' })) {
         this.wobbleMeteor();
         return;
       }
@@ -607,7 +616,9 @@ export class UIScene extends Phaser.Scene {
     this.coinAdPlate = addPlate(this, this.coinAdBg, { fill: COLORS.reward });
 
     addPressFeel(this, this.coinAdBg, button, () => this.gameScene.coinAdState().ready);
-    this.coinAdBg.on('pointerup', () => void this.watchCoinAd());
+    this.coinAdBg.on('pointerup', () => {
+      if (this.allowsButton()) void this.watchCoinAd();
+    });
     return button;
   }
 
@@ -650,6 +661,12 @@ export class UIScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    // Обучение — поверх всего HUD: затемнение закрывает кнопки, кроме той, что сейчас нужна. Создаётся с первым шагом.
+    const focus = this.pauseMenu || this.resultOverlay ? null : this.gameScene.onboardingFocus();
+    if (focus && !this.onboardingOverlay) this.onboardingOverlay = new OnboardingOverlay(this, this.level, () => this.gameScene.skipOnboarding());
+    this.onboardingOverlay?.show(focus);
+    // «Волна скоро» внизу поля спорила бы со строкой обучения, а волна всё равно ждёт.
+    this.announce.setVisible(focus === null);
     this.refreshMeteor();
     this.refreshCoinAd();
     // На паузе бой стоит, и отсчёт подсказок стоит вместе с ним.
@@ -659,6 +676,16 @@ export class UIScene extends Phaser.Scene {
       if (this.buildPanel?.open) state.canBuild = false;
       this.tutorialOverlay?.show(this.tutorial.update(delta / 1000, state));
     }
+  }
+
+  /** Кнопка HUD, кроме призыва и метеора: обучение может держать её закрытой. */
+  private allowsButton(): boolean {
+    return this.gameScene.onboardingAllows({ kind: 'button' });
+  }
+
+  /** Шаг интерактивного обучения на экране; читает смоук-проверка (src/smoke.ts). */
+  onboardingStep(): string | null {
+    return this.onboardingOverlay?.step ?? null;
   }
 
   /** Шаг обучения, подсказка о котором сейчас на экране; читает смоук-проверка (src/smoke.ts). */

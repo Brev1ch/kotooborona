@@ -42,7 +42,7 @@
       "hpMult": 1.7,
       "enemies": { "rat": 0.15 },
       "fish": 20,
-      "tutorial": { "steps": ["summon", "merge", "limit"], "at": [180, 425], "width": 300 }
+      "tutorial": { "steps": ["limit"], "at": [180, 425], "width": 300 }
     },
     {
       "id": "tropinka",

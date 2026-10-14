@@ -23,6 +23,12 @@ import type { OnboardingFocus } from '../systems/Onboarding';
 import { addBakedShape } from './textures';
 import { addButton } from './widgets';
 
+/** Обучение включено: смоук-проверка его не проходит, кроме сценариев, которые просят его адресом (`?onboarding`). */
+export function onboardingEnabled(): boolean {
+  const params = new URLSearchParams(location.search);
+  return !params.has('smoke') || params.has('onboarding');
+}
+
 /** Высота кнопок нижней полосы: цель шагов «призыв» и «метеор». */
 const CONTROL_H = 44;
 const SKIP = { w: 110, h: MIN_TOUCH, gap: 8 };
@@ -86,6 +92,8 @@ export class OnboardingOverlay {
       false,
       onSkip,
     ).setVisible(false);
+    // По имени кнопку находит смоук-проверка.
+    (this.skip.list[0] as Phaser.GameObjects.Rectangle).setName('onboarding-skip');
   }
 
   /** Шаг на экране; читает смоук-проверка. */
@@ -104,6 +112,8 @@ export class OnboardingOverlay {
     this.hand.setVisible(false);
     if (!focus) return;
 
+    // Баннеры и всплывающие надписи HUD появляются позже оверлея: он поднимается над ними.
+    for (const part of [this.dim, this.bubble, this.hand, this.skip]) this.scene.children.bringToTop(part);
     const hole = this.holeFor(focus);
     this.drawDim(hole);
     this.setText(t(`onboarding.${focus.step}`), hole);
@@ -169,23 +179,35 @@ export class OnboardingOverlay {
     this.bubbleBg.lineStyle(2, COLORS.brass);
     this.bubbleBg.fillRoundedRect(-w / 2, -h / 2, w, h, 10);
     this.bubbleBg.strokeRoundedRect(-w / 2, -h / 2, w, h, 10);
-    const above = hole.y - textGap - h / 2;
+    // Над кнопкой нижней полосы — рука сверху: строка встаёт выше неё.
+    const hand = hole.y + hole.h / 2 > GAME_H * 0.75 ? ONBOARDING_FEEL.handSize + ONBOARDING_FEEL.handTapLift : 0;
+    const above = hole.y - textGap - hand - h / 2;
     const y = above >= textMinY + h / 2 ? above : hole.y + hole.h + textGap + h / 2;
     // Пока игрок целится, поле открыто целиком: строка — у верха поля, под кнопкой «Пропустить».
     this.bubble.setPosition(GAME_W / 2, hole.h >= BOARD_H ? BOARD_Y + SKIP.gap * 2 + SKIP.h + h / 2 : Math.min(y, GAME_H - h));
   }
 
-  /** Рука нажимает в точку `at` и отпускает — снова и снова. */
+  /**
+   * Рука нажимает в точку `at` и отпускает — снова и снова. Кнопки нижней полосы рука показывает сверху:
+   * снизу она ушла бы за край экрана.
+   */
   private tap(at: Point): void {
     const { handTapLift, tapMs } = ONBOARDING_FEEL;
-    this.hand.setPosition(at[0], at[1] + handTapLift).setVisible(true).setAlpha(1);
+    const fromAbove = at[1] > GAME_H * 0.75;
+    const lift = fromAbove ? -handTapLift : handTapLift;
+    this.hand
+      .setFlipY(fromAbove)
+      .setOrigin(0.5, fromAbove ? 1 : 0)
+      .setPosition(at[0], at[1] + lift)
+      .setVisible(true)
+      .setAlpha(1);
     this.scene.tweens.add({ targets: this.hand, y: at[1], duration: tapMs / 2, ease: 'Quad.easeIn', yoyo: true, repeat: -1 });
   }
 
   /** Рука берёт кота в одной клетке, тащит на другую и отпускает — снова и снова. */
   private drag(from: Point, to: Point): void {
     const { dragMs, holdMs } = ONBOARDING_FEEL;
-    this.hand.setPosition(...from).setAlpha(0).setVisible(true);
+    this.hand.setFlipY(false).setOrigin(0.5, 0).setPosition(...from).setAlpha(0).setVisible(true);
     this.scene.tweens.chain({
       targets: this.hand,
       loop: -1,

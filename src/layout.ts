@@ -64,6 +64,15 @@ export function chestTakeCenter(): [number, number] {
 }
 
 /** Центр кнопки музыки в меню: слева от кнопки звука. */
+/** Кнопка настроек — слева от кнопки музыки. */
+export function menuSettingsCenter(): [number, number] {
+  const [x, y] = menuMusicCenter();
+  return [x - MIN_TOUCH - MENU.soundGap, y];
+}
+
+/** Окно настроек: размер панели, кнопки одна под другой. */
+export const SETTINGS = { panelW: 280, panelH: 220, titleY: -70, firstY: -10, buttonW: 240, buttonH: 50, gap: 12 };
+
 export function menuMusicCenter(): [number, number] {
   const [x, y] = menuSoundCenter();
   return [x - MIN_TOUCH - MENU.soundGap, y];

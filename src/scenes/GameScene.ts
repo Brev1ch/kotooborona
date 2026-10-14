@@ -37,6 +37,8 @@ import { Economy, starsFor } from '../systems/Economy';
 import { itemsBonuses } from '../systems/Items';
 import { Merge, type MergeBlock, type MergeCheck } from '../systems/Merge';
 import { Meteor } from '../systems/Meteor';
+import { Onboarding, type OnboardingAction, type OnboardingFocus } from '../systems/Onboarding';
+import { onboardingEnabled } from './OnboardingOverlay';
 import { Pool } from '../systems/Pool';
 import { levelFish } from '../systems/Rewards';
 import { smallChestDrops } from '../systems/Chests';
@@ -152,6 +154,8 @@ export class GameScene extends Phaser.Scene {
   /** Бой окончен: поле замирает, призыв и перетаскивание отключены. */
   private finished = false;
   private meteor!: Meteor;
+  /** Интерактивное обучение на первом уровне; null — его нет или оно пройдено. */
+  private onboarding: Onboarding | null = null;
   private coinAd!: CoinAd;
   private secondChance!: SecondChance;
   /** Что игрок уже сделал в этом бою; по этому обучение понимает, какие подсказки больше не нужны. */
@@ -227,6 +231,8 @@ export class GameScene extends Phaser.Scene {
     const bonuses = itemsBonuses(gear.items, worn);
     this.economy = new Economy(this.level, economy, bonuses);
     this.summoner = new Summon(cats, bonuses.summonWeights, random, bonuses.level2Chance);
+    // Обучение — на первом уровне главы, пока игрок его не прошёл и не пропустил. В смоуке — только по `?onboarding`.
+    this.onboarding = this.level.id === levels.levels[0].id && !progress.onboarded && onboardingEnabled() ? new Onboarding() : null;
     this.meteor = new Meteor(gear.meteor, this.level.meteorChargeTime ?? gear.meteor.chargeTime, bonuses.meteorCooldownMult, bonuses.meteorGround);
     this.coinAd = new CoinAd(ads.coins);
     this.secondChance = new SecondChance(ads.secondChance);
@@ -295,6 +301,11 @@ export class GameScene extends Phaser.Scene {
     const dt = Math.min(MAX_STEP, delta / 1000);
     // Пауза между роликами — в настоящих секундах: ускорение боя её не сокращает.
     this.coinAd.update(dt);
+    // Обучение: на шаге смешения или метеора бой стоит, пока игрок не сделает показанное.
+    if (this.onboarding) {
+      this.updateOnboarding();
+      if (this.onboarding?.holdsBattle) return;
+    }
     // Ускоренный бой — несколько обычных шагов за кадр: шаг не растёт, и враги не проскакивают мимо котов.
     const charging = !this.meteor.ready;
     for (let step = 0; step < this.speed && !this.finished; step++) {
@@ -309,6 +320,41 @@ export class GameScene extends Phaser.Scene {
     this.hero.setReady(this.meteor.ready);
     // Заряд только что стал полным — короткий звук готовности.
     if (charging && this.meteor.ready && !this.finished) audio.play('meteorReady');
+  }
+
+  /** Шаг обучения по тому, что на поле; пройденное обучение больше не показывается. */
+  private updateOnboarding(): void {
+    const onboarding = this.onboarding;
+    if (!onboarding) return;
+    const { crystals } = this.economy;
+    onboarding.update({
+      mergePair: findMergePair(this.board, this.merger, crystals, false),
+      hybridPair: findMergePair(this.board, this.merger, crystals, true),
+      meteorReady: this.meteor.ready,
+      aiming: this.meteor.aiming,
+    });
+    if (onboarding.finished) {
+      progress.setOnboarded(true);
+      this.onboarding = null;
+    }
+  }
+
+  /** Шаг обучения на экране; null — обучения нет или оно ждёт события. */
+  onboardingFocus(): OnboardingFocus | null {
+    return this.onboarding?.focus ?? null;
+  }
+
+  /** Можно ли сейчас это действие: обучение открывает только показанное. Без обучения — всё. */
+  onboardingAllows(action: OnboardingAction): boolean {
+    return this.onboarding?.allows(action) ?? true;
+  }
+
+  /** «Пропустить»: обучение больше не показывается и ничего не держит. */
+  skipOnboarding(): void {
+    if (!this.onboarding) return;
+    this.onboarding.skip();
+    progress.setOnboarded(true);
+    this.onboarding = null;
   }
 
   /** Переключает скорость боя: обычная или ускоренная. Выбор держится до конца боя; новый бой начинается с обычной. */
@@ -349,6 +395,8 @@ export class GameScene extends Phaser.Scene {
   finish(won: boolean): void {
     if (this.finished) return;
     this.finished = true;
+    // Призывать и сливать игрок научился — обучение больше не нужно, даже если смешение и метеор не успели.
+    if (this.onboarding?.basicsDone) progress.setOnboarded(true);
     platform.gameplayStop();
     this.cancelDrag();
     this.meteor.cancelAim();
@@ -453,7 +501,10 @@ export class GameScene extends Phaser.Scene {
     let changed = false;
 
     const before = this.waves.wave;
-    for (const enemy of this.waves.update(dt, this.combat.enemies.length === 0)) this.addEnemy(enemy);
+    // Пока игрок не призвал двух котов и не слил их, первая волна ждёт.
+    if (!this.onboarding?.holdsWaves) {
+      for (const enemy of this.waves.update(dt, this.combat.enemies.length === 0)) this.addEnemy(enemy);
+    }
     if (this.waves.wave !== before) {
       this.economy.startWave();
       this.collectIncome();
@@ -947,6 +998,7 @@ export class GameScene extends Phaser.Scene {
     this.syncAim();
     if (!blast) return;
     this.actions.meteors++;
+    this.onboarding?.onMeteor();
 
     this.hero.playCast();
     const [fromX, fromY] = this.hero.orbPoint();
@@ -1013,9 +1065,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   summon(): void {
-    if (this.finished || !this.economy.canAffordSummon()) return;
+    if (this.finished || !this.economy.canAffordSummon() || !this.onboardingAllows({ kind: 'summon' })) return;
     const result = this.summoner.summon(this.board, this.economy.summonCost);
     if (!result) return;
+    // Обучение: второй кот — такой же, как первый, чтобы первую пару было из кого слить.
+    const forced = this.onboarding?.forcedElement;
+    if (forced) result.cat = { ...result.cat, element: forced, level: 1 };
+    this.onboarding?.onSummon(result.cat.element);
 
     if (this.economy.overLimitMult > 1) this.actions.overLimitSummons++;
     this.economy.paySummon();
@@ -1031,11 +1087,12 @@ export class GameScene extends Phaser.Scene {
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (this.drag || this.finished) return;
     if (this.meteor.aiming) {
+      if (!this.onboardingAllows({ kind: 'aim' })) return;
       if (this.moveReticle(pointer)) this.aimPointerId = pointer.id;
       return;
     }
     const slot = this.slotAt(pointer);
-    if (slot === null) return;
+    if (slot === null || !this.onboardingAllows({ kind: 'drag', from: slot, to: null })) return;
     const piece = this.board[slot];
     const view = this.views[slot];
     if (!piece || !view) return;
@@ -1103,8 +1160,16 @@ export class GameScene extends Phaser.Scene {
     this.rangeRing.setVisible(false);
     this.emitSellOffer();
 
-    const sold = this.overSellZone(pointer);
+    const overSell = this.overSellZone(pointer);
+    // Обучение: отпустить можно только на кота из показанной пары; иначе взятое возвращается на место.
+    const allowed = this.onboardingAllows({ kind: 'drag', from, to: overSell ? -1 : to === from ? null : to });
+    const sold = overSell && allowed;
     this.events.emit(GameEvent.DragEnd, sold);
+    if (!allowed) {
+      view.setVisible(true);
+      view.settle(...this.slotCenter(from), CAT_FEEL.returnMs);
+      return;
+    }
     if (sold) {
       this.sell(from, view);
       return;
@@ -1153,6 +1218,7 @@ export class GameScene extends Phaser.Scene {
         this.economy.crystals -= result.crystalCost;
         if (result.crystalCost > 0) this.actions.hybrids++;
         else this.actions.merges++;
+        this.onboarding?.onMerge(result.crystalCost > 0);
         this.board[to] = result.cat;
         this.board[from] = null;
         const merged = new CatView(this, x, y, result.cat);

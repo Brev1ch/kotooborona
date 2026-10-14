@@ -21,6 +21,7 @@ import {
   menuMusicCenter,
   menuAdChestCenter,
   menuChestCenter,
+  menuSettingsCenter,
   menuSoundCenter,
   METEOR_X,
   MIN_TOUCH,
@@ -1103,7 +1104,7 @@ test('все уровни главы запускаются, кот продаё
   });
 });
 
-test('обучение: призыв → слияние → лимит → продажа → гибрид → метеор → стройка; на пройденном уровне подсказок нет', async ({ page }) => {
+test('обучение: лимит → продажа → гибрид → метеор → стройка; на пройденном уровне подсказок нет', async ({ page }) => {
   /** Подсказка появляется с задержкой и после неё должна быть именно такой. */
   const expectHint = (step: string | null, message: string): Promise<void> =>
     waitFor(
@@ -1130,47 +1131,7 @@ test('обучение: призыв → слияние → лимит → пр�
   );
   const ids = (await page.evaluate(() => window.__smoke?.levelIds())) ?? [];
 
-  await test.step('уровень 1: призыв', async () => {
-    await startLevel(ids[0]);
-    await expectHint('summon', 'В начале первого уровня нет подсказки про призыв');
-    await page.waitForTimeout(SPAWN_SETTLE_MS);
-    await page.screenshot({ path: `${SHOTS}/tutorial-1-summon.png` });
-    await checkTouchSizes(page, 'бой с подсказкой');
-
-    // Подсказка не мешает нажимать: два призыва — и она больше не нужна.
-    await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
-    await page.waitForTimeout(PRESS_SETTLE_MS);
-    await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
-    await waitFor(
-      page,
-      SUMMON_TIMEOUT,
-      (s) => s.cats === 2 && s.tutorial !== 'summon',
-      (s) => `После двух призывов подсказка про призыв осталась: котов ${s?.cats}, подсказка «${s?.tutorial}»`,
-    );
-    checkConsole('обучение: призыв');
-  });
-
-  await test.step('уровень 1: слияние', async () => {
-    // Два одинаковых кота в соседних клетках: какие стихии выпали при призыве, заранее не известно.
-    await page.evaluate(() => {
-      for (let slot = 0; slot < 12; slot++) window.__smoke?.placeCat(slot, slot < 2 ? 'fire' : 'water', slot < 2 ? 1 : slot);
-    });
-    await expectHint('merge', 'Нет подсказки про слияние, хотя на поле два одинаковых кота');
-    await page.waitForTimeout(WAVE_SETTLE_MS);
-    await page.screenshot({ path: `${SHOTS}/tutorial-2-merge.png` });
-
-    // Перетаскивание сквозь подсказку работает: коты сливаются, подсказка уходит.
-    const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
-    await drag(page, centers[0], centers[1]);
-    await waitFor(
-      page,
-      SUMMON_TIMEOUT,
-      (s) => s.cats === 11 && s.tutorial === null,
-      (s) => `Коты не слились сквозь подсказку: котов ${s?.cats}, подсказка «${s?.tutorial}»`,
-    );
-    checkConsole('обучение: слияние');
-  });
-
+  // Призыву и слиянию на первом уровне учит интерактивное обучение: его проверяет свой сценарий.
   await test.step('уровень 1: лимит призывов', async () => {
     await startLevel(ids[0]);
     // С началом волны лимит обновляется: тратим его целиком уже в первой волне, чтобы он не сбросился посреди проверки.
@@ -1618,4 +1579,124 @@ test('ритуал смешения: гибрид стреляет сразу п
   expect(alphas.length, 'на поле должен стоять гибрид').toBe(1);
   for (const alpha of alphas) expect(alpha, 'после ритуала кот должен быть непрозрачным').toBe(1);
   checkConsole('ритуал смешения');
+});
+
+/** Новый игрок с чистым сохранением и включённым обучением: меню → первый уровень сразу, без снаряжения → сценка → бой. */
+async function startOnboarding(page: Page): Promise<void> {
+  await page.goto('/?smoke&reset&onboarding');
+  await waitFor(page, SCREEN_TIMEOUT, (s) => s.scenes.includes(SceneKey.Menu) && !s.fading, (s) => `Игра не дошла до меню: ${scenesText(s)}`);
+  expect((await state(page))?.onboarded, 'у нового игрока обучение ещё не пройдено').toBe(false);
+  await tap(page, ...menuCardCenter(0));
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.Story) || s.scenes.includes(SceneKey.Game),
+    (s) => `С первого уровня новый игрок должен идти сразу в бой, без снаряжения: ${scenesText(s)}`,
+  );
+  if ((await state(page))?.scenes.includes(SceneKey.Story)) await hurry(page, SceneKey.Story, ...storySkipCenter(), 'сценка перед первым уровнем');
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.onboarding === 'summon',
+    (s) => `Обучение не началось с призыва: шаг «${s?.onboarding}», ${scenesText(s)}`,
+  );
+}
+
+test('интерактивное обучение: призыв → такой же → слияние → смешение → метеор; лишнее не нажимается', async ({ page }) => {
+  const expectStep = (step: string | null, message: string): Promise<void> =>
+    waitFor(page, WAVE_TIMEOUT, (s) => s.onboarding === step, (s) => `${message}: шаг «${s?.onboarding ?? 'нет'}»`);
+  await startOnboarding(page);
+
+  await test.step('призыв: открыта только кнопка призыва, волна ждёт', async () => {
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/onboarding-1-summon.png` });
+    await checkTouchSizes(page, 'обучение: призыв');
+    await checkTexts(page, 'обучение: призыв');
+    // Мимо цели — ничего: стройка, монеты за рекламу и пауза закрыты.
+    for (const x of [BUILD_X, COIN_AD_X]) await tap(page, x, CONTROLS_CENTER_Y);
+    await tap(page, ...pauseButtonCenter());
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    const s = await state(page);
+    expect([s?.cats, s?.paused, s?.buildRows, s?.onboarding]).toEqual([0, false, 0, 'summon']);
+    await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
+    await expectStep('summonSame', 'После первого призыва нет шага «ещё один»');
+  });
+
+  await test.step('второй такой же и слияние: первая волна всё это время ждёт', async () => {
+    await page.screenshot({ path: `${SHOTS}/onboarding-2-same.png` });
+    await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
+    await expectStep('merge', 'Два призыва, а шага «слей» нет — коты разные?');
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/onboarding-3-merge.png` });
+    expect((await state(page))?.hud?.wave, 'до слияния первая волна не начинается').toBe(0);
+    const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
+    const [a, b] = (await page.evaluate(() => window.__smoke?.catSlots())) ?? [];
+    await drag(page, centers[a], centers[b]);
+    await expectStep(null, 'После слияния шаг остался');
+    await waitFor(page, WAVE_TIMEOUT, (s) => s.cats === 1 && (s.hud?.wave ?? 0) >= 1, (s) => `После слияния волна не началась: котов ${s?.cats}, волна ${s?.hud?.wave}`);
+    checkConsole('обучение: слияние');
+  });
+
+  await test.step('смешение — по событию: впервые пара разных стихий', async () => {
+    await page.evaluate(() => {
+      window.__smoke?.placeCat(9, 'fire', 1);
+      window.__smoke?.placeCat(11, 'water', 1);
+    });
+    await expectStep('hybrid', 'Есть огненный и водный кот, а шага смешения нет');
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/onboarding-4-hybrid.png` });
+    // Бой стоит, пока игрок не смешает: враги не идут.
+    const march = (await state(page))?.march ?? 0;
+    await page.waitForTimeout(WAVE_SETTLE_MS);
+    expect((await state(page))?.march, 'на шаге смешения бой должен стоять').toBe(march);
+    const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
+    await drag(page, centers[9], centers[11]);
+    await expectStep(null, 'После смешения шаг остался');
+  });
+
+  await test.step('метеор — по событию: заряд полон, кнопка и прицел', async () => {
+    await page.evaluate(() => window.__smoke?.chargeMeteor());
+    await expectStep('meteor', 'Заряд метеора полон, а шага метеора нет');
+    await page.screenshot({ path: `${SHOTS}/onboarding-5-meteor.png` });
+    await tap(page, METEOR_X, CONTROLS_CENTER_Y);
+    await expectStep('meteorAim', 'После кнопки метеора нет шага прицела');
+    await page.screenshot({ path: `${SHOTS}/onboarding-6-aim.png` });
+    const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
+    // Дорога первого уровня идёт по краю поля: слева от первой клетки.
+    await tap(page, centers[0][0] - 42, centers[0][1]);
+    await waitFor(page, SCREEN_TIMEOUT, (s) => s.onboarding === null && s.onboarded, (s) => `После метеора обучение не закончилось: шаг «${s?.onboarding}», пройдено ${s?.onboarded}`);
+    checkConsole('обучение: метеор');
+  });
+});
+
+test('обучение: «Пропустить» снимает его насовсем, «Пройти обучение заново» — возвращает', async ({ page }) => {
+  await startOnboarding(page);
+  await tap(page, ...center(await target(page, 'onboarding-skip')));
+  await waitFor(page, SCREEN_TIMEOUT, (s) => s.onboarding === null && s.onboarded, (s) => `«Пропустить» не сняло обучение: шаг «${s?.onboarding}»`);
+  // Волна идёт сама, кнопки снова нажимаются.
+  await waitFor(page, WAVE_TIMEOUT, (s) => (s.hud?.wave ?? 0) >= 1, (s) => `После пропуска первая волна не началась: волна ${s?.hud?.wave}`);
+  await tap(page, SUMMON_X, CONTROLS_CENTER_Y);
+  await waitFor(page, SUMMON_TIMEOUT, (s) => s.cats === 1, (s) => `После пропуска призыв не работает: котов ${s?.cats}`);
+
+  await test.step('настройки → «Пройти обучение заново»', async () => {
+    // Сохранение остаётся в браузере: после перезагрузки обучение уже пройдено.
+    await page.goto('/?smoke&onboarding');
+    await waitFor(page, SCREEN_TIMEOUT, (s) => s.scenes.includes(SceneKey.Menu) && !s.fading, (s) => `Не вернулись в меню: ${scenesText(s)}`);
+    expect((await state(page))?.onboarded, 'пропуск должен сохраниться').toBe(true);
+    await tap(page, ...menuSettingsCenter());
+    await page.waitForTimeout(PRESS_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/settings.png` });
+    await checkTouchSizes(page, 'настройки');
+    await checkTexts(page, 'настройки');
+    await tap(page, ...center(await target(page, 'settings-replay')));
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.Story) || s.scenes.includes(SceneKey.Game),
+      (s) => `«Пройти обучение заново» не открыло первый уровень: ${scenesText(s)}`,
+    );
+    if ((await state(page))?.scenes.includes(SceneKey.Story)) await hurry(page, SceneKey.Story, ...storySkipCenter(), 'сценка перед первым уровнем');
+    await waitFor(page, SCREEN_TIMEOUT, (s) => s.onboarding === 'summon', (s) => `Обучение не началось заново: шаг «${s?.onboarding}»`);
+  });
+  checkConsole('обучение: пропуск и заново');
 });

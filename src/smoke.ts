@@ -66,6 +66,10 @@ export interface SmokeState {
   paused: boolean;
   /** Шаг обучения, подсказка о котором сейчас на экране. */
   tutorial: string | null;
+  /** Шаг интерактивного обучения на первом уровне (`?onboarding`); null — его нет. */
+  onboarding: string | null;
+  /** Обучение пройдено или пропущено (флаг в сохранении). */
+  onboarded: boolean;
   /** Открытый экран итога боя. */
   result: 'win' | 'lose' | null;
   /** Сценка на экране: номер реплики и сколько их всего. */
@@ -453,17 +457,17 @@ export function installSmokeProbe(game: Phaser.Game): void {
         ? (game.scene.getScene(SceneKey.Story) as StoryScene).progressState()
         : null;
       const artKeys = game.textures.getTextureKeys().filter((key) => key.startsWith('art:') || key.startsWith('bg-')).sort();
-      const common = { scenes, fading, targets, sound: audio.on, music: audio.musicOn, tracks: audio.musicPlaying, art: artKeys, worn, bag, shards: progress.shards, story, fish: progress.fish, chests: progress.chestsOpened, pending: { ...progress.pendingChests }, adChestWait: adChestWait(progress.adChestAt, Date.now(), ads.chest.cooldown) };
+      const common = { onboarded: progress.onboarded, scenes, fading, targets, sound: audio.on, music: audio.musicOn, tracks: audio.musicPlaying, art: artKeys, worn, bag, shards: progress.shards, story, fish: progress.fish, chests: progress.chestsOpened, pending: { ...progress.pendingChests }, adChestWait: adChestWait(progress.adChestAt, Date.now(), ads.chest.cooldown) };
 
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);
       if (!paused && !scenes.includes(SceneKey.Game)) {
-        return { ...common, hud: null, level: null, cats: 0, buildings: 0, buildRows: 0, sellZone: null, ghost: false, enemies: 0, march: 0, paused: false, result: null, tutorial: null };
+        return { ...common, hud: null, level: null, cats: 0, buildings: 0, buildRows: 0, sellZone: null, ghost: false, enemies: 0, march: 0, paused: false, result: null, tutorial: null, onboarding: null };
       }
       const gameScene = game.scene.getScene(SceneKey.Game) as GameScene;
       const ui = game.scene.getScene(SceneKey.UI) as UIScene;
       const hud = gameScene.hudState();
-      return { ...common, hud, level: gameScene.levelId, ...gameScene.fieldCounts(), buildRows: ui.buildPanelRows(), sellZone: ui.sellZoneText(), ghost: ui.holdingGhost(), paused, result: ui.resultShown(), tutorial: ui.tutorialStep() };
+      return { ...common, hud, level: gameScene.levelId, ...gameScene.fieldCounts(), buildRows: ui.buildPanelRows(), sellZone: ui.sellZoneText(), ghost: ui.holdingGhost(), paused, result: ui.resultShown(), tutorial: ui.tutorialStep(), onboarding: ui.onboardingStep() };
     },
   };
 }
