@@ -49,7 +49,7 @@
 | `enemies/mole.png` | 96×52 | Крот | нет |
 | `enemies/ninja.png` | 77×55 | Мышь-ниндзя | нет |
 | `enemies/bat.png` | 77×80 | Летучая мышь | нет |
-| `enemies/boss.png` | 144×78 | Крыса-командир | нет |
+| `enemies/commander.png` | 144×78 | Крыса-командир | нет |
 | `enemies/king.png` | 183×99 | Крысиный король | нет |
 
 ## Герой (0 из 1)

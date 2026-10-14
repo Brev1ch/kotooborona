@@ -20,7 +20,7 @@
     {"id": "enemy-mole", "file": "enemies/mole.png", "width": 96, "height": 52, "group": "enemies", "use": "Крот", "atlas": "units"},
     {"id": "enemy-ninja", "file": "enemies/ninja.png", "width": 77, "height": 55, "group": "enemies", "use": "Мышь-ниндзя", "atlas": "units"},
     {"id": "enemy-bat", "file": "enemies/bat.png", "width": 77, "height": 80, "group": "enemies", "use": "Летучая мышь", "atlas": "units"},
-    {"id": "enemy-boss", "file": "enemies/boss.png", "width": 144, "height": 78, "group": "enemies", "use": "Крыса-командир", "atlas": "units"},
+    {"id": "enemy-boss", "file": "enemies/commander.png", "width": 144, "height": 78, "group": "enemies", "use": "Крыса-командир", "atlas": "units"},
     {"id": "enemy-king", "file": "enemies/king.png", "width": 183, "height": 99, "group": "enemies", "use": "Крысиный король", "atlas": "units"},
     {"id": "hero", "file": "hero/hero.png", "width": 104, "height": 152, "group": "hero", "use": "Кот-Архимаг на поле, без сферы на посохе", "atlas": "units"},
     {"id": "building-shop-1", "file": "buildings/shop-1.png", "width": 104, "height": 116, "group": "buildings", "use": "Рыбная лавка, уровень 1", "atlas": "units"},
