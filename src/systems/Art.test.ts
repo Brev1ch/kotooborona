@@ -32,6 +32,13 @@ describe('манифест арта', () => {
     }
   });
 
+  it('ручная поправка масштаба — только у котов и положительная', () => {
+    for (const image of art.images.filter((entry) => entry.scale !== undefined)) {
+      expect(image.group).toBe('cats');
+      expect(image.scale).toBeGreaterThan(0);
+    }
+  });
+
   it('у каждого типа врага есть картинка', () => {
     for (const type of Object.keys(enemies.types) as EnemyTypeId[]) expect(ids).toContain(artId.enemy(type));
     expect(art.images.filter((image) => image.group === 'enemies')).toHaveLength(Object.keys(enemies.types).length);

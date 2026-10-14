@@ -4,8 +4,11 @@
 // (assets-src/art/cats/fire.png и так далее). Каких файлов нет — тех картинок в игре нет, на их месте рисунок кодом.
 //   Картинка атласа без прозрачности (генератор рисует на светлой бумаге): фон убирается заливкой от краёв,
 //     поэтому белое внутри контура (глаза, грудка, облако) остаётся.
-//   Картинка с `align: bottom` (коты) встаёт в свой квадрат по нижнему краю, остальные — по центру.
-//   Рядом с исходниками пишется preview.png: все готовые коты в ряд на траве и на тёмном поле — проверить вырезку глазами.
+//   Коты (группа `cats`) — в едином масштабе тела, а не по рамке: высота от низа лап до линии щёк у всех одна
+//     (src/systems/CatFit.ts), ось тела — посередине квадрата, лапы — на нижнем краю; `scale` в манифесте — ручная поправка кота.
+//   Другая картинка с `align: bottom` встаёт в свой размер по нижнему краю, остальные — по центру.
+//   Рядом с исходниками пишется preview.png: все готовые коты в ряд на траве и на тёмном поле — проверить вырезку глазами;
+//     линии — низ лап и линия щёк, у всех котов они должны совпасть.
 //   Картинка атласа: прозрачные края обрезаются, остаток вписывается в размер из манифеста по центру.
 //   Фон кнопки (`slice`): растягивается ровно в размер, края не обрезаются.
 //   Фон уровня: обрезается под размер и лежит отдельным файлом — игра грузит его при входе в уровень.
@@ -19,6 +22,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
 import { artList } from '../src/systems/ArtList.ts';
+import { measureCat, placeCats } from '../src/systems/CatFit.ts';
 
 /** Общий вес готового арта, байты. */
 const BUDGET = 3 * 1024 * 1024;
@@ -36,8 +40,8 @@ const BACKGROUND_MAX_CHROMA = 22;
 const BACKGROUND_ERODE = 1;
 /** Островок вне фигуры остаётся, только если он не меньше этой доли самой большой фигуры. */
 const BACKGROUND_MIN_ISLAND = 0.01;
-/** Превью котов: высота кота в ряду и фоны, на которых он проверяется, — трава и тёмное поле. */
-const PREVIEW = { file: 'preview.png', size: 64, gap: 8, backgrounds: ['#5d9b4b', '#1e2740'] };
+/** Превью котов: сторона клетки с котом, фоны, на которых он проверяется, — трава и тёмное поле, цвета линий лап и щёк. */
+const PREVIEW = { file: 'preview.png', size: 96, gap: 8, backgrounds: ['#5d9b4b', '#1e2740'], ground: '#ff4fd8', cheek: '#ffe14f' };
 const ATLAS_WEBP = { quality: 90, alphaQuality: 100, effort: 6 };
 const BACKGROUND_WEBP = { quality: 82, effort: 6 };
 
@@ -186,7 +190,46 @@ async function prepareFrame(image, file) {
     pipeline = sharp(trimmed).resize(image.width, image.height, { fit: 'inside' });
   }
   const { data, info } = await pipeline.raw().toBuffer({ resolveWithObject: true });
-  return { image, data, width: info.width, height: info.height };
+  const { width, height } = info;
+  // Где обрезанная картинка стоит внутри полного размера.
+  const x = Math.floor((image.width - width) / 2);
+  const y = image.align === 'bottom' ? image.height - height : Math.floor((image.height - height) / 2);
+  return { image, data, width, height, offsetX: x, offsetY: y };
+}
+
+/** Коты в едином масштабе тела: замер всех, общий масштаб, затем каждый — обрезанная фигура и её место в квадрате. */
+async function prepareCats(images) {
+  const sources = [];
+  for (const image of images) {
+    const { data, info } = await (await withAlpha(join(SRC, image.file))).raw().toBuffer({ resolveWithObject: true });
+    const measure = measureCat(info.width, info.height, (x, y) => data[(y * info.width + x) * 4 + 3] > 0);
+    if (!measure) fail(`${image.file}: не нашлась голова кота — фигура пустая или без широкой части`);
+    sources.push({ image, data, info, measure });
+  }
+  const size = images[0].width;
+  if (images.some((image) => image.width !== size || image.height !== size)) fail('Коты в манифесте должны быть одного квадратного размера');
+  const placements = placeCats(sources.map(({ image, measure }) => ({ measure, scale: image.scale })), size);
+  const frames = [];
+  for (const [i, { image, data, info, measure: m }] of sources.entries()) {
+    const p = placements[i];
+    const width = Math.min(size, Math.max(1, Math.round((m.right + 1 - m.left) * p.factor)));
+    const height = Math.min(size, Math.max(1, Math.round((m.bottom + 1 - m.top) * p.factor)));
+    const resized = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
+      .extract({ left: m.left, top: m.top, width: m.right + 1 - m.left, height: m.bottom + 1 - m.top })
+      .resize(width, height, { fit: 'fill' })
+      .raw()
+      .toBuffer();
+    frames.push({
+      image,
+      data: resized,
+      width,
+      height,
+      offsetX: Math.min(size - width, Math.max(0, Math.round(p.x))),
+      offsetY: size - height,
+      cheekY: p.cheekY,
+    });
+  }
+  return frames;
 }
 
 /** Раскладывает кадры по полкам: по убыванию высоты, слева направо. Возвращает высоту атласа. */
@@ -215,12 +258,17 @@ rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
 const index = { atlases: {}, images: {} };
+/** Готовые кадры котов — для превью. */
+const catFrames = [];
 const ready = manifest.images.filter((image) => existsSync(join(SRC, image.file)));
 
 const atlasNames = [...new Set(ready.filter((image) => image.atlas).map((image) => image.atlas))].sort();
 for (const name of atlasNames) {
-  const frames = [];
-  for (const image of ready.filter((entry) => entry.atlas === name)) frames.push(await prepareFrame(image, join(SRC, image.file)));
+  const images = ready.filter((entry) => entry.atlas === name);
+  const catImages = images.filter((entry) => entry.group === 'cats');
+  const frames = catImages.length > 0 ? await prepareCats(catImages) : [];
+  for (const image of images.filter((entry) => entry.group !== 'cats')) frames.push(await prepareFrame(image, join(SRC, image.file)));
+  if (catImages.length > 0) catFrames.push(...frames.filter((frame) => frame.image.group === 'cats'));
   const height = pack(frames);
   if (height > ATLAS_MAX) fail(`Атлас ${name} выше ${ATLAS_MAX} пикс.: разделите его в манифесте`);
 
@@ -238,39 +286,38 @@ for (const name of atlasNames) {
       frame: { x: frame.x, y: frame.y, w: frame.width, h: frame.height },
       rotated: false,
       trimmed: frame.width !== fullW || frame.height !== fullH,
-      spriteSourceSize: { x: Math.floor((fullW - frame.width) / 2), y: frame.image.align === 'bottom' ? fullH - frame.height : Math.floor((fullH - frame.height) / 2), w: frame.width, h: frame.height },
+      spriteSourceSize: { x: frame.offsetX, y: frame.offsetY, w: frame.width, h: frame.height },
       sourceSize: { w: fullW, h: fullH },
     };
   }
   index.atlases[name] = { file, bytes: statSync(join(OUT, file)).size, width: ATLAS_WIDTH, height, frames: entries };
 }
 
-// Превью: только для настоящих исходников, заглушкам смоук-проверки оно не нужно.
-const previewCats = ready.filter((image) => image.group === 'cats');
-if (OUT === 'public/assets/art' && previewCats.length > 0) {
-  const { size, gap, backgrounds } = PREVIEW;
-  const tiles = [];
-  for (const image of previewCats) {
-    const frame = await prepareFrame(image, join(SRC, image.file));
-    const input = await sharp(frame.data, { raw: { width: frame.width, height: frame.height, channels: 4 } }).resize(size, size, { fit: 'inside' }).png().toBuffer({ resolveWithObject: true });
-    tiles.push(input);
-  }
-  const width = gap + previewCats.length * (size + gap);
+// Превью: только для настоящих исходников, заглушкам смоук-проверки оно не нужно. Кот стоит в клетке так же, как в игре,
+// поверх — линии лап и щёк: каждая проведена по замеру своего кота, и у всех они должны слиться в одну.
+if (OUT === 'public/assets/art' && catFrames.length > 0) {
+  const { size, gap, backgrounds, ground, cheek } = PREVIEW;
+  const catOrder = manifest.images.filter((image) => image.group === 'cats').map((image) => image.id);
+  catFrames.sort((a, b) => catOrder.indexOf(a.image.id) - catOrder.indexOf(b.image.id));
+  const k = size / catFrames[0].image.width;
+  const width = gap + catFrames.length * (size + gap);
   const rowHeight = size + gap * 2;
-  const rows = backgrounds.map((background, row) => ({
-    input: { create: { width, height: rowHeight, channels: 4, background } },
-    left: 0,
-    top: row * rowHeight,
-  }));
-  const cats = backgrounds.flatMap((_, row) =>
-    tiles.map(({ data, info }, index) => ({
-      input: data,
-      left: gap + index * (size + gap) + Math.floor((size - info.width) / 2),
-      top: row * rowHeight + gap + size - info.height,
-    })),
-  );
+  const line = (color, left, top) => ({ input: { create: { width: size, height: 1, channels: 4, background: color } }, left, top: Math.round(top) });
+  const layers = [];
+  for (const [row, background] of backgrounds.entries()) {
+    layers.push({ input: { create: { width, height: rowHeight, channels: 4, background } }, left: 0, top: row * rowHeight });
+    for (const [i, frame] of catFrames.entries()) {
+      const left = gap + i * (size + gap);
+      const top = row * rowHeight + gap;
+      const w = Math.max(1, Math.round(frame.width * k));
+      const h = Math.max(1, Math.round(frame.height * k));
+      const tile = await sharp(frame.data, { raw: { width: frame.width, height: frame.height, channels: 4 } }).resize(w, h, { fit: 'fill' }).png().toBuffer();
+      layers.push({ input: tile, left: left + Math.round(frame.offsetX * k), top: top + size - h });
+      layers.push(line(cheek, left, top + frame.cheekY * k), line(ground, left, top + size));
+    }
+  }
   await sharp({ create: { width, height: rowHeight * backgrounds.length, channels: 4, background: '#000000' } })
-    .composite([...rows, ...cats])
+    .composite(layers)
     .png()
     .toFile(join(SRC, PREVIEW.file));
 }
