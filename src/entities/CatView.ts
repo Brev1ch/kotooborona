@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import { addArtOrShape, art } from '../art';
 import { cats, elementColor, type ElementId } from '../data';
-import { CAT_LEVEL_FEEL, RITUAL_FEEL, SHOT_FEEL } from '../feel';
+import { CAT_LEVEL_FEEL, MOTION_FEEL, RITUAL_FEEL } from '../feel';
 import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
 import { addBakedShape } from '../scenes/textures';
 import { artId } from '../systems/Art';
 import type { Cat } from './Cat';
+import { addShadow, attack, breathe, stopAll } from './motion';
 import { PieceView } from './PieceView';
 
 const BODY_RADIUS = 21;
@@ -60,8 +61,13 @@ export class CatView extends PieceView {
   /** Плашка уровня поверх всех котов; каждый кадр перед отрисовкой повторяет положение, размер и прозрачность кота. */
   private levelLayer: Phaser.GameObjects.Container | null = null;
   private ritualRing: Phaser.GameObjects.Graphics | null = null;
-  /** Отдача при выстреле, которая идёт сейчас. */
-  private recoil: Phaser.Tweens.Tween | null = null;
+  /** Поза кота: стоит в точке лап, дышит (масштаб) и кивает при выстреле (сдвиг); внутри — картинка кота. */
+  private readonly pose: Phaser.GameObjects.Container;
+  private readonly feet: [number, number];
+  private readonly shadow: Phaser.GameObjects.Image;
+  private readonly breath: Phaser.Tweens.Tween;
+  /** Кивок и отдача от выстрела, которые идут сейчас. */
+  private shot: Phaser.Tweens.Tween[] = [];
 
   constructor(scene: Phaser.Scene, x: number, y: number, cat: Cat) {
     super(scene, x, y);
@@ -69,20 +75,26 @@ export class CatView extends PieceView {
     const g = addCatImage(scene, cat.element);
     this.shape = g;
     this.shapeScale = g.scale;
-
-    if (art.find(scene, artId.cat(cat.element))) {
-      // На готовой картинке посреди кота мордочка: уровень показан под котом.
-      g.setY(-CAT_LEVEL_FEEL.artLift);
-      this.add(g);
+    const ready = art.find(scene, artId.cat(cat.element)) !== null;
+    // На готовой картинке посреди кота мордочка: уровень показан под котом. У силуэта цифра стоит посреди тела.
+    if (ready) g.setY(-CAT_LEVEL_FEEL.artLift);
+    const feetY = ready ? g.y + g.displayHeight / 2 : BODY_Y + BODY_RADIUS;
+    this.feet = [0, feetY];
+    const { width, height } = MOTION_FEEL.shadow.cat;
+    this.shadow = addShadow(scene, 0, feetY, width, height);
+    g.setY(g.y - feetY);
+    this.pose = scene.add.container(0, feetY, [g]);
+    this.add([this.shadow, this.pose]);
+    if (ready) {
       this.addPlate(cat.level);
     } else {
-      // У силуэта цифра уровня стоит посреди тела.
       const label = scene.add
-        .text(0, BODY_Y, String(cat.level), { fontFamily: FONTS.display, fontSize: '18px', color: TEXT_COLORS.dark })
+        .text(0, BODY_Y - feetY, String(cat.level), { fontFamily: FONTS.display, fontSize: '18px', color: TEXT_COLORS.dark })
         .setOrigin(0.5);
       this.marks.push(label);
-      this.add([g, label]);
+      this.pose.add(label);
     }
+    this.breath = breathe(scene, this.pose);
     this.setDepth(DEPTH.cat);
     scene.add.existing(this);
     this.syncLevelLayer();
@@ -118,18 +130,20 @@ export class CatView extends PieceView {
   }
 
   override destroy(fromScene?: boolean): void {
+    this.breath.stop();
+    stopAll(this.scene, [this.pose, this.shape]);
     this.scene?.events.off(Phaser.Scenes.Events.PRE_RENDER, this.syncLevelLayer, this);
     this.levelLayer?.destroy(fromScene);
     this.levelLayer = null;
     super.destroy(fromScene);
   }
 
-  /** Отдача при выстреле: вздрагивает только фигура, чтобы не спорить с анимациями самого кота. */
-  playShot(): void {
-    // Останавливается только прежняя отдача: проявление после ритуала идёт по той же картинке и прерываться не должно.
-    this.recoil?.stop();
-    this.shape.setScale(this.shapeScale * SHOT_FEEL.recoilScale);
-    this.recoil = this.scene.tweens.add({ targets: this.shape, scale: this.shapeScale, duration: SHOT_FEEL.recoilMs });
+  /**
+   * Выстрел: кивок к цели (`dx`, `dy` — направление на неё; без него — вверх) и отдача фигуры.
+   * Останавливается только прежний выстрел: дыхание и проявление после ритуала идут по тем же объектам и не прерываются.
+   */
+  playShot(dx?: number, dy?: number): void {
+    this.shot = attack(this.scene, this.pose, this.feet, this.shape, this.shapeScale, this.shot, dx, dy);
   }
 
   /** Самая низкая прозрачность среди частей кота: 1 — кот виден целиком. Для смоук-проверки. */

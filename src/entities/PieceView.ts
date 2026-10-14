@@ -1,18 +1,12 @@
 import Phaser from 'phaser';
 import { CAT_FEEL, MERGE_FEEL } from '../feel';
 import { DEPTH } from '../layout';
+import { spawn } from './motion';
 
 /** То, что стоит в клетке и перетаскивается пальцем: кот или строение. Появление, взятие в руку, посадка и исчезновение у них общие. */
 export class PieceView extends Phaser.GameObjects.Container {
   playSpawn(delay = 0): void {
-    this.setScale(0);
-    this.scene.tweens.add({
-      targets: this,
-      scale: 1,
-      delay,
-      duration: CAT_FEEL.spawnMs,
-      ease: CAT_FEEL.spawnEase,
-    });
+    spawn(this.scene, this, delay);
   }
 
   /** Взяли в руку: поверх остальных и чуть крупнее. */

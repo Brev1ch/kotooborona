@@ -15,13 +15,14 @@ const BUTTON_GAP = 4;
 
 // Стресс-проверка производительности: худший случай с запасом.
 // Всё поле занято гибридами 5–6 уровня с эффектами по площади, а врагов больше, чем в любой волне уровня:
-// крысы и щитоносцы живучие и копятся на дороге, мыши гибнут сразу и дают награды, облачка и всплывающие числа.
+// крысы, щитоносцы, летучие мыши, кроты и ниндзя живучие и копятся на дороге (у каждого своя походка),
+// мыши гибнут сразу и дают награды, облачка и всплывающие числа. Новые выходят, пока на дороге меньше 40 врагов.
 const STRESS_ELEMENTS: ElementId[] = ['steam', 'lava', 'storm', 'sand', 'ice', 'swamp'];
 const STRESS_LEVELS = [5, 6];
-const STRESS_ENEMIES: EnemyTypeId[] = ['mouse', 'rat', 'shield', 'mouse', 'rat'];
+const STRESS_ENEMIES: EnemyTypeId[] = ['mouse', 'rat', 'shield', 'mouse', 'bat', 'mole', 'mouse', 'ninja'];
 const STRESS_ENEMY_COUNT = 40;
 const STRESS_ENEMY_HP: Record<EnemyTypeId, number> = { mouse: 40, rat: 3000, shield: 3000, boots: 3000, fire: 3000, shaman: 3000, mole: 3000, ninja: 3000, bat: 3000, boss: 3000, king: 3000 };
-const STRESS_SPAWN_MS = 350;
+const STRESS_SPAWN_MS = 120;
 const STRESS_LIVES = 999;
 
 // Парад: по одному врагу каждого типа друг за другом, чтобы сравнить их вид на телефоне.
@@ -80,8 +81,9 @@ export function stress(game: GameScene): void {
   let spawned = 0;
   game.time.addEvent({
     delay: STRESS_SPAWN_MS,
-    repeat: STRESS_ENEMY_COUNT - 1,
+    loop: true,
     callback: () => {
+      if (game.fieldCounts().enemies >= STRESS_ENEMY_COUNT) return;
       const type = STRESS_ENEMIES[spawned++ % STRESS_ENEMIES.length];
       game.addEnemy(debugEnemy(type, STRESS_ENEMY_HP[type]));
     },

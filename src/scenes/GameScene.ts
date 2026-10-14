@@ -545,11 +545,15 @@ export class GameScene extends Phaser.Scene {
         audio.play('lifeLost');
         return true;
 
-      case 'shot':
-        this.catView(event.slot)?.playShot();
+      case 'shot': {
+        // Кот кивает в сторону цели.
+        const [catX, catY] = this.slotCenter(event.slot);
+        const [targetX, targetY] = positionAt(this.path, event.projectile.target.distance);
+        this.catView(event.slot)?.playShot(targetX - catX, targetY - catY);
         this.addProjectileView(event.projectile);
         audio.play(SHOT_SOUND[event.projectile.element] ?? 'shot');
         break;
+      }
 
       case 'hit':
         this.enemyViews.get(event.enemy)?.playHit();

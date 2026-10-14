@@ -20,9 +20,43 @@ export const CAT_LEVEL_FEEL = {
   ],
 };
 
+/**
+ * Заготовки движения персонажей (`entities/motion.ts`). Картинки рисуются в спокойной позе, а движение даёт код:
+ * дыхание, походка, полёт, подкоп, выстрел, попадание, гибель, появление и тень под ногами.
+ */
+export const MOTION_FEEL = {
+  /** Дыхание: сжатие и растяжение по вертикали от ног, у каждого своя фаза. `stretch` — доля высоты. */
+  breathe: { periodMs: 2600, stretch: 0.035 },
+  /**
+   * Вперевалку: наклон ±`angle` (радианы) и подскок на `hop` на каждом шаге. Шаг — `stepPx` пути,
+   * поэтому быстрый враг семенит чаще; длительность шага зажата в `minStepMs`…`maxStepMs`.
+   */
+  waddle: { angle: 0.14, hop: 1.6, stepPx: 9, minStepMs: 110, maxStepMs: 420 },
+  /** Полёт: качание вверх-вниз на `amp` без наклона. */
+  hover: { periodMs: 900, amp: 2.5 },
+  /** Подкоп: враг уходит в землю (сжимается до `sink` и гаснет) и выходит из неё за `ms`; холмик растёт и опадает. */
+  burrow: { ms: 220, sink: 0.3, ease: 'Quad.easeIn' },
+  /** Выстрел кота: кивок к цели на `nodPx` и отдача — фигура на миг крупнее в `recoilScale`. */
+  attack: { nodPx: 3, nodMs: 70, recoilScale: 1.12, recoilMs: 80 },
+  /** Попадание: белая вспышка, сжатие до `squash` и отскок назад по ходу на `knockPx`. */
+  hit: { flashAlpha: 0.85, flashMs: 110, squash: 0.8, squashMs: 70, knockPx: 3, knockMs: 90 },
+  /** Гибель: сплющивание в `squashX`×`squashY` и угасание; облачко частиц — `ENEMY_FEEL.puff*`. */
+  death: { ms: 200, squashX: 1.5, squashY: 0.25, ease: 'Quad.easeIn' },
+  /** Появление: из нуля с перелётом масштаба. */
+  spawn: { ms: 280, ease: 'Back.easeOut' },
+  /**
+   * Тень — овал под ногами, рисуется кодом. У кота размеры в логических точках, стоит она под лапами;
+   * у врага — в долях радиуса, `y` — сдвиг вниз от центра.
+   */
+  shadow: {
+    color: 0x000000,
+    alpha: 0.28,
+    cat: { width: 40, height: 9 },
+    enemy: { width: 2.3, height: 1.2, y: 0.55 },
+  },
+};
+
 export const CAT_FEEL = {
-  spawnMs: 280,
-  spawnEase: 'Back.easeOut',
   /** Кот в руке. */
   liftMs: 90,
   liftScale: 1.15,
@@ -130,16 +164,9 @@ export const ENEMY_FEEL = {
   /** Враг прошёл в ворота: поле вздрагивает. */
   leakShakeMs: 140,
   leakShakeIntensity: 0.006,
-  /** Попадание: враг вздрагивает и на миг белеет. */
-  hitScale: 1.25,
-  hitMs: 70,
-  flashAlpha: 0.85,
-  flashMs: 110,
   /** Щит принял удар. */
   blockScale: 1.6,
   blockMs: 110,
-  deathMs: 180,
-  deathScale: 0.3,
   /** Облачко на месте убитого: клубы разлетаются, растут и тают. Чем крупнее враг, тем их больше. */
   puffPerRadius: 0.75,
   puffMs: 380,
@@ -190,9 +217,6 @@ export const FX_FEEL = {
 export const SHOT_FEEL = {
   radius: 3.5,
   heavyRadius: 6,
-  /** Отдача кота при выстреле. */
-  recoilScale: 1.12,
-  recoilMs: 80,
   rewardOffsetY: 14,
   /** Кристаллы в награде: значок и число после монет. */
   rewardIconSize: 11,

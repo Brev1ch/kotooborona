@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import { addArtOrShape, art } from '../art';
 import { elementColor, enemies, enemyColor, type EnemyTypeId } from '../data';
-import { ENEMY_FEEL, STATUS_FEEL } from '../feel';
+import { ENEMY_FEEL, MOTION_FEEL, STATUS_FEEL } from '../feel';
 import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
 import { addBakedShape, ensureTextures, Texture } from '../scenes/textures';
 import { artId } from '../systems/Art';
 import type { Enemy } from './Enemy';
+import { addShadow, burrow, death, hit, hover, spawn, stopAll, waddle } from './motion';
 
 /** Прямоугольник вокруг центра врага, в который помещается всё нарисованное `drawEnemyBody`: ширина и высота. */
 export function enemyBodySize(type: EnemyTypeId): [number, number] {
@@ -191,13 +192,23 @@ export function addEnemyPortrait(
 }
 
 /**
- * Вид врага: мышь сверху, носом по ходу движения, с полоской здоровья.
+ * Вид врага: мышь сверху, носом по ходу движения, с полоской здоровья и тенью.
  * Тело, щит и метки эффектов — картинки из арта и запечённых текстур: на поле десятки врагов, и рисовать каждого заново каждый кадр дорого.
+ * Слои движения (`entities/motion.ts`), снаружи внутрь: походка (наклон и подскок или качание полёта) → реакция
+ * (отскок и сжатие от попадания, появление, сплющивание при гибели) → поворот по ходу (уход под землю).
  */
 export class EnemyView extends Phaser.GameObjects.Container {
   private readonly radius: number;
   /** Поворачивается по ходу движения; полоска здоровья остаётся горизонтальной. */
   private readonly turning: Phaser.GameObjects.Container;
+  private readonly gait: Phaser.GameObjects.Container;
+  private readonly react: Phaser.GameObjects.Container;
+  private readonly shadow: Phaser.GameObjects.Image;
+  /** Бесконечные твины походки; замедленный враг шагает медленнее. */
+  private readonly steps: Phaser.Tweens.Tween[];
+  private shownPace = 1;
+  /** Направление движения, радианы: попадание отбрасывает назад по нему. */
+  private heading = 0;
   /** Белый силуэт поверх тела: вспыхивает при попадании. */
   private readonly flash: Phaser.GameObjects.Image;
   /** Щит и число на нём; только у врага, который пришёл со щитом. */
@@ -225,6 +236,13 @@ export class EnemyView extends Phaser.GameObjects.Container {
     const body = addEnemyBody(scene, enemy.type);
     this.flash = addEnemyBody(scene, enemy.type).setTintFill(COLORS.flash).setAlpha(0);
     this.turning = scene.add.container(0, 0, [body, this.flash]);
+    this.react = scene.add.container(0, 0, [this.turning]);
+    this.gait = scene.add.container(0, 0, [this.react]);
+    const config = enemies.types[enemy.type];
+    const shadow = MOTION_FEEL.shadow.enemy;
+    this.shadow = addShadow(scene, 0, r * shadow.y, r * shadow.width, r * shadow.height);
+    this.steps = [config.motion === 'hover' ? hover(scene, this.gait) : waddle(scene, this.gait, config.speed)];
+    spawn(scene, this.react);
 
     if (enemies.types[enemy.type].burrow) {
       this.mound = addBakedShape(scene, `mound-${enemy.type}`, r * 3.2, r * 2.4, (g) => {
@@ -250,7 +268,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
     }
 
     this.bar = scene.add.graphics();
-    this.add(this.mound ? [this.mound, this.turning, this.bar] : [this.turning, this.bar]);
+    this.add(this.mound ? [this.shadow, this.mound, this.gait, this.bar] : [this.shadow, this.gait, this.bar]);
     this.setDepth(DEPTH.enemy);
     scene.add.existing(this);
 
@@ -264,11 +282,16 @@ export class EnemyView extends Phaser.GameObjects.Container {
   sync(enemy: Enemy, x: number, y: number, angle: number, burrowed = false): void {
     this.setPosition(x, y);
     this.turning.setRotation(angle);
+    this.heading = angle;
     if (burrowed !== this.shownBurrowed) {
       this.shownBurrowed = burrowed;
-      this.turning.setVisible(!burrowed);
+      burrow(this.scene, this.turning, this.mound, this.shadow, burrowed);
       this.bar.setVisible(!burrowed);
-      this.mound?.setVisible(burrowed);
+    }
+    const pace = enemy.slowTime > 0 ? enemy.slowFactor : 1;
+    if (pace !== this.shownPace) {
+      this.shownPace = pace;
+      for (const step of this.steps) step.timeScale = pace;
     }
     if (enemy.shield !== this.shownShield) {
       this.shownShield = enemy.shield;
@@ -319,12 +342,9 @@ export class EnemyView extends Phaser.GameObjects.Container {
     return mark;
   }
 
-  /** Попадание прошло: враг вздрагивает и на миг белеет. */
+  /** Попадание прошло: враг на миг белеет, сжимается и отскакивает назад. */
   playHit(): void {
-    this.pulse(this.turning, ENEMY_FEEL.hitScale, ENEMY_FEEL.hitMs);
-    this.scene.tweens.killTweensOf(this.flash);
-    this.flash.setAlpha(ENEMY_FEEL.flashAlpha);
-    this.scene.tweens.add({ targets: this.flash, alpha: 0, duration: ENEMY_FEEL.flashMs });
+    hit(this.scene, this.react, this.flash, this.heading);
   }
 
   /** Щит принял попадание. */
@@ -332,21 +352,22 @@ export class EnemyView extends Phaser.GameObjects.Container {
     if (this.shield) this.pulse(this.shield, ENEMY_FEEL.blockScale, ENEMY_FEEL.blockMs);
   }
 
-  /** Враг убит: сжимается, гаснет и удаляется. */
+  /** Враг убит: сплющивается, гаснет и удаляется; облачко пускает сцена. */
   playDeath(): void {
     this.bar.setVisible(false);
     this.mound?.setVisible(false);
     this.slowRing?.setVisible(false);
     this.burnDot?.setVisible(false);
     this.poisonDot?.setVisible(false);
-    this.scene.tweens.killTweensOf([this.turning, this.flash]);
-    this.scene.tweens.add({
-      targets: this,
-      scale: ENEMY_FEEL.deathScale,
-      alpha: 0,
-      duration: ENEMY_FEEL.deathMs,
-      onComplete: () => this.destroy(),
-    });
+    this.shadow.setVisible(false);
+    this.scene.tweens.killTweensOf(this.flash);
+    death(this.scene, this.react, this, () => this.destroy());
+  }
+
+  override destroy(fromScene?: boolean): void {
+    for (const step of this.steps) step.stop();
+    stopAll(this.scene, [this, this.gait, this.react, this.turning, this.flash, ...(this.mound ? [this.mound] : []), ...(this.shield ? [this.shield] : [])]);
+    super.destroy(fromScene);
   }
 
   private pulse(target: Phaser.GameObjects.Container, scale: number, duration: number): void {

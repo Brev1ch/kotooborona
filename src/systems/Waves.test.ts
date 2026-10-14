@@ -22,7 +22,7 @@ const level: LevelConfig = {
   hpMult: 2,
   enemies: { rat: 0.2, shield: 0.3 },
 };
-const type = { color: '#000000', radius: 8, lifeDamage: 1, crystalChance: 0, crystalDrop: 0 };
+const type = { color: '#000000', radius: 8, lifeDamage: 1, crystalChance: 0, crystalDrop: 0, motion: 'waddle' as const };
 const enemies: EnemiesConfig = {
   ...enemiesJson,
   baseHp: 10,
