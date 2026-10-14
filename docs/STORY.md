@@ -23,8 +23,8 @@
   *Messenger Mouse: Scouts report: the cats are on the trail. Slowly. With nap breaks.*
 - **Крысиный король:** Отлично! Пока они спят, мы их… э-э… окружим!  
   *Rat King: Splendid! While they sleep, we… er… surround them!*
-- **Кот-Архимаг:** Мы не спим. Мы копим силы. Это совсем другое.  
-  *Cat Archmage: We are not sleeping. We are saving strength. Totally different.*
+- **Кот-Архимаг:** Мы не спим, мы копим силы. Крыс встретим камнем, а командира — метеором.  
+  *Cat Archmage: We are not sleeping, we are saving strength. Stone for the rats, a meteor for the commander.*
 
 ## 3. Ручей — перед боем
 `ruchey`
@@ -83,8 +83,8 @@
 ## 7. Бурелом — перед боем
 `burelom`
 
-- **Кот-Архимаг:** Бурелом. Мыши любят узкие тропы: им кажется, что так их не видно.  
-  *Cat Archmage: The Windfall. Mice love narrow paths: they think no one can see them there.*
+- **Кот-Архимаг:** Бурелом. Мыши думают, что в толпе их не видно. А толпу разом накроют паровой и лавовый коты.  
+  *Cat Archmage: The Windfall. Mice think a crowd hides them. Steam and lava cats hit a whole crowd at once.*
 - **Мышь-гонец:** А нас правда не видно?  
   *Messenger Mouse: Can they really not see us?*
 - **Кот-Архимаг:** Видно.  
@@ -119,8 +119,8 @@
 
 - **Мышь-гонец:** В-ваше величество, коты уже у лагеря! Может, отдадим осколок и разойдёмся?  
   *Messenger Mouse: Y-your Majesty, the cats are at the camp! Maybe we give back the shard and call it even?*
-- **Крысиный король:** Молчать! Король не отступает. Король посылает вперёд тебя.  
-  *Rat King: Silence! A king never retreats. A king sends you ahead.*
+- **Крысиный король:** Молчать! Король не отступает. Король идёт в бой… сразу за тобой.  
+  *Rat King: Silence! A king never retreats. A king charges… right behind you.*
 - **Кот-Архимаг:** Слышали? Он сам идёт к нам. Не придётся далеко ходить.  
   *Cat Archmage: Hear that? He’s coming to us. No need for a long walk.*
 
