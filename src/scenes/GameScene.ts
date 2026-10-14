@@ -596,6 +596,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Меняет экономику и картинку по событию боя. Возвращает true, если HUD пора обновить. */
+  /** Где на поле стоят враги; читает смоук-проверка и запись промо. */
+  enemyPoints(): Point[] {
+    return this.combat.enemies.map((enemy) => positionAt(this.path, enemy.distance));
+  }
+
   /** Клетки, в которых стоят коты. */
   catSlots(): number[] {
     return this.board.flatMap((cat, slot) => (isCat(cat) ? [slot] : []));

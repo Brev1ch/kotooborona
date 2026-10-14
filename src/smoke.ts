@@ -129,8 +129,8 @@ export interface SmokeProbe {
   buildingSlots(): number[];
   /** Добавляет монеты в идущий бой. */
   addGold(gold: number): void;
-  /** Ставит кота в клетку идущего боя. */
-  placeCat(slot: number, element: ElementId, level: number): void;
+  /** Ставит кота в клетку идущего боя; `invested` — сколько монет в него вложено (от этого зависит цена продажи). */
+  placeCat(slot: number, element: ElementId, level: number, invested?: number): void;
   /** id всех уровней по порядку. */
   levelIds(): string[];
   /** Выпускает на дорогу Крысиного короля, уже прошедшего часть пути. */
@@ -145,8 +145,10 @@ export interface SmokeProbe {
   chargeMeteor(): void;
   /** Стресс-проверка из src/debug.ts: поле гибридов и толпа врагов. */
   stress(): void;
-  /** Ставит на дорогу живучего врага типа `type`, уже прошедшего `distance`. */
-  spawnEnemy(type: EnemyTypeId, distance: number): void;
+  /** Ставит на дорогу врага типа `type`, уже прошедшего `distance`; без `hp` — живучего. */
+  spawnEnemy(type: EnemyTypeId, distance: number, hp?: number): void;
+  /** Где стоят враги идущего боя, в координатах экрана. */
+  enemyPoints(): [number, number][];
   /** Открывает врага в бестиарии, как после победы над ним. */
   meetEnemy(type: EnemyTypeId): void;
   /** Кладёт в инвентарь по предмету каждой редкости в каждый слот, оба легендарных и два предмета с самыми длинными названиями; предметы в каждом прогоне одни и те же. */
@@ -263,13 +265,13 @@ function collectTexts(
   }
 }
 
-/** Зерно случайности игры в проверке: призывы, состав волн и кристаллы в каждом прогоне одни и те же. */
+/** Зерно случайности игры в проверке: призывы, состав волн и кристаллы в каждом прогоне одни и те же. Запись промо (`?promo`) идёт без него. */
 const SMOKE_SEED = 20241;
 /** Первое зерно предметов, которые проверка кладёт в инвентарь. */
 const ITEMS_SEED = 500;
 
 export function installSmokeProbe(game: Phaser.Game): void {
-  seedRandom(SMOKE_SEED);
+  if (!new URLSearchParams(location.search).has('promo')) seedRandom(SMOKE_SEED);
   // Малый сундук в проверке не выпадает сам: его включает `smallChest`.
   luck.smallChest = () => 1;
   const steps: number[] = [];
@@ -364,9 +366,9 @@ export function installSmokeProbe(game: Phaser.Game): void {
       scene.economy.gold += gold;
       scene.events.emit(GameEvent.Changed);
     },
-    placeCat(slot, element, level) {
+    placeCat(slot, element, level, invested = 0) {
       const scene = game.scene.getScene(SceneKey.Game) as GameScene;
-      scene.placeCat(slot, { element, level, cooldown: 0, ritual: 0, invested: 0 });
+      scene.placeCat(slot, { element, level, cooldown: 0, ritual: 0, invested });
     },
     levelIds() {
       return levels.levels.map((level) => level.id);
@@ -406,8 +408,12 @@ export function installSmokeProbe(game: Phaser.Game): void {
     chargeMeteor() {
       (game.scene.getScene(SceneKey.Game) as GameScene).chargeMeteor();
     },
-    spawnEnemy(type, distance) {
-      (game.scene.getScene(SceneKey.Game) as GameScene).addEnemy({ ...debugEnemy(type, 5000), distance });
+    spawnEnemy(type, distance, hp = 5000) {
+      (game.scene.getScene(SceneKey.Game) as GameScene).addEnemy({ ...debugEnemy(type, hp), distance });
+    },
+    enemyPoints() {
+      const scene = game.scene.getScene(SceneKey.Game) as GameScene;
+      return scene.enemyPoints().map(([x, y]) => [x, y + BOARD_Y]);
     },
     meetEnemy(type) {
       progress.meetEnemy(type);
