@@ -1,4 +1,4 @@
-import type { ElementId } from './data/types';
+import type { ElementId, EnemyTypeId } from './data/types';
 
 // Длительности (мс) и параметры анимаций: всё, что подкручивается «по ощущениям».
 
@@ -411,31 +411,55 @@ export const TRANSITION_FEEL = {
   inMs: 200,
 };
 
+/** Случайный сдвиг высоты повторяющихся звуков: ±8 %, чтобы повторы не звучали одинаково. */
+const REPEAT_PITCH = 0.08;
+
 /**
- * Звуки: файлы лежат в public/assets/sfx под этими же именами (собираются `npm run sfx`).
- * volume — громкость от 0 до 1; minIntervalMs — не чаще, чем раз в столько мс;
- * voices — сколько копий звука может звучать разом; detune — случайный сдвиг высоты в центах, чтобы повторы не звучали одинаково.
+ * Звуки: volume — громкость от 0 до 1; minIntervalMs — не чаще, чем раз в столько мс;
+ * voices — сколько копий звука может звучать разом; pitchSpread — случайный сдвиг высоты в долях (0,08 — ±8 %);
+ * chance — с какой вероятностью звук вообще звучит (без поля — всегда); variants — группа без своего файла: звучит один из этих звуков наугад.
  */
 export const SOUND_FEEL = {
-  click: { volume: 0.5, minIntervalMs: 40, voices: 1, detune: 0 },
-  summon: { volume: 0.6, minIntervalMs: 60, voices: 2, detune: 80 },
-  merge: { volume: 0.7, minIntervalMs: 0, voices: 2, detune: 0 },
-  hybrid: { volume: 0.8, minIntervalMs: 0, voices: 2, detune: 0 },
+  click: { volume: 0.5, minIntervalMs: 40, voices: 1, pitchSpread: 0 },
+  summon: { volume: 0.6, minIntervalMs: 60, voices: 2, pitchSpread: REPEAT_PITCH },
+  merge: { volume: 0.7, minIntervalMs: 0, voices: 2, pitchSpread: REPEAT_PITCH },
+  hybrid: { volume: 0.8, minIntervalMs: 0, voices: 2, pitchSpread: 0 },
   /** Тихий и редкий: поле из двенадцати котов не должно трещать. */
-  shot: { volume: 0.12, minIntervalMs: 110, voices: 3, detune: 250 },
+  shot: { volume: 0.12, minIntervalMs: 110, voices: 3, pitchSpread: REPEAT_PITCH },
   /** Выстрелы базовых стихий: у каждой свой звук, так же тихо и редко, как общий. */
-  shotFire: { volume: 0.14, minIntervalMs: 110, voices: 2, detune: 200 },
-  shotWater: { volume: 0.14, minIntervalMs: 110, voices: 2, detune: 200 },
-  shotEarth: { volume: 0.1, minIntervalMs: 140, voices: 2, detune: 150 },
-  shotAir: { volume: 0.12, minIntervalMs: 90, voices: 2, detune: 250 },
-  hit: { volume: 0.2, minIntervalMs: 70, voices: 3, detune: 200 },
-  enemyDeath: { volume: 0.4, minIntervalMs: 80, voices: 3, detune: 150 },
-  coins: { volume: 0.45, minIntervalMs: 120, voices: 2, detune: 100 },
-  lifeLost: { volume: 0.7, minIntervalMs: 150, voices: 1, detune: 0 },
-  meteor: { volume: 0.9, minIntervalMs: 0, voices: 1, detune: 0 },
-  win: { volume: 0.7, minIntervalMs: 0, voices: 1, detune: 0 },
-  lose: { volume: 0.7, minIntervalMs: 0, voices: 1, detune: 0 },
-  chest: { volume: 0.7, minIntervalMs: 0, voices: 1, detune: 0 },
+  shotFire: { volume: 0.14, minIntervalMs: 110, voices: 2, pitchSpread: REPEAT_PITCH },
+  shotWater: { volume: 0.14, minIntervalMs: 110, voices: 2, pitchSpread: REPEAT_PITCH },
+  shotEarth: { volume: 0.1, minIntervalMs: 140, voices: 2, pitchSpread: REPEAT_PITCH },
+  shotAir: { volume: 0.12, minIntervalMs: 90, voices: 2, pitchSpread: REPEAT_PITCH },
+  hit: { volume: 0.2, minIntervalMs: 70, voices: 3, pitchSpread: REPEAT_PITCH },
+  enemyDeath: { volume: 0.4, minIntervalMs: 80, voices: 3, pitchSpread: REPEAT_PITCH },
+  coins: { volume: 0.45, minIntervalMs: 120, voices: 2, pitchSpread: REPEAT_PITCH },
+  lifeLost: { volume: 0.7, minIntervalMs: 150, voices: 1, pitchSpread: 0 },
+  meteor: { volume: 0.9, minIntervalMs: 0, voices: 1, pitchSpread: 0 },
+  win: { volume: 0.7, minIntervalMs: 0, voices: 1, pitchSpread: 0 },
+  lose: { volume: 0.7, minIntervalMs: 0, voices: 1, pitchSpread: 0 },
+  chest: { volume: 0.7, minIntervalMs: 0, voices: 1, pitchSpread: 0 },
+  /** Мурлыканье при слиянии котов: с вероятностью 50 % и не чаще раза в 3 с; когда молчит, звучит обычный `merge`. */
+  purrMerge: { volume: 0.6, minIntervalMs: 3000, voices: 1, pitchSpread: REPEAT_PITCH, chance: 0.5 },
+  /** Довольное мурлыканье после победного джингла, тише него. */
+  purrWin: { volume: 0.45, minIntervalMs: 0, voices: 1, pitchSpread: 0 },
+  /** Шипение, когда мышь дошла до замка: всегда, но не чаще раза в 1,5 с. */
+  hiss: { volume: 0.6, minIntervalMs: 1500, voices: 1, pitchSpread: REPEAT_PITCH },
+  /** Писк погибшей мыши; у командиров (`lowFor`) — тот же писк ниже в `lowRate` раза. */
+  mouseSqueak: { volume: 0.4, minIntervalMs: 120, voices: 3, pitchSpread: REPEAT_PITCH, lowRate: 0.7, lowFor: ['boss', 'king'] as EnemyTypeId[] },
+  /**
+   * Мяуканье при призыве: с вероятностью 25 % и не чаще раза в 6 с — один из `variants` наугад; своего файла у группы нет,
+   * громкость и сдвиг высоты — её, а не вариантов.
+   */
+  meow: { volume: 0.6, minIntervalMs: 6000, voices: 1, pitchSpread: REPEAT_PITCH, chance: 0.25, variants: ['meow1', 'meow2', 'meow3', 'meow4'] as string[] },
+  meow1: { volume: 0.6, minIntervalMs: 0, voices: 1, pitchSpread: REPEAT_PITCH },
+  meow2: { volume: 0.6, minIntervalMs: 0, voices: 1, pitchSpread: REPEAT_PITCH },
+  meow3: { volume: 0.6, minIntervalMs: 0, voices: 1, pitchSpread: REPEAT_PITCH },
+  meow4: { volume: 0.6, minIntervalMs: 0, voices: 1, pitchSpread: REPEAT_PITCH },
+  /** Долгое мяуканье: всегда при первом открытии гибрида. */
+  meowLong: { volume: 0.7, minIntervalMs: 0, voices: 1, pitchSpread: 0 },
+  /** Грустное мяуканье после проигрышного джингла. */
+  meowSad: { volume: 0.55, minIntervalMs: 0, voices: 1, pitchSpread: 0 },
 };
 
 export type SoundId = keyof typeof SOUND_FEEL;

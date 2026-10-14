@@ -24,7 +24,7 @@ import type { Projectile } from '../entities/Projectile';
 import { EnemyView } from '../entities/EnemyView';
 import { HeroView } from '../entities/HeroView';
 import type { PieceView } from '../entities/PieceView';
-import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, SHOT_SOUND, SPEED_FEEL, TOAST_FEEL } from '../feel';
+import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, SHOT_SOUND, SOUND_FEEL, SPEED_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, CONTROLS_H, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
 import { platform } from '../platform';
@@ -543,6 +543,7 @@ export class GameScene extends Phaser.Scene {
         this.enemyViews.delete(event.enemy);
         this.cameras.main.shake(ENEMY_FEEL.leakShakeMs, ENEMY_FEEL.leakShakeIntensity);
         audio.play('lifeLost');
+        audio.play('hiss');
         return true;
 
       case 'shot': {
@@ -641,6 +642,7 @@ export class GameScene extends Phaser.Scene {
         this.showReward(event.x, event.y, event.gold, event.crystals);
         this.puffs.emitParticleAt(event.x, event.y, Math.round(enemies.types[event.enemy.type].radius * ENEMY_FEEL.puffPerRadius));
         audio.play('enemyDeath');
+        audio.play('mouseSqueak', { rate: SOUND_FEEL.mouseSqueak.lowFor.includes(event.enemy.type) ? SOUND_FEEL.mouseSqueak.lowRate : 1 });
         // Монеты и кристаллы летят в счётчики HUD.
         this.events.emit(GameEvent.Reward, {
           x: event.x,
@@ -994,6 +996,7 @@ export class GameScene extends Phaser.Scene {
     this.actions.summons++;
     this.placeCat(result.slot, result.cat).playSpawn();
     audio.play('summon');
+    audio.play('meow');
 
     if (this.drag) this.drawHighlights();
     this.events.emit(GameEvent.Changed);
@@ -1130,7 +1133,8 @@ export class GameScene extends Phaser.Scene {
         merged.playSpawn(MERGE_FEEL.absorbMs);
         this.views[to] = merged;
         this.views[from] = null;
-        audio.play('merge');
+        // Через раз коты мурлычут вместо обычного звука слияния.
+        if (!audio.play('purrMerge')) audio.play('merge');
 
         if (result.cat.ritual > 0) {
           // Вспышка, кольцо и открытие кота — по окончании ритуала, см. update().
@@ -1338,6 +1342,8 @@ export class GameScene extends Phaser.Scene {
   private discover(element: ElementId): void {
     if (!this.merger.isHybrid(element) || !progress.discover(element)) return;
     this.events.emit(GameEvent.Discovered, element);
+    // Первое открытие гибрида кот отмечает долгим мяуканьем — всегда.
+    audio.play('meowLong', { force: true });
   }
 
   /** Расходящееся кольцо и искры цвета стихии: после слияния (с задержкой, пока коты стягиваются) и в конце ритуала. */

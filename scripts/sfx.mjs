@@ -48,6 +48,18 @@ const SOUNDS = {
   win: { src: 'digital-audio/Audio/zapThreeToneUp.ogg' },
   lose: { src: 'digital-audio/Audio/lowThreeTone.ogg' },
   chest: { src: 'rpg-audio/Audio/doorOpen_1.ogg' },
+  // Голоса котов и мышей с freesound.org: уже обрезаны и выровнены по громкости (assets-src/sfx/voices).
+  // Мяуканье при призыве (meow в SOUND_FEEL) — группа без своего файла: один из meow1…meow4 наугад.
+  purrMerge: { src: 'voices/purr_merge.wav' },
+  purrWin: { src: 'voices/purr_win.wav' },
+  hiss: { src: 'voices/hiss.wav' },
+  mouseSqueak: { src: 'voices/mouse_squeak.wav' },
+  meow1: { src: 'voices/meow_1.wav' },
+  meow2: { src: 'voices/meow_2.wav' },
+  meow3: { src: 'voices/meow_3.wav' },
+  meow4: { src: 'voices/meow_4.wav' },
+  meowLong: { src: 'voices/meow_long.wav' },
+  meowSad: { src: 'voices/meow_sad.wav' },
 };
 
 // Фоновая музыка: имя трека (MusicId в src/feel.ts) → исходник в assets-src/music. Громкость в игре — в MUSIC_FEEL.

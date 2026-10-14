@@ -6,8 +6,9 @@ import { readSounds } from './soundPicker.mjs';
 describe('страница выбора звуков', () => {
   it('читает из таблицы SOUNDS каждое событие игры и его исходник', () => {
     const sounds = readSounds(table);
-    expect(Object.keys(sounds).sort()).toEqual(Object.keys(SOUND_FEEL).sort());
-    for (const src of Object.values(sounds)) expect(src).toMatch(/^[\w-]+\/.+\.ogg$/);
+    const withFile = Object.entries(SOUND_FEEL).filter(([, rule]) => !('variants' in rule));
+    expect(Object.keys(sounds).sort()).toEqual(withFile.map(([id]) => id).sort());
+    for (const src of Object.values(sounds)) expect(src).toMatch(/^[\w-]+\/.+\.(ogg|wav)$/);
   });
 
   it('берёт src и у строк с подрезкой и громкостью', () => {

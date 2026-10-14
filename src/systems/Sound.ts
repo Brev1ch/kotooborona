@@ -4,6 +4,8 @@ export type PauseReason = 'hidden' | 'ad';
 export interface SoundRule {
   /** Наименьший промежуток между двумя запусками одного звука, мс; 0 — без ограничения. */
   minIntervalMs: number;
+  /** Вероятность, что звук прозвучит, от 0 до 1; без поля — всегда. Не прозвучавший промежуток не начинает. */
+  chance?: number;
 }
 
 /**
@@ -61,11 +63,18 @@ export class SoundGate<Id extends string> {
     this.pauses.delete(reason);
   }
 
-  /** Можно ли начать звук в момент `nowMs`. Если да — запоминает запуск. */
-  allow(id: Id, nowMs: number): boolean {
+  /**
+   * Можно ли начать звук в момент `nowMs`. Если да — запоминает запуск. `roll` — случайное число от 0 до 1 для шанса звука;
+   * `force` — звук обязателен (первое открытие гибрида): шанс и промежуток не действуют, только настройка и паузы.
+   */
+  allow(id: Id, nowMs: number, roll = 0, force = false): boolean {
     if (!this.audible) return false;
-    const last = this.lastPlayed.get(id);
-    if (last !== undefined && nowMs - last < this.rules[id].minIntervalMs) return false;
+    if (!force) {
+      const { minIntervalMs, chance } = this.rules[id];
+      const last = this.lastPlayed.get(id);
+      if (last !== undefined && nowMs - last < minIntervalMs) return false;
+      if (chance !== undefined && roll >= chance) return false;
+    }
     this.lastPlayed.set(id, nowMs);
     return true;
   }

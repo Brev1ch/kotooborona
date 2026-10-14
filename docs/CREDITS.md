@@ -4,6 +4,9 @@
 
 ## Звуки
 
+Голоса котов и мышей (`voices/`) взяты с freesound.org, обрезаны и выровнены по громкости до сборки; пометки — в столбце «Пак».
+Мяуканье при призыве (`meow`) — группа без своего файла: звучит один из `meow1`…`meow4`.
+
 Таблицы звуков и музыки сверяет `npm run sfx`: звук, у которого здесь нет строки, или строка не совпадает с таблицей `SOUNDS`
 в `scripts/sfx.mjs`, не собирается. Исходный файл — путь внутри `assets-src/sfx/`. Файлы обрезаны, сведены в моно
 и сжаты этим же скриптом.
@@ -27,6 +30,16 @@
 | win | `digital-audio/Audio/zapThreeToneUp.ogg` | [Digital Audio](https://kenney.nl/assets/digital-audio) | Kenney (kenney.nl) | CC0 1.0 |
 | lose | `digital-audio/Audio/lowThreeTone.ogg` | [Digital Audio](https://kenney.nl/assets/digital-audio) | Kenney (kenney.nl) | CC0 1.0 |
 | chest | `rpg-audio/Audio/doorOpen_1.ogg` | [RPG Audio](https://kenney.nl/assets/rpg-audio) | Kenney (kenney.nl) | CC0 1.0 |
+| purrMerge | `voices/purr_merge.wav` | [purring happy cat](https://freesound.org/s/424355/), обрезан | Minscer (freesound.org) | CC0 1.0 |
+| purrWin | `voices/purr_win.wav` | [purring happy cat](https://freesound.org/s/424355/), обрезан | Minscer (freesound.org) | CC0 1.0 |
+| hiss | `voices/hiss.wav` | [Cat Growling and Hissing](https://freesound.org/s/679954/), обрезан, ускорен | dinoroki (freesound.org) | CC0 1.0 |
+| mouseSqueak | `voices/mouse_squeak.wav` | [Mouse Rodent Squeak Whistle](https://freesound.org/s/800274/), обрезан | SecureSubset (freesound.org) | CC0 1.0 |
+| meow1 | `voices/meow_1.wav` | [Tom cat meow.wav](https://freesound.org/s/506723/), нарезан | tosha73 (freesound.org) | CC0 1.0 |
+| meow2 | `voices/meow_2.wav` | [Tom cat meow.wav](https://freesound.org/s/506723/), нарезан | tosha73 (freesound.org) | CC0 1.0 |
+| meow3 | `voices/meow_3.wav` | [Tom cat meow.wav](https://freesound.org/s/506723/), нарезан | tosha73 (freesound.org) | CC0 1.0 |
+| meow4 | `voices/meow_4.wav` | [Tom cat meow.wav](https://freesound.org/s/506723/), нарезан | tosha73 (freesound.org) | CC0 1.0 |
+| meowLong | `voices/meow_long.wav` | [Tom cat meow.wav](https://freesound.org/s/506723/), нарезан | tosha73 (freesound.org) | CC0 1.0 |
+| meowSad | `voices/meow_sad.wav` | [Tom cat meow.wav](https://freesound.org/s/506723/), нарезан, тон понижен | tosha73 (freesound.org) | CC0 1.0 |
 
 ## Музыка
 
@@ -35,6 +48,11 @@
 
 | Трек | Исходный файл | Пак | Автор | Лицензия |
 | --- | --- | --- | --- | --- |
+
+## Арт
+
+Арт создан нейросетью (эталонный кот — SeaArt, остальные картинки — Qwen) и доработан вручную. Лицензии и условия
+использования сервисов проверяются. Как получены картинки — `docs/RECIPE.md`.
 
 ## Шрифты
 

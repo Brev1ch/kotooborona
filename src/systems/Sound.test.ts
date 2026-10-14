@@ -38,6 +38,36 @@ describe('SoundGate: ограничение частоты', () => {
   });
 });
 
+describe('SoundGate: шанс и обязательный звук', () => {
+  const chancy = { purr: { minIntervalMs: 3000, chance: 0.5 }, always: { minIntervalMs: 0 } };
+
+  it('звук с шансом звучит, только когда выпало меньше шанса', () => {
+    const gate = new SoundGate(chancy);
+    expect(gate.allow('purr', 0, 0.7)).toBe(false);
+    expect(gate.allow('purr', 10, 0.2)).toBe(true);
+  });
+
+  it('не прозвучавший звук промежуток не начинает, прозвучавший — начинает', () => {
+    const gate = new SoundGate(chancy);
+    expect(gate.allow('purr', 0, 0.9)).toBe(false);
+    expect(gate.allow('purr', 100, 0.1)).toBe(true);
+    expect(gate.allow('purr', 2000, 0.1)).toBe(false);
+    expect(gate.allow('purr', 3100, 0.1)).toBe(true);
+  });
+
+  it('без шанса звук звучит при любом числе', () => {
+    expect(new SoundGate(chancy).allow('always', 0, 0.99)).toBe(true);
+  });
+
+  it('обязательный звук не смотрит ни на шанс, ни на промежуток, но молчит, если звук выключен', () => {
+    const gate = new SoundGate(chancy);
+    expect(gate.allow('purr', 0, 0.1)).toBe(true);
+    expect(gate.allow('purr', 10, 0.99, true)).toBe(true);
+    gate.setOn(false);
+    expect(gate.allow('purr', 20, 0, true)).toBe(false);
+  });
+});
+
 describe('SoundGate: выключение и паузы', () => {
   it('выключенный игроком звук не запускается', () => {
     const gate = new SoundGate(rules);

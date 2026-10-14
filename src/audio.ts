@@ -4,6 +4,13 @@ import { progress } from './progress';
 import { MusicMixer, SoundGate, trackAction, type PauseReason } from './systems/Sound';
 
 const SOUND_IDS = Object.keys(SOUND_FEEL) as SoundId[];
+/** Варианты группы (`variants` в `SOUND_FEEL`); у группы своего файла нет. */
+function variantsOf(id: SoundId): SoundId[] | null {
+  const rule = SOUND_FEEL[id];
+  return 'variants' in rule ? (rule.variants as SoundId[]) : null;
+}
+/** Звуки, файлы которых собирает `npm run sfx`. */
+const FILE_IDS = SOUND_IDS.filter((id) => variantsOf(id) === null);
 const MUSIC_IDS = Object.keys(MUSIC_FEEL.tracks) as MusicId[];
 /** Список готовых треков: его пишет `npm run sfx`. */
 const MUSIC_INDEX = 'music-index';
@@ -26,6 +33,8 @@ class GameAudio {
   /** Заранее созданные копии каждого звука: в бою новые объекты не создаются. */
   private readonly voices = new Map<SoundId, Phaser.Sound.BaseSound[]>();
   private readonly nextVoice = new Map<SoundId, number>();
+  /** Копия, которая запущена последней у каждого звука: за ней следует `playAfter`. */
+  private readonly lastVoice = new Map<SoundId, Phaser.Sound.BaseSound>();
   private readonly mixer = new MusicMixer<MusicId>(MUSIC_FEEL.fadeMs);
   /** Треки, файлы которых собраны; остальных в игре пока нет. */
   private readonly readyTracks = new Set<MusicId>();
@@ -34,7 +43,7 @@ class GameAudio {
 
   /** Ставит файлы в очередь загрузки сцены: ogg, а где его нет (старый Safari) — mp3. Музыка сюда не входит: она грузится позже. */
   preload(scene: Phaser.Scene): void {
-    for (const id of SOUND_IDS) {
+    for (const id of FILE_IDS) {
       scene.load.audio(cacheKey(id), [`assets/sfx/${id}.ogg`, `assets/sfx/${id}.mp3`]);
     }
     scene.load.json(MUSIC_INDEX, 'assets/music/index.json');
@@ -46,7 +55,7 @@ class GameAudio {
     this.gate.setOn(progress.soundOn);
     this.gate.setMusicOn(progress.musicOn);
 
-    for (const id of SOUND_IDS) {
+    for (const id of FILE_IDS) {
       // Файл не загрузился — игра идёт без этого звука.
       if (!game.cache.audio.exists(cacheKey(id))) continue;
       this.voices.set(
@@ -110,14 +119,39 @@ class GameAudio {
     this.apply();
   }
 
-  play(id: SoundId): void {
-    const voices = this.voices.get(id);
-    if (!voices || !this.gate.allow(id, performance.now())) return;
+  /**
+   * Запускает звук. `force` — звук обязателен: его шанс и промежуток не действуют (настройка и паузы — действуют).
+   * `rate` — во сколько раз выше (больше 1) или ниже звучит; сверху — случайный сдвиг высоты звука из `SOUND_FEEL`.
+   * Возвращает, прозвучал ли звук: молчит, когда выключен, на паузе, не выпал его шанс или файла нет.
+   */
+  play(id: SoundId, { force = false, rate = 1 }: { force?: boolean; rate?: number } = {}): boolean {
+    // У группы — один из готовых вариантов наугад, шанс и промежуток — общие для группы.
+    const variants = variantsOf(id)?.filter((variant) => this.voices.has(variant));
+    const source = variants ? variants[Math.floor(Math.random() * variants.length)] : id;
+    const voices = source === undefined ? undefined : this.voices.get(source);
+    if (source === undefined || !voices || !this.gate.allow(id, performance.now(), Math.random(), force)) return false;
 
-    const index = this.nextVoice.get(id) ?? 0;
-    this.nextVoice.set(id, (index + 1) % voices.length);
-    const { volume, detune } = SOUND_FEEL[id];
-    voices[index].play({ volume, detune: (Math.random() * 2 - 1) * detune });
+    const index = this.nextVoice.get(source) ?? 0;
+    this.nextVoice.set(source, (index + 1) % voices.length);
+    const { volume, pitchSpread } = SOUND_FEEL[id];
+    const pitch = rate * (1 + (Math.random() * 2 - 1) * pitchSpread);
+    voices[index].play({ volume, detune: 1200 * Math.log2(pitch) });
+    this.lastVoice.set(id, voices[index]);
+    return true;
+  }
+
+  /** Звук `next` — сразу после того, как доиграет только что запущенный `first`; если `first` не прозвучал — ничего. */
+  playAfter(first: SoundId, next: SoundId): void {
+    const voice = this.lastVoice.get(first);
+    if (!voice?.isPlaying) return;
+    // Остановленный звук (выключили звуки) не доигрывает: ждать его конца больше незачем.
+    const done = (): void => {
+      voice.off('stop', cancel);
+      this.play(next);
+    };
+    const cancel = (): void => void voice.off('complete', done);
+    voice.once('complete', done);
+    voice.once('stop', cancel);
   }
 
   /**

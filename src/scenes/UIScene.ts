@@ -864,6 +864,7 @@ export class UIScene extends Phaser.Scene {
   private buildResult(result: LevelResult): void {
     this.resultWon = result.won;
     audio.play(result.won ? 'win' : 'lose');
+    audio.playAfter(result.won ? 'win' : 'lose', result.won ? 'purrWin' : 'meowSad');
     // Затемнение перехватывает касания, чтобы под экраном ничего не нажималось.
     const dim = this.add
       .rectangle(GAME_W / 2, RESULT_Y, GAME_W, BOARD_H, COLORS.bg, RESULT_FEEL.dimAlpha)

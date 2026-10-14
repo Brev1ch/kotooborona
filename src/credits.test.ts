@@ -17,10 +17,15 @@ function rows(heading: string): Map<string, string[]> {
 }
 
 // Сам исходник сверяет `npm run sfx`: он знает таблицу SOUNDS. Здесь — что ни один звук игры не остался без строки.
+/** Звуки с файлом; у группы (`variants`) своего файла нет, и строки о ней быть не должно. */
+const withFile = Object.entries(SOUND_FEEL)
+  .filter(([, rule]) => !('variants' in rule))
+  .map(([id]) => id);
+
 describe('docs/CREDITS.md', () => {
   const sounds = rows('Звуки');
 
-  it.each(Object.keys(SOUND_FEEL))('у звука %s указаны исходник, пак, автор и лицензия', (id) => {
+  it.each(withFile)('у звука %s указаны исходник, пак, автор и лицензия', (id) => {
     const row = sounds.get(id);
     expect(row).toBeDefined();
     expect(row).toHaveLength(4);
@@ -28,6 +33,6 @@ describe('docs/CREDITS.md', () => {
   });
 
   it('в таблице нет звуков, которых нет в игре', () => {
-    expect([...sounds.keys()].sort()).toEqual(Object.keys(SOUND_FEEL).sort());
+    expect([...sounds.keys()].sort()).toEqual([...withFile].sort());
   });
 });
