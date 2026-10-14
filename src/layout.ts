@@ -191,11 +191,16 @@ export function storySkipCenter(): [number, number] {
 export const BOOK = {
   titleY: 48,
   countY: 78,
-  listY: 100,
-  rowH: 45,
-  iconX: 38,
-  iconScale: 0.7,
-  textX: 68,
+  /** Коты в две колонки: слева в клетке кот того же размера, что на поле, справа — имя и эффект с переносом строк. */
+  listY: 104,
+  rowH: 88,
+  columnX: [6, 182],
+  iconX: 31,
+  iconScale: 1,
+  textX: 64,
+  textW: 106,
+  /** Промежуток между именем и эффектом. */
+  textGap: 3,
   backY: 592,
   backW: 160,
   backH: 50,

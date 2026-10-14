@@ -35,18 +35,22 @@ export class BookScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    entries.forEach((entry, i) => this.addRow(entry, BOOK.listY + i * BOOK.rowH + BOOK.rowH / 2));
+    // По строкам слева направо: четыре базовые стихии — две верхние строки, ниже гибриды.
+    const columns = BOOK.columnX.length;
+    entries.forEach((entry, i) =>
+      this.addCell(entry, BOOK.columnX[i % columns], BOOK.listY + Math.floor(i / columns) * BOOK.rowH + BOOK.rowH / 2),
+    );
 
     addButton(this, ...bookBackCenter(), BOOK.backW, BOOK.backH, t('nav.back'), false, () => {
       fadeOut(this, () => this.scene.start(SceneKey.Menu));
     });
   }
 
-  private addRow(entry: BookEntry, y: number): void {
+  private addCell(entry: BookEntry, x: number, y: number): void {
     const { element, known, recipe } = entry;
 
     // Неоткрытый кот — силуэт.
-    const icon = addCatImage(this, element).setPosition(BOOK.iconX, y);
+    const icon = addCatImage(this, element).setPosition(x + BOOK.iconX, y);
     icon.setScale(icon.scale * BOOK.iconScale);
     if (!known) icon.setTintFill(COLORS.line);
 
@@ -57,15 +61,22 @@ export class BookScene extends Phaser.Scene {
         ? t('book.recipe', { first: t(`cat.${recipe[0]}`), second: t(`cat.${recipe[1]}`) })
         : t(`cat.${element}.desc`);
 
-    this.add
-      .text(BOOK.textX, y - 9, title, {
-        fontFamily: FONTS.body,
-        fontSize: '15px',
-        color: known ? TEXT_COLORS.fg : TEXT_COLORS.muted,
-      })
-      .setOrigin(0, 0.5);
-    this.add
-      .text(BOOK.textX, y + 10, detail, { fontFamily: FONTS.body, fontSize: '12px', color: TEXT_COLORS.muted })
-      .setOrigin(0, 0.5);
+    const wrap = { width: BOOK.textW, useAdvancedWrap: true };
+    const name = this.add.text(x + BOOK.textX, 0, title, {
+      fontFamily: FONTS.body,
+      fontSize: '15px',
+      color: known ? TEXT_COLORS.fg : TEXT_COLORS.muted,
+      wordWrap: wrap,
+    });
+    const effect = this.add.text(x + BOOK.textX, 0, detail, {
+      fontFamily: FONTS.body,
+      fontSize: '12px',
+      color: TEXT_COLORS.muted,
+      wordWrap: wrap,
+    });
+    // Имя и эффект — одним блоком посередине клетки, сколько бы строк ни занял эффект.
+    const top = y - (name.height + BOOK.textGap + effect.height) / 2;
+    name.setY(top);
+    effect.setY(top + name.height + BOOK.textGap);
   }
 }
