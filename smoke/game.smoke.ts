@@ -49,8 +49,8 @@ const SUMMON_TIMEOUT = 3_000;
 const WAVE_TIMEOUT = 15_000;
 /** Пауза перед снимком: анимация появления кота, выход мышей на видимую часть дороги. */
 const SPAWN_SETTLE_MS = 400;
-/** Ритуал смешения (4 с в gear.json, снаряжение его только сокращает) и проявление кота после него. */
-const RITUAL_WAIT_MS = 5000;
+/** Сколько ждать конца ритуала (4 с боя в gear.json, снаряжение его только сокращает) и проявления кота — с запасом на медленную машину. */
+const RITUAL_WAIT_MS = 15_000;
 const WAVE_SETTLE_MS = 1500;
 /** Сколько смотрим на паузу, чтобы убедиться, что враги стоят. */
 const PAUSE_HOLD_MS = 500;
@@ -1585,8 +1585,14 @@ test('ритуал смешения: гибрид стреляет сразу п
   await page.evaluate(() => {
     for (let distance = 0; distance <= 600; distance += 50) window.__smoke?.spawnEnemy('mouse', distance);
   });
-  await page.waitForTimeout(RITUAL_WAIT_MS);
-  const alphas = (await page.evaluate(() => window.__smoke?.catAlphas())) ?? [];
+  // Ритуал идёт по времени боя: на медленной машине кадры длиннее, и он кончается позже, чем через 4 настоящие секунды.
+  // Ждём, пока кот проявится; застрявший полупрозрачным так и не проявится, и проверка упадёт.
+  const deadline = Date.now() + RITUAL_WAIT_MS;
+  let alphas: number[] = [];
+  do {
+    await page.waitForTimeout(200);
+    alphas = (await page.evaluate(() => window.__smoke?.catAlphas())) ?? [];
+  } while (Date.now() < deadline && !(alphas.length > 0 && alphas.every((alpha) => alpha === 1)));
   await page.screenshot({ path: `${SHOTS}/ritual-done.png` });
   expect(alphas.length, 'на поле должен стоять гибрид').toBe(1);
   for (const alpha of alphas) expect(alpha, 'после ритуала кот должен быть непрозрачным').toBe(1);
