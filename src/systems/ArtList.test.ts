@@ -12,7 +12,7 @@ const manifest: ArtConfig = {
   images: [
     { id: 'cat-fire', file: 'cats/fire.png', width: 96, height: 116, group: 'cats', use: 'Огненный кот', atlas: 'units' },
     { id: 'cat-water', file: 'cats/water.png', width: 96, height: 116, group: 'cats', use: 'Водный кот', atlas: 'units' },
-    { id: 'bg-opushka', file: 'backgrounds/opushka.png', width: 720, height: 1080, group: 'backgrounds', use: 'Фон', level: 'opushka' },
+    { id: 'bg-forest', file: 'backgrounds/forest.png', width: 720, height: 1080, group: 'backgrounds', use: 'Фон', background: 'forest' },
   ],
 };
 
@@ -24,7 +24,7 @@ describe('список арта', () => {
     expect(list).toContain('| `cats/fire.png` | 96×116 | Огненный кот | нет |');
     expect(list).toContain('| `cats/water.png` | 96×116 | Водный кот | да |');
     expect(list).toContain('## Фоны уровней (0 из 1)');
-    expect(list).toContain('| `backgrounds/opushka.png` | 720×1080 | Фон | нет |');
+    expect(list).toContain('| `backgrounds/forest.png` | 720×1080 | Фон | нет |');
   });
 
   it('групп без картинок в списке нет, порядок групп постоянный', () => {

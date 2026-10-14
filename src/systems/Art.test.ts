@@ -79,14 +79,16 @@ describe('манифест арта', () => {
     expect(art.images.filter((image) => image.group === 'buildings')).toHaveLength(kinds.reduce((sum, [, list]) => sum + list.length, 0));
   });
 
-  it('у каждого уровня главы свой фон, и грузится он при входе в этот уровень', () => {
-    for (const level of levels.levels) {
-      const image = byId(artId.background(level.id));
-      expect(image?.level).toBe(level.id);
-      expect(image?.atlas).toBeUndefined();
-      expect([image?.width, image?.height]).toEqual([360 * art.scale, 540 * art.scale]);
+  it('фонов четыре, каждый уровень ссылается на один из них, и каждый фон кому-то нужен', () => {
+    const backgrounds = art.images.filter((image) => image.group === 'backgrounds');
+    expect(backgrounds.map((image) => image.background).sort()).toEqual(['camp', 'forest', 'ravine', 'stream']);
+    for (const image of backgrounds) {
+      expect(image.id).toBe(artId.background(image.background!));
+      expect(image.atlas).toBeUndefined();
+      expect([image.width, image.height]).toEqual([360 * art.scale, 540 * art.scale]);
+      expect(levels.levels.some((level) => level.background === image.background)).toBe(true);
     }
-    expect(art.images.filter((image) => image.group === 'backgrounds')).toHaveLength(levels.levels.length);
+    for (const level of levels.levels) expect(byId(artId.background(level.background))).toBeDefined();
   });
 
   it('у каждого говорящего в сценках есть портрет', () => {
@@ -160,8 +162,8 @@ describe('каталог готового арта', () => {
       old: { file: 'old.webp', bytes: 70, frames: { gone: frame } },
     },
     images: {
-      'bg-opushka': { file: 'backgrounds/opushka.webp', bytes: 300 },
-      'bg-lager': { file: 'backgrounds/lager.webp', bytes: 400 },
+      'bg-forest': { file: 'backgrounds/forest.webp', bytes: 300 },
+      'bg-camp': { file: 'backgrounds/camp.webp', bytes: 400 },
     },
   };
   const catalog = new ArtCatalog(art, index);
@@ -169,8 +171,8 @@ describe('каталог готового арта', () => {
   it('без списка готового картинок нет: всё рисуется кодом', () => {
     const empty = new ArtCatalog(art);
     for (const image of art.images) expect(empty.find(image.id)).toBeNull();
-    expect(empty.startupLoads('opushka')).toEqual([]);
-    expect(empty.levelLoads('opushka')).toEqual([]);
+    expect(empty.startupLoads('forest')).toEqual([]);
+    expect(empty.backgroundLoads('forest')).toEqual([]);
   });
 
   it('готовая картинка атласа — кадр атласа с размером на экране вдвое меньше картинки', () => {
@@ -191,28 +193,28 @@ describe('каталог готового арта', () => {
     expect(catalog.find('button-primary')).toMatchObject({ slice: 24, width: 48, height: 48 });
   });
 
-  it('фон уровня — отдельная картинка', () => {
-    expect(catalog.find('bg-lager')).toEqual({ key: 'bg-lager', width: 360, height: 540, scale: 2 });
-    expect(catalog.find('bg-dub')).toBeNull();
+  it('фон поля — отдельная картинка', () => {
+    expect(catalog.find('bg-camp')).toEqual({ key: 'bg-camp', width: 360, height: 540, scale: 2 });
+    expect(catalog.find('bg-stream')).toBeNull();
   });
 
   it('при запуске грузятся атласы манифеста и фон первого уровня, остальные фоны — нет', () => {
-    const loads = catalog.startupLoads('opushka');
-    expect(loads.map((load) => load.key)).toEqual(['art:units', 'art:ui', 'bg-opushka']);
+    const loads = catalog.startupLoads('forest');
+    expect(loads.map((load) => load.key)).toEqual(['art:units', 'art:ui', 'bg-forest']);
     expect(loads[0]).toEqual({ key: 'art:units', file: 'units.webp', bytes: 1000, frames: index.atlases.units.frames });
     expect(loads.reduce((sum, load) => sum + load.bytes, 0)).toBe(1800);
   });
 
   it('при входе в уровень грузится только его фон', () => {
-    expect(catalog.levelLoads('lager')).toEqual([{ key: 'bg-lager', file: 'backgrounds/lager.webp', bytes: 400 }]);
-    expect(catalog.levelLoads('dub')).toEqual([]);
+    expect(catalog.backgroundLoads('camp')).toEqual([{ key: 'bg-camp', file: 'backgrounds/camp.webp', bytes: 400 }]);
+    expect(catalog.backgroundLoads('stream')).toEqual([]);
   });
 
-  it('фоны других уровней при входе в уровень освобождаются', () => {
-    const keys = catalog.otherLevelKeys('lager');
-    expect(keys).toHaveLength(levels.levels.length - 1);
-    expect(keys).toContain('bg-opushka');
-    expect(keys).not.toContain('bg-lager');
+  it('другие фоны при входе в уровень освобождаются', () => {
+    const keys = catalog.otherBackgroundKeys('camp');
+    expect(keys).toHaveLength(3);
+    expect(keys).toContain('bg-forest');
+    expect(keys).not.toContain('bg-camp');
   });
 });
 

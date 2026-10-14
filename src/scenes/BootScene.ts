@@ -16,7 +16,7 @@ export class BootScene extends Phaser.Scene {
   preload(): void {
     audio.preload(this);
     // Арт: атласы и фон первого уровня; фоны остальных грузит сцена боя при входе в уровень.
-    art.preload(this, levels.levels[0].id);
+    art.preload(this, levels.levels[0].background);
   }
 
   create(): void {

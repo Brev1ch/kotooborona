@@ -53,15 +53,9 @@
     {"id": "portrait-archmage", "file": "portraits/archmage.png", "width": 320, "height": 400, "group": "portraits", "use": "Портрет для сценок: Кот-Архимаг", "atlas": "ui"},
     {"id": "portrait-king", "file": "portraits/king.png", "width": 320, "height": 400, "group": "portraits", "use": "Портрет для сценок: Крысиный король", "atlas": "ui"},
     {"id": "portrait-mouse", "file": "portraits/mouse.png", "width": 320, "height": 400, "group": "portraits", "use": "Портрет для сценок: Мышь-гонец", "atlas": "ui"},
-    {"id": "bg-opushka", "file": "backgrounds/opushka.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля уровня 1 «Опушка» с дорогой и воротами", "level": "opushka"},
-    {"id": "bg-tropinka", "file": "backgrounds/tropinka.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля уровня 2 «Тропинка» с дорогой и воротами", "level": "tropinka"},
-    {"id": "bg-ruchey", "file": "backgrounds/ruchey.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля уровня 3 «Ручей» с дорогой и воротами", "level": "ruchey"},
-    {"id": "bg-dub", "file": "backgrounds/dub.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля уровня 4 «Старый дуб» с дорогой и воротами", "level": "dub"},
-    {"id": "bg-polyana", "file": "backgrounds/polyana.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля уровня 5 «Поляна» с дорогой и воротами", "level": "polyana"},
-    {"id": "bg-ovrag", "file": "backgrounds/ovrag.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля уровня 6 «Овраг» с дорогой и воротами", "level": "ovrag"},
-    {"id": "bg-burelom", "file": "backgrounds/burelom.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля уровня 7 «Бурелом» с дорогой и воротами", "level": "burelom"},
-    {"id": "bg-melnitsa", "file": "backgrounds/melnitsa.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля уровня 8 «Мельница» с дорогой и воротами", "level": "melnitsa"},
-    {"id": "bg-most", "file": "backgrounds/most.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля уровня 9 «Мост» с дорогой и воротами", "level": "most"},
-    {"id": "bg-lager", "file": "backgrounds/lager.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля уровня 10 «Лагерь» с дорогой и воротами", "level": "lager"}
+    {"id": "bg-forest", "file": "backgrounds/forest.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля: лес, без дороги и ворот (уровни «Опушка», «Тропинка», «Старый дуб», «Поляна»)", "background": "forest"},
+    {"id": "bg-stream", "file": "backgrounds/stream.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля: ручей, без дороги и ворот (уровни «Ручей», «Мельница», «Мост»)", "background": "stream"},
+    {"id": "bg-ravine", "file": "backgrounds/ravine.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля: овраг, без дороги и ворот (уровни «Овраг», «Бурелом»)", "background": "ravine"},
+    {"id": "bg-camp", "file": "backgrounds/camp.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля: лагерь мышей, без дороги и ворот (уровни «Лагерь»)", "background": "camp"}
   ]
 }

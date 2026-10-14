@@ -1,4 +1,4 @@
-import type { ArtConfig, ArtImage, BuildingKind, ElementId, EnemyTypeId, ItemsConfig, StorySpeaker } from '../data/types';
+import type { ArtConfig, ArtImage, BackgroundId, BuildingKind, ElementId, EnemyTypeId, ItemsConfig, StorySpeaker } from '../data/types';
 import { mainBonus, type Item } from './Items';
 
 /** Виды фона кнопки: обычная, главная и кнопка наградной рекламы. */
@@ -17,7 +17,7 @@ export const artId = {
   icon: (icon: IconArt): string => `icon-${icon}`,
   button: (kind: ButtonArt): string => `button-${kind}`,
   portrait: (speaker: StorySpeaker): string => `portrait-${speaker}`,
-  background: (levelId: string): string => `bg-${levelId}`,
+  background: (background: BackgroundId): string => `bg-${background}`,
 };
 
 /**
@@ -116,23 +116,25 @@ export class ArtCatalog {
     return this.index.images[id] ? { key: id, ...size } : null;
   }
 
-  /** Загрузка при запуске игры: все атласы и фон первого уровня — то, что нужно меню и первому бою. */
-  startupLoads(firstLevelId: string): ArtLoad[] {
+  /** Загрузка при запуске игры: все атласы и фон первого уровня (`firstBackground`) — то, что нужно меню и первому бою. */
+  startupLoads(firstBackground: BackgroundId): ArtLoad[] {
     const atlases = Object.entries(this.index.atlases)
       .filter(([name]) => this.manifest.images.some((image) => image.atlas === name))
       .map(([name, { file, bytes, frames }]) => ({ key: atlasKey(name), file, bytes, frames }));
-    return [...atlases, ...this.levelLoads(firstLevelId)];
+    return [...atlases, ...this.backgroundLoads(firstBackground)];
   }
 
   /** Загрузка при входе в уровень: его фон. */
-  levelLoads(levelId: string): ArtLoad[] {
+  backgroundLoads(background: BackgroundId): ArtLoad[] {
     return this.manifest.images
-      .filter((image) => image.level === levelId && !image.atlas && this.index.images[image.id])
+      .filter((image) => image.background === background && !image.atlas && this.index.images[image.id])
       .map((image) => ({ key: image.id, ...this.index.images[image.id] }));
   }
 
-  /** Ключи фонов других уровней: при входе в уровень их текстуры освобождаются. */
-  otherLevelKeys(levelId: string): string[] {
-    return this.manifest.images.filter((image) => image.level !== undefined && image.level !== levelId && !image.atlas).map((image) => image.id);
+  /** Ключи других фонов: при входе в уровень их текстуры освобождаются. */
+  otherBackgroundKeys(background: BackgroundId): string[] {
+    return this.manifest.images
+      .filter((image) => image.background !== undefined && image.background !== background && !image.atlas)
+      .map((image) => image.id);
   }
 }

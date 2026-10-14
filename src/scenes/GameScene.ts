@@ -24,9 +24,10 @@ import type { Projectile } from '../entities/Projectile';
 import { EnemyView } from '../entities/EnemyView';
 import { HeroView } from '../entities/HeroView';
 import type { PieceView } from '../entities/PieceView';
-import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, SHOT_SOUND, SOUND_FEEL, SPEED_FEEL, TOAST_FEEL } from '../feel';
+import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FIELD_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, SHOT_SOUND, SOUND_FEEL, SPEED_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
-import { BOARD_H, BOARD_W, BOARD_Y, COLORS, CONTROLS_H, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
+import { BOARD_H, BOARD_W, BOARD_Y, COLORS, CONTROLS_H, DEPTH, FONTS, SLOT_RADIUS, TEXT_COLORS } from '../layout';
+import { fieldDecor, type FieldDecor } from '../systems/FieldDecor';
 import { platform } from '../platform';
 import { progress } from '../progress';
 import { CoinAd, SecondChance } from '../systems/Ads';
@@ -181,26 +182,41 @@ export class GameScene extends Phaser.Scene {
 
   preload(): void {
     // Фон уровня грузится при входе в него: при запуске игры загружен только фон первого.
-    art.preloadLevel(this, this.level.id);
+    art.preloadBackground(this, this.level.background);
   }
 
   create(): void {
     // Камера обрезана по игровому полю, поэтому координаты сцены совпадают
     // с координатами из levels.json, а дорога за краем поля не видна.
     this.cameras.main.setViewport(0, BOARD_Y, BOARD_W, BOARD_H);
-    this.cameras.main.setBackgroundColor(COLORS.board);
+    this.cameras.main.setBackgroundColor(FIELD_FEEL.grass.color);
     fadeIn(this);
     audio.music(this, 'battle');
 
-    // Дорога, ворота и клетки не меняются — запекаются в одну картинку.
-    // На готовом фоне дорога и ворота уже нарисованы: поверх него кодом ложатся только клетки.
-    const background = art.add(this, artId.background(this.level.id))?.setOrigin(0).setDisplaySize(BOARD_W, BOARD_H);
-    const boardKey = `${background ? 'slots' : 'board'}-${this.level.id}`;
+    // Тропинка, ворота и клетки не меняются — запекаются в одну картинку. На готовом фоне дороги нет: её, ворота
+    // и клетки игра рисует поверх; без фона — ещё и траву с пятнами и цветочками.
+    const background = art.add(this, artId.background(this.level.background))?.setOrigin(0).setDisplaySize(BOARD_W, BOARD_H);
+    const boardKey = `${background ? 'road' : 'board'}-${this.level.id}`;
+    const { grass, road } = FIELD_FEEL;
+    const decor = fieldDecor(this.level.id, BOARD_W, BOARD_H, this.level.path, {
+      patches: grass.patches,
+      patchSize: grass.patchSize,
+      patchColors: grass.patchColors.length,
+      flowers: grass.flowers,
+      flowerSize: grass.flowerSize,
+      flowerColors: grass.flowerColors.length,
+      spotsPer100: road.spotsPer100,
+      spotSize: road.spotSize,
+      pebblesPer100: road.pebblesPer100,
+      pebbleSize: road.pebbleSize,
+      pebbleColors: road.pebbleColors.length,
+      roadWidth: road.width,
+      margin: road.margin,
+    });
     bakeTexture(this, boardKey, BOARD_W, BOARD_H, (g) => {
-      if (!background) {
-        this.drawRoad(g, this.level.path);
-        this.drawGate(g, this.level.path[this.level.path.length - 1]);
-      }
+      if (!background) this.drawGrass(g, decor);
+      this.drawRoad(g, this.level.path, decor);
+      this.drawGate(g, this.level.path[this.level.path.length - 1]);
       this.drawSlots(g, this.level.slots);
     });
     this.add.image(0, 0, boardKey).setOrigin(0);
@@ -1417,29 +1433,46 @@ export class GameScene extends Phaser.Scene {
     return slot === -1 ? null : slot;
   }
 
-  private drawRoad(g: Phaser.GameObjects.Graphics, path: Point[]): void {
-    this.strokePath(g, path, ROAD.outerWidth, COLORS.roadEdge);
-    this.strokePath(g, path, ROAD.innerWidth, COLORS.road);
+  /** Трава без картинки фона: однотонная, с пятнами травы потемнее и посветлее и цветочками. */
+  private drawGrass(g: Phaser.GameObjects.Graphics, decor: FieldDecor): void {
+    const { grass } = FIELD_FEEL;
+    g.fillStyle(grass.color);
+    g.fillRect(0, 0, BOARD_W, BOARD_H);
+    for (const { x, y, size, color } of decor.patches) {
+      g.fillStyle(grass.patchColors[color], grass.patchAlpha);
+      g.fillEllipse(x, y, size, size * 0.6);
+    }
+    for (const { x, y, size, color } of decor.flowers) {
+      // Цветочек: четыре лепестка вокруг жёлтой серединки.
+      g.fillStyle(grass.flowerColors[color]);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.fillCircle(x + dx * size * 0.6, y + dy * size * 0.6, size * 0.55);
+      g.fillStyle(COLORS.brass);
+      g.fillCircle(x, y, size * 0.35);
+    }
+  }
 
-    g.lineStyle(2, COLORS.brass, 0.3);
-    const period = ROAD.dash + ROAD.gap;
-    for (let i = 0; i < path.length - 1; i++) {
-      const [ax, ay] = path[i];
-      const [bx, by] = path[i + 1];
-      const length = Math.hypot(bx - ax, by - ay);
-      const ux = (bx - ax) / length;
-      const uy = (by - ay) / length;
-      for (let d = 0; d < length; d += period) {
-        const end = Math.min(d + ROAD.dash, length);
-        g.lineBetween(ax + ux * d, ay + uy * d, ax + ux * end, ay + uy * end);
-      }
+  /** Тропинка по пути уровня: мягкие края слоями от прозрачного к плотному, пятна и камешки. */
+  private drawRoad(g: Phaser.GameObjects.Graphics, path: Point[], decor: FieldDecor): void {
+    const { road } = FIELD_FEEL;
+    for (let step = 0; step < road.softSteps; step++) {
+      const k = step / road.softSteps;
+      this.strokePath(g, path, road.width + road.soft * 2 * (1 - k), road.edgeColor, (step + 1) / (road.softSteps + 1));
+    }
+    this.strokePath(g, path, road.width, road.color);
+    for (const { x, y, size } of decor.spots) {
+      g.fillStyle(road.spotColor, road.spotAlpha);
+      g.fillEllipse(x, y, size, size * 0.7);
+    }
+    for (const { x, y, size, color } of decor.pebbles) {
+      g.fillStyle(road.pebbleColors[color]);
+      g.fillEllipse(x, y, size * 1.3, size);
     }
   }
 
   /** Ломаная со скруглёнными стыками: Graphics сам стыки не скругляет. */
-  private strokePath(g: Phaser.GameObjects.Graphics, path: Point[], width: number, color: number): void {
-    g.lineStyle(width, color);
-    g.fillStyle(color);
+  private strokePath(g: Phaser.GameObjects.Graphics, path: Point[], width: number, color: number, alpha = 1): void {
+    g.lineStyle(width, color, alpha);
+    g.fillStyle(color, alpha);
     for (let i = 0; i < path.length - 1; i++) {
       g.lineBetween(path[i][0], path[i][1], path[i + 1][0], path[i + 1][1]);
     }
@@ -1460,8 +1493,9 @@ export class GameScene extends Phaser.Scene {
 
   private drawSlots(g: Phaser.GameObjects.Graphics, slots: Point[]): void {
     const size = levels.slotSize;
-    g.fillStyle(COLORS.slot);
-    g.lineStyle(1, COLORS.line);
+    const { slot } = FIELD_FEEL;
+    g.fillStyle(slot.color, slot.alpha);
+    g.lineStyle(slot.lineWidth, slot.lineColor, slot.lineAlpha);
     for (const [x, y] of slots) {
       g.fillRoundedRect(x, y, size, size, SLOT_RADIUS);
       g.strokeRoundedRect(x, y, size, size, SLOT_RADIUS);

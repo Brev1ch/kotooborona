@@ -339,7 +339,6 @@ export function resultButtonCenter(side: 'left' | 'right'): [number, number] {
   return [GAME_W / 2 + (side === 'left' ? -offset : offset), RESULT_Y + RESULT.buttonsY];
 }
 
-export const ROAD = { outerWidth: 38, innerWidth: 30, dash: 6, gap: 10 };
 export const SLOT_RADIUS = 14;
 
 /** Порядок отрисовки на игровом поле. */

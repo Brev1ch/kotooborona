@@ -63,6 +63,42 @@ export const MOTION_FEEL = {
   },
 };
 
+/**
+ * Поле боя кодом. Трава — пока нет картинки фона уровня: пятна и цветочки поверх однотонной травы.
+ * Тропинка — всегда, и поверх готового фона: полоса шириной `width` с мягкими краями (`soft` точек в `softSteps` слоёв,
+ * от прозрачного к плотному), пятна и камешки (сколько на 100 точек пути). Клетки — полупрозрачные площадки с ободком.
+ * Раскладка узора — `systems/FieldDecor.ts`, своя у каждого уровня.
+ */
+export const FIELD_FEEL = {
+  grass: {
+    color: 0x6aa64f,
+    patchColors: [0x5e9a45, 0x78b45a, 0x63a24a],
+    patchAlpha: 0.55,
+    patches: 46,
+    patchSize: [14, 44] as [number, number],
+    flowerColors: [0xfff6dc, 0xf6c3d6, 0xffe08a, 0xc9d8ff],
+    flowers: 42,
+    flowerSize: [2, 3.4] as [number, number],
+  },
+  road: {
+    width: 34,
+    soft: 7,
+    softSteps: 4,
+    color: 0xcfae78,
+    edgeColor: 0xa98552,
+    spotColor: 0xbf9c66,
+    spotAlpha: 0.6,
+    spotsPer100: 3,
+    spotSize: [5, 11] as [number, number],
+    pebbleColors: [0x9a8670, 0xb7a58e, 0x847261],
+    pebblesPer100: 5,
+    pebbleSize: [1.6, 3] as [number, number],
+    /** Пятна и камешки не ближе этого к краю тропинки. */
+    margin: 4,
+  },
+  slot: { color: 0x2b4a24, alpha: 0.28, lineColor: 0xe9f2d0, lineAlpha: 0.35, lineWidth: 1.5 },
+};
+
 export const CAT_FEEL = {
   /** Кот в руке. */
   liftMs: 90,

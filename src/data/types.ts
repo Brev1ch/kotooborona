@@ -103,8 +103,13 @@ export interface EnemiesConfig {
   types: Record<EnemyTypeId, EnemyTypeConfig>;
 }
 
+/** Фон поля: один на несколько уровней (`background` в levels.json и в art.json). */
+export type BackgroundId = 'forest' | 'stream' | 'ravine' | 'camp';
+
 export interface LevelConfig {
   id: string;
+  /** Фон поля уровня; дорогу поверх него рисует игра по `path`. */
+  background: BackgroundId;
   /** Координаты в системе игрового поля (см. layout.ts). */
   path: Point[];
   /** Левый верхний угол каждой клетки. */
@@ -396,8 +401,8 @@ export interface ArtImage {
   sizeOf?: EnemyTypeId;
   /** Фон кнопки: края такой ширины в пикселях не растягиваются. */
   slice?: number;
-  /** Фон уровня: грузится при входе в этот уровень. */
-  level?: string;
+  /** Фон поля: грузится при входе в уровень с этим фоном (`background` в levels.json). */
+  background?: BackgroundId;
 }
 
 export interface ArtConfig {

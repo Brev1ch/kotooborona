@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { art as manifest } from './data';
+import { art as manifest, type BackgroundId } from './data';
 import { addBakedShape } from './scenes/textures';
 import { ArtCatalog, readArtIndex, type ArtLoad, type ArtRef } from './systems/Art';
 
@@ -15,22 +15,22 @@ class GameArt {
 
   /**
    * Ставит в очередь загрузки сцены список готового арта, а когда он придёт — атласы и фон первого уровня.
-   * Фоны остальных уровней грузит `preloadLevel`.
+   * Фоны остальных уровней грузит `preloadBackground`.
    */
-  preload(scene: Phaser.Scene, firstLevelId: string): void {
+  preload(scene: Phaser.Scene, firstBackground: BackgroundId): void {
     scene.load.json(INDEX_KEY, `${DIR}/index.json`);
     scene.load.once(`filecomplete-json-${INDEX_KEY}`, () => {
       this.catalog = new ArtCatalog(manifest, readArtIndex(scene.cache.json.get(INDEX_KEY)));
-      this.queue(scene, this.catalog.startupLoads(firstLevelId));
+      this.queue(scene, this.catalog.startupLoads(firstBackground));
     });
   }
 
-  /** Вход в уровень: его фон встаёт в очередь загрузки сцены, фоны других уровней освобождаются. */
-  preloadLevel(scene: Phaser.Scene, levelId: string): void {
-    for (const key of this.catalog.otherLevelKeys(levelId)) {
+  /** Вход в уровень: его фон встаёт в очередь загрузки сцены, остальные фоны освобождаются. */
+  preloadBackground(scene: Phaser.Scene, background: BackgroundId): void {
+    for (const key of this.catalog.otherBackgroundKeys(background)) {
       if (scene.textures.exists(key)) scene.textures.remove(key);
     }
-    this.queue(scene, this.catalog.levelLoads(levelId));
+    this.queue(scene, this.catalog.backgroundLoads(background));
   }
 
   private queue(scene: Phaser.Scene, loads: ArtLoad[]): void {

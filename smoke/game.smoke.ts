@@ -33,6 +33,7 @@ import {
   SUMMON_X,
 } from '../src/layout';
 import artIndex from '../public/assets/art/index.json' with { type: 'json' };
+import levelsData from '../src/data/levels.json' with { type: 'json' };
 import { SceneKey } from '../src/scenes/keys';
 import type { SmokeState, SmokeTarget } from '../src/smoke';
 import { GEAR_SLOTS } from '../src/systems/Progress';
@@ -991,9 +992,11 @@ test('все уровни главы запускаются, кот продаё
       // Арт: атласы загружены при запуске, из фонов — только фон этого уровня. С заглушками готово всё, без них — то, что уже нарисовано.
       const loaded = (await state(page))?.art ?? [];
       const ready: { atlases: object; images: object } = artIndex;
+      // Фон один на несколько уровней: у уровня — его имя.
+      const bg = `bg-${levelsData.levels.find((level) => level.id === id)?.background}`;
       const expected = WITH_ART
-        ? ['art:ui', 'art:units', `bg-${id}`]
-        : [...Object.keys(ready.atlases).map((name) => `art:${name}`).sort(), ...(`bg-${id}` in ready.images ? [`bg-${id}`] : [])];
+        ? ['art:ui', 'art:units', bg]
+        : [...Object.keys(ready.atlases).map((name) => `art:${name}`).sort(), ...(bg in ready.images ? [bg] : [])];
       if (loaded.join() !== expected.join()) throw new Error(`Уровень ${id}: загружен арт [${loaded.join(', ')}], а должен быть [${expected.join(', ')}]`);
       // Коты на поле показывают, где клетки, а первая волна — где дорога.
       for (let n = 0; n < CATS; n++) await tap(page, SUMMON_X, CONTROLS_CENTER_Y);

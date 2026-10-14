@@ -431,17 +431,17 @@ const indexBytes = statSync(join(OUT, 'index.json')).size;
 if (OUT === 'public/assets/art') writeFileSync(LIST, artList(manifest, new Set(ready.map((image) => image.id))));
 
 // Отчёт о весе. При запуске игра грузит список, атласы и фон первого уровня; фоны остальных — при входе в уровень.
-const firstLevel = levels[0].id;
 const atlasBytes = Object.values(index.atlases).reduce((sum, atlas) => sum + atlas.bytes, 0);
-const backgrounds = manifest.images.filter((image) => image.level && index.images[image.id]);
-const firstBackground = backgrounds.find((image) => image.level === firstLevel);
+const firstLevelBackground = levels[0].background;
+const backgrounds = manifest.images.filter((image) => image.background && index.images[image.id]);
+const firstBackground = backgrounds.find((image) => image.background === firstLevelBackground);
 const startup = indexBytes + atlasBytes + (firstBackground ? index.images[firstBackground.id].bytes : 0);
 const total = indexBytes + atlasBytes + Object.values(index.images).reduce((sum, image) => sum + image.bytes, 0);
 
 for (const [name, atlas] of Object.entries(index.atlases)) {
   console.log(`атлас ${name.padEnd(8)} ${String(Object.keys(atlas.frames).length).padStart(3)} картинок, ${atlas.width}×${atlas.height}, ${kb(atlas.bytes)}`);
 }
-for (const image of backgrounds) console.log(`фон ${image.level.padEnd(10)} ${kb(index.images[image.id].bytes)}${image.level === firstLevel ? ' (при запуске)' : ''}`);
+for (const image of backgrounds) console.log(`фон ${image.background.padEnd(10)} ${kb(index.images[image.id].bytes)}${image.background === firstLevelBackground ? ' (при запуске)' : ''}`);
 const missing = manifest.images.filter((image) => !ready.includes(image));
 console.log(`Готово картинок: ${ready.length} из ${manifest.images.length}`);
 if (missing.length > 0 && missing.length <= 12) console.log(`Нет исходников: ${missing.map((image) => image.file).join(', ')}`);
