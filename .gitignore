@@ -9,4 +9,5 @@ test-results/
 pack/
 
 # Сырые паки звуков (Kenney, CC0). В сборку идут только сжатые файлы из public/assets/sfx, см. npm run sfx.
+# И исходники картинок: в сборку идут атласы и фоны из public/assets/art, см. npm run art.
 assets-src/
