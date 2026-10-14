@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { adBreaks } from '../adBreaks';
 import { audio } from '../audio';
-import { ads, cats, getLevel, levels, type ElementId, type LevelConfig } from '../data';
+import { ads, cats, getLevel, levels, story, type ElementId, type LevelConfig } from '../data';
 import {
   ANNOUNCE_FEEL,
   BANNER_FEEL,
@@ -56,13 +56,14 @@ import { CatView } from '../entities/CatView';
 import type { PieceView } from '../entities/PieceView';
 import { progress } from '../progress';
 import { nextLevelId } from '../systems/Campaign';
+import { storyAfter } from '../systems/Story';
 import { Pool } from '../systems/Pool';
 import { MAX_STARS } from '../systems/Progress';
 import { Tutorial } from '../systems/Tutorial';
 import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
 import { BuildPanel } from './BuildPanel';
-import { GameEvent, SceneKey, type DragGhost, type LevelResult, type LevelSceneData, type RewardDrop, type SellOffer } from './keys';
+import { GameEvent, SceneKey, type DragGhost, type LevelResult, type LevelSceneData, type RewardDrop, type SellOffer, type StorySceneData } from './keys';
 import { addBakedShape, bakeTexture, drawChargeRing, ensureTextures, Texture } from './textures';
 import { fadeIn, fadeOut } from './transitions';
 import { TutorialOverlay } from './TutorialOverlay';
@@ -966,7 +967,7 @@ export class UIScene extends Phaser.Scene {
       addButton(this, ...resultButtonCenter('left'), RESULT.buttonW, RESULT.buttonH, t('result.menu'), false, () => {
         this.leaveAfterResult(() => {
           this.scene.stop(SceneKey.Game);
-          this.scene.start(SceneKey.Menu);
+          this.goAfterResult(result.won, { scene: SceneKey.Menu });
         });
       }),
     );
@@ -976,7 +977,7 @@ export class UIScene extends Phaser.Scene {
             const nextData: LevelSceneData = { levelId: next };
             this.leaveAfterResult(() => {
               this.scene.stop(SceneKey.Game);
-              this.scene.start(SceneKey.Gear, nextData);
+              this.goAfterResult(result.won, { scene: SceneKey.Gear, data: nextData });
             });
           })
         : addButton(this, ...resultButtonCenter('right'), RESULT.buttonW, RESULT.buttonH, t('result.retry'), true, () => {
@@ -1126,6 +1127,17 @@ export class UIScene extends Phaser.Scene {
         if (this.banner === banner) this.banner = null;
       },
     });
+  }
+
+  /** Уход с экрана итога: после победы на ключевом уровне сначала сценка, затем выбранный экран. */
+  private goAfterResult(won: boolean, then: { scene: string; data?: object }): void {
+    const after = won ? storyAfter(story, this.level.id) : null;
+    if (!after) {
+      this.scene.start(then.scene, then.data);
+      return;
+    }
+    const data: StorySceneData = { levelId: this.level.id, storyId: after.id, then };
+    this.scene.start(SceneKey.Story, data);
   }
 
   /** Показатель жизней: подпись и ряд сердечек, по одному на каждую жизнь в начале боя. */

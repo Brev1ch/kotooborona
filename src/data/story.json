@@ -1,21 +1,116 @@
 {
   "scenes": [
     {
-      "id": "chapter1",
+      "id": "opushka",
       "before": "opushka",
       "lines": [
-        { "speaker": "king", "text": "story.chapter1.1" },
-        { "speaker": "archmage", "text": "story.chapter1.2" },
-        { "speaker": "archmage", "text": "story.chapter1.3" }
+        { "speaker": "king", "text": "story.opushka.1" },
+        { "speaker": "archmage", "text": "story.opushka.2" },
+        { "speaker": "archmage", "text": "story.opushka.3" }
       ]
     },
     {
-      "id": "king",
+      "id": "tropinka",
+      "before": "tropinka",
+      "lines": [
+        { "speaker": "mouse", "text": "story.tropinka.1" },
+        { "speaker": "king", "text": "story.tropinka.2" },
+        { "speaker": "archmage", "text": "story.tropinka.3" }
+      ]
+    },
+    {
+      "id": "ruchey",
+      "before": "ruchey",
+      "lines": [
+        { "speaker": "mouse", "text": "story.ruchey.1" },
+        { "speaker": "king", "text": "story.ruchey.2" },
+        { "speaker": "archmage", "text": "story.ruchey.3" }
+      ]
+    },
+    {
+      "id": "dub",
+      "before": "dub",
+      "lines": [
+        { "speaker": "archmage", "text": "story.dub.1" },
+        { "speaker": "mouse", "text": "story.dub.2" },
+        { "speaker": "king", "text": "story.dub.3" }
+      ]
+    },
+    {
+      "id": "polyana",
+      "before": "polyana",
+      "lines": [
+        { "speaker": "king", "text": "story.polyana.1" },
+        { "speaker": "mouse", "text": "story.polyana.2" },
+        { "speaker": "king", "text": "story.polyana.3" },
+        { "speaker": "archmage", "text": "story.polyana.4" }
+      ]
+    },
+    {
+      "id": "polyana-after",
+      "after": "polyana",
+      "lines": [
+        { "speaker": "mouse", "text": "story.polyana-after.1" },
+        { "speaker": "king", "text": "story.polyana-after.2" },
+        { "speaker": "archmage", "text": "story.polyana-after.3" },
+        { "speaker": "mouse", "text": "story.polyana-after.4" }
+      ]
+    },
+    {
+      "id": "ovrag",
+      "before": "ovrag",
+      "lines": [
+        { "speaker": "mouse", "text": "story.ovrag.1" },
+        { "speaker": "archmage", "text": "story.ovrag.2" },
+        { "speaker": "king", "text": "story.ovrag.3" }
+      ]
+    },
+    {
+      "id": "burelom",
+      "before": "burelom",
+      "lines": [
+        { "speaker": "archmage", "text": "story.burelom.1" },
+        { "speaker": "mouse", "text": "story.burelom.2" },
+        { "speaker": "archmage", "text": "story.burelom.3" }
+      ]
+    },
+    {
+      "id": "melnitsa",
+      "before": "melnitsa",
+      "lines": [
+        { "speaker": "king", "text": "story.melnitsa.1" },
+        { "speaker": "mouse", "text": "story.melnitsa.2" },
+        { "speaker": "king", "text": "story.melnitsa.3" },
+        { "speaker": "archmage", "text": "story.melnitsa.4" }
+      ]
+    },
+    {
+      "id": "most",
+      "before": "most",
+      "lines": [
+        { "speaker": "mouse", "text": "story.most.1" },
+        { "speaker": "king", "text": "story.most.2" },
+        { "speaker": "mouse", "text": "story.most.3" },
+        { "speaker": "archmage", "text": "story.most.4" }
+      ]
+    },
+    {
+      "id": "lager",
       "before": "lager",
       "lines": [
-        { "speaker": "mouse", "text": "story.king.1" },
-        { "speaker": "king", "text": "story.king.2" },
-        { "speaker": "archmage", "text": "story.king.3" }
+        { "speaker": "mouse", "text": "story.lager.1" },
+        { "speaker": "king", "text": "story.lager.2" },
+        { "speaker": "archmage", "text": "story.lager.3" }
+      ]
+    },
+    {
+      "id": "lager-after",
+      "after": "lager",
+      "lines": [
+        { "speaker": "king", "text": "story.lager-after.1" },
+        { "speaker": "mouse", "text": "story.lager-after.2" },
+        { "speaker": "king", "text": "story.lager-after.3" },
+        { "speaker": "archmage", "text": "story.lager-after.4" }
       ]
     }
   ]

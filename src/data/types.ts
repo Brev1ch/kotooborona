@@ -366,10 +366,14 @@ export interface StoryLine {
   text: string;
 }
 
-/** Сценка из нескольких реплик перед уровнем `before`. */
+/**
+ * Сценка из нескольких реплик: перед уровнем `before` — при каждом входе в него, в том числе при повторном прохождении;
+ * или после победы на уровне `after` — на ключевых уровнях главы.
+ */
 export interface StoryScene {
   id: string;
-  before: string;
+  before?: string;
+  after?: string;
   lines: StoryLine[];
 }
 

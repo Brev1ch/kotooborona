@@ -23,6 +23,8 @@ export interface LevelSceneData {
 /** Данные сценки: без `storyId` показывается та, что положена перед уровнем. */
 export interface StorySceneData extends LevelSceneData {
   storyId?: string;
+  /** Куда после сценки, если не в бой: сценка после победы ведёт туда, куда игрок нажал на экране итога. */
+  then?: { scene: string; data?: object };
 }
 
 /** События GameScene, на которые подписывается HUD. */

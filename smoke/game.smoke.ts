@@ -1064,7 +1064,7 @@ test('все уровни главы запускаются, кот продаё
 
   await test.step('сценка перед королём', async () => {
     const last = ids[ids.length - 1];
-    await page.evaluate((levelId) => window.__smoke?.startStory(levelId, 'king'), last);
+    await page.evaluate((levelId) => window.__smoke?.startStory(levelId, 'lager'), last);
     await waitFor(
       page,
       SCREEN_TIMEOUT,
@@ -1357,6 +1357,20 @@ async function winBattle(page: Page, step: string): Promise<void> {
 
 /** С экрана снаряжения — в бой; сценку, если она есть, пропускает, карточку нового врага снимает и закрывает. Всё — не дожидаясь проявления экранов. */
 async function hurryIntoBattle(page: Page, step: string): Promise<void> {
+  // После победы на ключевом уровне (5-м и 10-м) перед снаряжением идёт сценка «после».
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.Gear) || s.scenes.includes(SceneKey.Story),
+    (s) => `${step}: не открылось снаряжение, ${scenesText(s)}`,
+    true,
+  );
+  if ((await state(page))?.scenes.includes(SceneKey.Story)) {
+    await waitFor(page, SCREEN_TIMEOUT, (s) => s.scenes.includes(SceneKey.Story) && !s.fading, (s) => `${step}: сценка не проявилась, ${scenesText(s)}`);
+    await page.screenshot({ path: `${SHOTS}/story-after.png` });
+    await checkTexts(page, `${step}: сценка после победы`);
+    await hurry(page, SceneKey.Story, ...storySkipCenter(), `${step}: «Пропустить» сценку после победы`);
+  }
   await waitFor(
     page,
     SCREEN_TIMEOUT,

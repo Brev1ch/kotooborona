@@ -3,45 +3,45 @@ import { enemies, levels, story } from '../data';
 import type { EnemiesConfig, LevelConfig, StoryConfig } from '../data';
 import { en } from '../i18n/en';
 import { ru } from '../i18n/ru';
-import { appearsOn, firstAppearance, introBefore, storyBefore } from './Story';
+import { appearsOn, firstAppearance, introBefore, storyAfter, storyBefore } from './Story';
 
 const config: StoryConfig = {
   scenes: [
     { id: 'intro', before: 'first', lines: [{ speaker: 'archmage', text: 'a' }] },
     { id: 'boss', before: 'last', lines: [{ speaker: 'king', text: 'b' }] },
+    { id: 'won', after: 'last', lines: [{ speaker: 'mouse', text: 'c' }] },
   ],
 };
 
-describe('storyBefore', () => {
-  it('перед уровнем со сценкой отдаёт её', () => {
-    expect(storyBefore(config, 'first', false, new Set())?.id).toBe('intro');
-    expect(storyBefore(config, 'last', false, new Set())?.id).toBe('boss');
+describe('storyBefore и storyAfter', () => {
+  it('перед уровнем со сценкой отдаёт её — всегда, и при повторном прохождении', () => {
+    expect(storyBefore(config, 'first')?.id).toBe('intro');
+    expect(storyBefore(config, 'last')?.id).toBe('boss');
+    expect(storyBefore(config, 'first')?.id).toBe('intro');
   });
 
   it('перед уровнем без сценки ничего нет', () => {
-    expect(storyBefore(config, 'middle', false, new Set())).toBeNull();
+    expect(storyBefore(config, 'middle')).toBeNull();
   });
 
-  it('перед уже пройденным уровнем сценка не показывается', () => {
-    expect(storyBefore(config, 'first', true, new Set())).toBeNull();
-  });
-
-  it('за один запуск игры сценка показывается один раз', () => {
-    expect(storyBefore(config, 'first', false, new Set(['intro']))).toBeNull();
-    expect(storyBefore(config, 'last', false, new Set(['intro']))?.id).toBe('boss');
+  it('сценка «после» — только у своего уровня и не путается со сценкой «перед»', () => {
+    expect(storyAfter(config, 'last')?.id).toBe('won');
+    expect(storyAfter(config, 'first')).toBeNull();
   });
 });
 
 describe('сценки игры', () => {
-  const first = levels.levels[0].id;
   const last = levels.levels[levels.levels.length - 1].id;
 
-  it('есть перед главой и перед королём, по две-три реплики', () => {
-    expect(story.scenes.map((scene) => scene.before)).toEqual([first, last]);
+  it('сценка перед каждым уровнем главы и после победы на 5-м и 10-м, по 3–6 реплик', () => {
+    expect(story.scenes.filter((scene) => scene.before).map((scene) => scene.before)).toEqual(levels.levels.map((level) => level.id));
+    expect(story.scenes.filter((scene) => scene.after).map((scene) => scene.after)).toEqual([levels.levels[4].id, last]);
     for (const scene of story.scenes) {
-      expect(scene.lines.length).toBeGreaterThanOrEqual(2);
-      expect(scene.lines.length).toBeLessThanOrEqual(3);
+      expect(scene.before === undefined, scene.id).not.toBe(scene.after === undefined);
+      expect(scene.lines.length, scene.id).toBeGreaterThanOrEqual(3);
+      expect(scene.lines.length, scene.id).toBeLessThanOrEqual(6);
     }
+    expect(new Set(story.scenes.map((scene) => scene.id)).size).toBe(story.scenes.length);
   });
 
   it('у каждой реплики есть текст и имя говорящего на обоих языках', () => {

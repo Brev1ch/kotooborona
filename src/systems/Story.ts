@@ -1,23 +1,18 @@
 import type { EnemiesConfig, EnemyTypeId, LevelConfig, StoryConfig, StoryScene } from '../data/types';
 
-/**
- * Сценка, которую нужно показать перед уровнем, или null.
- * Сценка идёт перед уровнем, пока он не пройден, и не чаще раза за запуск игры:
- * проигравший и зашедший снова её уже не увидит.
- */
-export function storyBefore(
-  config: StoryConfig,
-  levelId: string,
-  passed: boolean,
-  seen: ReadonlySet<string>,
-): StoryScene | null {
-  if (passed) return null;
-  return config.scenes.find((scene) => scene.before === levelId && !seen.has(scene.id)) ?? null;
+/** Сценка перед уровнем или null. Идёт при каждом входе в уровень, в том числе при повторном прохождении. */
+export function storyBefore(config: StoryConfig, levelId: string): StoryScene | null {
+  return config.scenes.find((scene) => scene.before === levelId) ?? null;
+}
+
+/** Сценка после победы на уровне или null: есть только у ключевых уровней главы. */
+export function storyAfter(config: StoryConfig, levelId: string): StoryScene | null {
+  return config.scenes.find((scene) => scene.after === levelId) ?? null;
 }
 
 /**
- * Враг, чью карточку «Новый враг» нужно показать перед уровнем, или null.
- * Правило то же, что у сценок: пока уровень не пройден и не чаще раза за запуск игры (`seen` — id уровней).
+ * Враг, чью карточку «Новый враг» нужно показать перед уровнем, или null:
+ * пока уровень не пройден и не чаще раза за запуск игры (`seen` — id уровней).
  */
 export function introBefore(level: LevelConfig, passed: boolean, seen: ReadonlySet<string>): EnemyTypeId | null {
   if (passed || seen.has(level.id)) return null;

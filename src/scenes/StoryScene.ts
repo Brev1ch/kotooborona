@@ -7,19 +7,15 @@ import { HeroView } from '../entities/HeroView';
 import { STORY_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { COLORS, FONTS, GAME_H, GAME_W, STORY, storySkipCenter, TEXT_COLORS } from '../layout';
-import { progress } from '../progress';
 import { artId } from '../systems/Art';
 import { storyBefore } from '../systems/Story';
 import { SceneKey, type LevelSceneData, type StorySceneData } from './keys';
 import { fadeIn, fadeOut } from './transitions';
 import { addButton } from './widgets';
 
-/** Сценки, уже показанные за этот запуск игры. */
-const seen = new Set<string>();
-
-/** Сценка, которую нужно показать перед уровнем, или null: перед непройденным уровнем и не чаще раза за запуск игры. */
+/** Сценка перед уровнем или null: идёт при каждом входе в уровень, в том числе при повторном прохождении. */
 export function storyForLevel(levelId: string): StoryData | null {
-  return storyBefore(story, levelId, progress.stars(levelId) > 0, seen);
+  return storyBefore(story, levelId);
 }
 
 const SPEAKER_COLOR: Record<StorySpeaker, string> = {
@@ -28,9 +24,13 @@ const SPEAKER_COLOR: Record<StorySpeaker, string> = {
   mouse: TEXT_COLORS.muted,
 };
 
-/** Сценка перед уровнем: портрет говорящего и реплика; касание листает, «Пропустить» сразу ведёт в бой. */
+/**
+ * Сценка перед уровнем или после победы: портрет говорящего и реплика; касание листает, «Пропустить» сразу закрывает.
+ * Сценка перед уровнем ведёт в бой (через карточку нового врага), после победы — туда, куда игрок нажал (`then`).
+ */
 export class StoryScene extends Phaser.Scene {
   private levelId!: string;
+  private then: StorySceneData['then'] = undefined;
   private scenario: StoryData | null = null;
   private line = 0;
   private portrait: Phaser.GameObjects.GameObject | null = null;
@@ -44,6 +44,7 @@ export class StoryScene extends Phaser.Scene {
 
   init(data: StorySceneData): void {
     this.levelId = data.levelId;
+    this.then = data.then;
     this.scenario = data.storyId
       ? (story.scenes.find((scene) => scene.id === data.storyId) ?? null)
       : storyForLevel(data.levelId);
@@ -57,7 +58,6 @@ export class StoryScene extends Phaser.Scene {
       this.startBattle();
       return;
     }
-    seen.add(this.scenario.id);
     fadeIn(this);
 
     const { panelY, panelW, panelH, nameY, hintY, textPad } = STORY;
@@ -155,12 +155,16 @@ export class StoryScene extends Phaser.Scene {
   private startBattle(): void {
     if (this.leaving) return;
     this.leaving = true;
+    // Перед уровнем дальше — карточка нового врага; если показывать некого, она сама сразу начнёт бой.
     const data: LevelSceneData = { levelId: this.levelId };
-    // Дальше — карточка нового врага; если показывать некого, она сама сразу начнёт бой.
+    const go = (): void => {
+      if (this.then) this.scene.start(this.then.scene, this.then.data);
+      else this.scene.start(SceneKey.Intro, data);
+    };
     if (!this.scenario) {
-      this.scene.start(SceneKey.Intro, data);
+      go();
       return;
     }
-    fadeOut(this, () => this.scene.start(SceneKey.Intro, data));
+    fadeOut(this, go);
   }
 }
