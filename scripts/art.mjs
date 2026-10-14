@@ -2,10 +2,13 @@
 //
 // Исходники в репозитории не лежат: это png с прозрачным фоном, имена — из поля `file` манифеста
 // (assets-src/art/cats/fire.png и так далее). Каких файлов нет — тех картинок в игре нет, на их месте рисунок кодом.
+//   Картинка атласа без прозрачности (генератор рисует на белом): однотонный фон убирается заливкой от краёв,
+//     поэтому белое внутри контура (глаза, блики) остаётся.
 //   Картинка атласа: прозрачные края обрезаются, остаток вписывается в размер из манифеста по центру.
 //   Фон кнопки (`slice`): растягивается ровно в размер, края не обрезаются.
 //   Фон уровня: обрезается под размер и лежит отдельным файлом — игра грузит его при входе в уровень.
-// Рядом пишется index.json: какие картинки готовы, где они в атласах и сколько весят.
+// Рядом пишется index.json: какие картинки готовы, где они в атласах и сколько весят,
+// а в docs/ART_LIST.md — список всех картинок для художника с отметкой готовности.
 //
 //   npm run art -- --src <папка> --out <папка>   другие папки (смоук-проверка с заглушками)
 //   npm run art -- --placeholders                сначала нарисовать в папке исходников заглушки всех картинок
@@ -13,6 +16,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
+import { artList } from '../src/systems/ArtList.ts';
 
 /** Общий вес готового арта, байты. */
 const BUDGET = 3 * 1024 * 1024;
@@ -21,6 +25,8 @@ const ATLAS_MAX = 2048;
 const ATLAS_WIDTH = 1024;
 /** Зазор между кадрами атласа: соседний кадр не просвечивает по краю при масштабировании. */
 const PADDING = 2;
+/** Фон исходника без прозрачности: насколько цвет точки может отличаться от цвета угла, оставаясь фоном (расстояние в RGB). */
+const BACKGROUND_TOLERANCE = 48;
 const ATLAS_WEBP = { quality: 90, alphaQuality: 100, effort: 6 };
 const BACKGROUND_WEBP = { quality: 82, effort: 6 };
 
@@ -36,6 +42,7 @@ function option(name, fallback) {
 
 const SRC = option('src', 'assets-src/art');
 const OUT = option('out', 'public/assets/art');
+const LIST = 'docs/ART_LIST.md';
 const manifest = JSON.parse(readFileSync('src/data/art.json', 'utf8'));
 const levels = JSON.parse(readFileSync('src/data/levels.json', 'utf8')).levels;
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} КБ`;
@@ -79,9 +86,49 @@ if (process.argv.includes('--placeholders')) {
   for (const image of manifest.images) await writePlaceholder(image);
 }
 
+/**
+ * Исходник с прозрачностью — как есть. У исходника без неё фон убирается: заливка от краёв по цвету левого верхнего угла.
+ * Точки на границе получают прозрачность по тому, насколько они похожи на фон: край не остаётся с белой каймой.
+ */
+async function withAlpha(file) {
+  const { data, info } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height } = info;
+  let opaque = true;
+  for (let i = 3; i < data.length; i += 4) if (data[i] < 255) { opaque = false; break; }
+  const raw = { raw: { width, height, channels: 4 } };
+  if (!opaque) return sharp(data, raw);
+
+  const [br, bg, bb] = data;
+  const distance = (p) => Math.hypot(data[p * 4] - br, data[p * 4 + 1] - bg, data[p * 4 + 2] - bb);
+  const background = new Uint8Array(width * height);
+  const stack = [];
+  const visit = (p) => {
+    if (background[p] || distance(p) > BACKGROUND_TOLERANCE) return;
+    background[p] = 1;
+    stack.push(p);
+  };
+  for (let x = 0; x < width; x++) { visit(x); visit((height - 1) * width + x); }
+  for (let y = 0; y < height; y++) { visit(y * width); visit(y * width + width - 1); }
+  while (stack.length > 0) {
+    const p = stack.pop();
+    const x = p % width;
+    if (x > 0) visit(p - 1);
+    if (x < width - 1) visit(p + 1);
+    if (p >= width) visit(p - width);
+    if (p < width * (height - 1)) visit(p + width);
+  }
+  for (let p = 0; p < width * height; p++) {
+    if (background[p]) { data[p * 4 + 3] = 0; continue; }
+    const x = p % width;
+    const edge = (x > 0 && background[p - 1]) || (x < width - 1 && background[p + 1]) || (p >= width && background[p - width]) || (p < width * (height - 1) && background[p + width]);
+    if (edge) data[p * 4 + 3] = Math.round(255 * Math.min(1, distance(p) / (BACKGROUND_TOLERANCE * 3)));
+  }
+  return sharp(data, raw);
+}
+
 /** Картинка атласа: точки и размер после обрезки и подгонки. */
 async function prepareFrame(image, file) {
-  let pipeline = sharp(file).ensureAlpha();
+  let pipeline = await withAlpha(file);
   if (image.slice) {
     pipeline = pipeline.resize(image.width, image.height, { fit: 'fill' });
   } else {
@@ -91,7 +138,7 @@ async function prepareFrame(image, file) {
       trimmed = await pipeline.trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 1 }).png().toBuffer();
     } catch {
       // Обрезать нечего: картинка без прозрачных краёв.
-      trimmed = await sharp(file).ensureAlpha().png().toBuffer();
+      trimmed = await (await withAlpha(file)).png().toBuffer();
     }
     pipeline = sharp(trimmed).resize(image.width, image.height, { fit: 'inside' });
   }
@@ -164,6 +211,9 @@ for (const image of ready.filter((entry) => !entry.atlas)) {
 
 writeFileSync(join(OUT, 'index.json'), `${JSON.stringify(index)}\n`);
 const indexBytes = statSync(join(OUT, 'index.json')).size;
+
+// Список для художника — только от настоящего арта: заглушки смоук-проверки в него не попадают.
+if (OUT === 'public/assets/art') writeFileSync(LIST, artList(manifest, new Set(ready.map((image) => image.id))));
 
 // Отчёт о весе. При запуске игра грузит список, атласы и фон первого уровня; фоны остальных — при входе в уровень.
 const firstLevel = levels[0].id;
