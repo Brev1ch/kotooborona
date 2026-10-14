@@ -227,7 +227,7 @@ export class GameScene extends Phaser.Scene {
     const bonuses = itemsBonuses(gear.items, worn);
     this.economy = new Economy(this.level, economy, bonuses);
     this.summoner = new Summon(cats, bonuses.summonWeights, random, bonuses.level2Chance);
-    this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult, bonuses.meteorGround);
+    this.meteor = new Meteor(gear.meteor, this.level.meteorChargeTime ?? gear.meteor.chargeTime, bonuses.meteorCooldownMult, bonuses.meteorGround);
     this.coinAd = new CoinAd(ads.coins);
     this.secondChance = new SecondChance(ads.secondChance);
     // Навершие посоха героя — цвета стихии, которую посох помогает призывать.
@@ -296,6 +296,7 @@ export class GameScene extends Phaser.Scene {
     // Пауза между роликами — в настоящих секундах: ускорение боя её не сокращает.
     this.coinAd.update(dt);
     // Ускоренный бой — несколько обычных шагов за кадр: шаг не растёт, и враги не проскакивают мимо котов.
+    const charging = !this.meteor.ready;
     for (let step = 0; step < this.speed && !this.finished; step++) {
       this.meteor.update(dt);
       this.updateRituals(dt);
@@ -304,7 +305,10 @@ export class GameScene extends Phaser.Scene {
       if (this.economy.lives <= 0) this.finish(false);
       else if (this.waves.finished && this.combat.enemies.length === 0) this.finish(true);
     }
+    this.hero.setCharge(this.meteor.progress);
     this.hero.setReady(this.meteor.ready);
+    // Заряд только что стал полным — короткий звук готовности.
+    if (charging && this.meteor.ready && !this.finished) audio.play('meteorReady');
   }
 
   /** Переключает скорость боя: обычная или ускоренная. Выбор держится до конца боя; новый бой начинается с обычной. */
@@ -820,6 +824,11 @@ export class GameScene extends Phaser.Scene {
       enemies: this.combat.enemies.length,
       march: this.combat.enemies.reduce((sum, enemy) => sum + enemy.distance, 0),
     };
+  }
+
+  /** Заряд метеора сразу полон; для смоук-проверки и отладки. */
+  chargeMeteor(): void {
+    this.meteor.recharge();
   }
 
   meteorState(): MeteorState {

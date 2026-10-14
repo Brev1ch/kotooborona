@@ -3,7 +3,7 @@ import { art } from '../art';
 import type { Point } from '../data';
 import { HERO_FEEL } from '../feel';
 import { COLORS, DEPTH } from '../layout';
-import { addBakedShape, CIRCLE_RADIUS, ensureTextures, Texture } from '../scenes/textures';
+import { addBakedShape, CIRCLE_RADIUS, drawChargeRing, ensureTextures, Texture } from '../scenes/textures';
 import { artId } from '../systems/Art';
 
 const ORB_X = 20;
@@ -26,6 +26,10 @@ export class HeroView extends Phaser.GameObjects.Container {
   private readonly orb: Phaser.GameObjects.Image;
   private readonly halo: Phaser.GameObjects.Image;
   private ready: boolean | null = null;
+  /** Кольцо заряда метеора вокруг сферы и сколько процентов на нём нарисовано. */
+  private readonly ring: Phaser.GameObjects.Graphics;
+  private shownCharge = -1;
+  private orbColor: number;
 
   constructor(scene: Phaser.Scene, x: number, y: number, orbColor: number) {
     super(scene, x, y);
@@ -38,7 +42,9 @@ export class HeroView extends Phaser.GameObjects.Container {
     const [orbX, orbY] = picture && anchor ? [(anchor[0] - 0.5) * picture.displayWidth, (anchor[1] - 0.5) * picture.displayHeight] : [ORB_X, ORB_Y];
     this.halo = scene.add.image(orbX, orbY, Texture.disc).setTint(orbColor);
     this.orb = scene.add.image(orbX, orbY, Texture.disc).setTint(orbColor);
-    this.staff = scene.add.container(0, 0, [this.halo, this.orb]);
+    this.orbColor = orbColor;
+    this.ring = scene.add.graphics({ x: orbX, y: orbY });
+    this.staff = scene.add.container(0, 0, [this.halo, this.ring, this.orb]);
     this.add(picture ? [picture, this.staff] : [...this.drawParts(), this.staff]);
     this.setDepth(DEPTH.cat);
     scene.add.existing(this);
@@ -97,7 +103,15 @@ export class HeroView extends Phaser.GameObjects.Container {
     return [this.x + this.orb.x, this.y + this.orb.y];
   }
 
-  /** Умение готово — сфера светится и пульсирует; на перезарядке — маленькая и тусклая. */
+  /** Заряд метеора от 0 до 1 — кольцом вокруг сферы; перерисовывается, только когда сменился процент. */
+  setCharge(progress: number): void {
+    const percent = Math.floor(Math.max(0, Math.min(1, progress)) * 100);
+    if (percent === this.shownCharge) return;
+    this.shownCharge = percent;
+    drawChargeRing(this.ring, HERO_FEEL.chargeRadius, HERO_FEEL.chargeWidth, percent / 100, this.orbColor, HERO_FEEL.chargeTrackAlpha);
+  }
+
+  /** Умение готово — сфера светится и пульсирует; пока копится заряд — маленькая и тусклая. */
   setReady(ready: boolean): void {
     if (ready === this.ready) return;
     const recharged = this.ready === false && ready;

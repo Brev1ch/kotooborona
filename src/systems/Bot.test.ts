@@ -82,6 +82,7 @@ describe('Bot: стратегия', () => {
 
   it('бьёт метеором по скоплению врагов', () => {
     const { sim, bot } = create({ startGold: 0 });
+    sim.meteor.recharge();
     run(sim, bot, 20);
 
     expect(sim.result().meteors).toBeGreaterThan(0);
@@ -303,6 +304,7 @@ describe('Bot: особенности врагов', () => {
 
   it('метеор бьёт по скоплению на поверхности', () => {
     const { sim, bot } = create({ startGold: 0 });
+    sim.meteor.recharge();
     for (let i = 0; i < DEFAULT_BOT.meteorTargets; i++) sim.combat.add(enemyAt(sim, 'mouse', 0.5));
     bot.update(DT);
 
@@ -311,6 +313,7 @@ describe('Bot: особенности врагов', () => {
 
   it('на кротов под землёй метеор не тратит, даже когда их толпа', () => {
     const { sim, bot } = create({ startGold: 0 });
+    sim.meteor.recharge();
     for (let i = 0; i < DEFAULT_BOT.meteorTargets + 2; i++) sim.combat.add(enemyAt(sim, 'mole', 0.5));
     act(bot, 3);
 
@@ -319,6 +322,7 @@ describe('Bot: особенности врагов', () => {
 
   it('кротов под землёй не считает в скоплении, а по вышедшим бьёт', () => {
     const { sim, bot } = create({ startGold: 0 });
+    sim.meteor.recharge();
     for (let i = 0; i < DEFAULT_BOT.meteorTargets - 1; i++) sim.combat.add(enemyAt(sim, 'mouse', 0.5));
     sim.combat.add(enemyAt(sim, 'mole', 0.5));
     act(bot, 2);
@@ -326,6 +330,7 @@ describe('Bot: особенности врагов', () => {
 
     // Тот же крот до подкопа — обычная цель.
     const { sim: open, bot: other } = create({ startGold: 0 });
+    open.meteor.recharge();
     for (let i = 0; i < DEFAULT_BOT.meteorTargets - 1; i++) open.combat.add(enemyAt(open, 'mouse', 0.3));
     open.combat.add(enemyAt(open, 'mole', 0.3));
     other.update(DT);
@@ -417,6 +422,20 @@ describe('баланс главы 1 глазами бота', () => {
     expect(avg(3, 7)).toBeGreaterThan(avg(7, 10));
     expect(reports[0].avgStars).toBeGreaterThan(2.5);
     expect(reports[9].avgStars).toBeLessThan(2.2);
+  });
+
+  it('метеор — редкий удар: один-два за уровень', () => {
+    for (const [index, report] of reports.entries()) {
+      expect(report.avgMeteors, levels.levels[index].id).toBeGreaterThanOrEqual(0.8);
+      expect(report.avgMeteors, levels.levels[index].id).toBeLessThanOrEqual(2.2);
+    }
+  });
+
+  it('даже с лучшим снаряжением — не больше трёх метеоров за уровень', () => {
+    const best = { ...noBonuses(), meteorCooldownMult: 0.01 };
+    for (const level of levels.levels) {
+      expect(reportLevel(level, configs, 8, 100, DEFAULT_BOT, best).maxMeteors, level.id).toBeLessThanOrEqual(3);
+    }
   });
 
   it('уровень идёт от двух до пяти минут', () => {

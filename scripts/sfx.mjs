@@ -48,6 +48,7 @@ const SOUNDS = {
   win: { src: 'digital-audio/Audio/zapThreeToneUp.ogg' },
   lose: { src: 'digital-audio/Audio/lowThreeTone.ogg' },
   chest: { src: 'rpg-audio/Audio/doorOpen_1.ogg' },
+  meteorReady: { src: 'digital-audio/Audio/powerUp1.ogg', trim: 0.6 },
   // Голоса котов и мышей с freesound.org: уже обрезаны и выровнены по громкости (assets-src/sfx/voices).
   // Мяуканье при призыве (meow в SOUND_FEEL) — группа без своего файла: один из meow1…meow4 наугад.
   purrMerge: { src: 'voices/purr_merge.wav' },

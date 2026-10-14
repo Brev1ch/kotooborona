@@ -132,6 +132,8 @@ export interface SmokeProbe {
   win(): void;
   /** Следующая победа приносит малый сундук (`true`) или не приносит; без вызова малые сундуки в проверке не выпадают. */
   smallChest(drops: boolean): void;
+  /** Заряд метеора идущего боя сразу полон. */
+  chargeMeteor(): void;
   /** Стресс-проверка из src/debug.ts: поле гибридов и толпа врагов. */
   stress(): void;
   /** Ставит на дорогу живучего врага типа `type`, уже прошедшего `distance`. */
@@ -389,6 +391,9 @@ export function installSmokeProbe(game: Phaser.Game): void {
     },
     stress() {
       stress(game.scene.getScene(SceneKey.Game) as GameScene);
+    },
+    chargeMeteor() {
+      (game.scene.getScene(SceneKey.Game) as GameScene).chargeMeteor();
     },
     spawnEnemy(type, distance) {
       (game.scene.getScene(SceneKey.Game) as GameScene).addEnemy({ ...debugEnemy(type, 5000), distance });

@@ -62,7 +62,7 @@ import type { UpcomingWave } from '../systems/Waves';
 import type { GameScene } from './GameScene';
 import { BuildPanel } from './BuildPanel';
 import { GameEvent, SceneKey, type DragGhost, type LevelResult, type LevelSceneData, type RewardDrop, type SellOffer } from './keys';
-import { addBakedShape, bakeTexture } from './textures';
+import { addBakedShape, bakeTexture, drawChargeRing, ensureTextures, Texture } from './textures';
 import { fadeIn, fadeOut } from './transitions';
 import { TutorialOverlay } from './TutorialOverlay';
 import { addAdButton, addButton, addCoinIcon, addCrystalIcon, addFishIcon, addPressFeel, addSoundToggle } from './widgets';
@@ -172,7 +172,10 @@ export class UIScene extends Phaser.Scene {
   private meteorButton!: Phaser.GameObjects.Container;
   private meteorBg!: Phaser.GameObjects.Rectangle;
   /** Заполняется слева направо, пока идёт перезарядка. */
-  private meteorFill!: Phaser.GameObjects.Rectangle;
+  private meteorRing!: Phaser.GameObjects.Graphics;
+  private meteorGlow!: Phaser.GameObjects.Image;
+  private meteorPulse: Phaser.Tweens.Tween | null = null;
+  private meteorWobble: Phaser.Tweens.Tween | null = null;
   private meteorLabel!: Phaser.GameObjects.Text;
   private meteorStatus!: Phaser.GameObjects.Text;
   /** Состояние кнопки метеора, уже показанное на экране. */
@@ -524,10 +527,15 @@ export class UIScene extends Phaser.Scene {
   }
 
   private addMeteorButton(): Phaser.GameObjects.Container {
-    this.meteorBg = this.add.rectangle(0, 0, METEOR_W, SUMMON_H, COLORS.meteor).setInteractive({ useHandCursor: true });
-    this.meteorFill = this.add
-      .rectangle(-METEOR_W / 2, 0, METEOR_W, SUMMON_H, COLORS.meteor, METEOR_FEEL.buttonFillAlpha)
-      .setOrigin(0, 0.5);
+    this.meteorBg = this.add.rectangle(0, 0, METEOR_W, SUMMON_H, COLORS.meteor).setName('meteor').setInteractive({ useHandCursor: true });
+    // Кольцо заряда — перед процентом в нижней строке; полный заряд — свечение за кнопкой и пульсация.
+    ensureTextures(this);
+    this.meteorRing = this.add.graphics({ y: METEOR_STATUS_Y });
+    this.meteorGlow = this.add
+      .image(0, 0, Texture.disc)
+      .setTint(COLORS.meteor)
+      .setDisplaySize(METEOR_W * METEOR_FEEL.readyGlowScale, SUMMON_H * METEOR_FEEL.readyGlowScale)
+      .setVisible(false);
 
     this.meteorLabel = this.add
       .text(0, METEOR_LABEL_Y, t('meteor.button'), {
@@ -545,8 +553,9 @@ export class UIScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.meteorButton = this.add.container(METEOR_X, CONTROLS_CENTER_Y, [
+      this.meteorGlow,
       this.meteorBg,
-      this.meteorFill,
+      this.meteorRing,
       this.meteorLabel,
       this.meteorStatus,
     ]);
@@ -556,7 +565,11 @@ export class UIScene extends Phaser.Scene {
     addPressFeel(this, this.meteorBg, this.meteorButton, () => this.gameScene.meteorState().ready);
     // Повторное нажатие отменяет прицеливание.
     this.meteorBg.on('pointerdown', () => {
-      if (!this.gameScene.meteorState().ready) return;
+      // Заряд не полон: кнопка качается, выстрела нет.
+      if (!this.gameScene.meteorState().ready) {
+        this.wobbleMeteor();
+        return;
+      }
       audio.play('click');
       this.gameScene.toggleMeteorAim();
       this.refreshMeteor();
@@ -648,23 +661,69 @@ export class UIScene extends Phaser.Scene {
     return this.tutorialOverlay?.step ?? null;
   }
 
-  /** Кнопка метеора: готов, идёт перезарядка (полоса и секунды) или прицеливание. */
+  /** Кнопка метеора: копится заряд (кольцо и проценты), готов (пульсирует и светится) или прицеливание. */
   private refreshMeteor(): void {
-    const { ready, aiming, remaining, progress } = this.gameScene.meteorState();
-    this.meteorFill.setScale(progress, 1);
-
-    const seconds = Math.ceil(remaining);
-    const shown = `${ready}:${aiming}:${seconds}`;
+    const { ready, aiming, progress } = this.gameScene.meteorState();
+    const percent = Math.floor(progress * 100);
+    const shown = `${ready}:${aiming}:${percent}`;
     if (shown === this.shownMeteor) return;
+    const wasReady = this.shownMeteor.startsWith('true');
     this.shownMeteor = shown;
 
-    this.meteorFill.setVisible(!ready);
     // Прицеливание — светлая обводка вместо тёмной.
     this.meteorPlate.setStyle({ fill: ready ? COLORS.meteor : COLORS.panel, ...(aiming ? { outline: COLORS.range } : {}) });
     this.meteorLabel.setColor(ready ? TEXT_COLORS.dark : TEXT_COLORS.muted);
-    this.meteorStatus
-      .setColor(ready ? TEXT_COLORS.dark : TEXT_COLORS.fg)
-      .setText(aiming ? t('meteor.aim') : ready ? t('meteor.ready') : t('meteor.cooldown', { seconds }));
+    const text = aiming ? t('meteor.aim') : ready ? t('meteor.ready') : t('meteor.charge', { percent });
+    this.meteorStatus.setColor(ready ? TEXT_COLORS.dark : TEXT_COLORS.fg).setText(text);
+    // Кольцо и проценты вместе стоят по центру кнопки; у готового метеора кольца нет — светится вся кнопка.
+    const { radius, width, gap, trackAlpha } = METEOR_FEEL.buttonRing;
+    this.meteorRing.setVisible(!ready);
+    if (!ready) {
+      const total = radius * 2 + gap + this.meteorStatus.width;
+      this.meteorRing.setX(-total / 2 + radius);
+      this.meteorStatus.setX(-total / 2 + radius * 2 + gap + this.meteorStatus.width / 2);
+      drawChargeRing(this.meteorRing, radius, width, progress, COLORS.meteor, trackAlpha);
+    } else {
+      this.meteorStatus.setX(0);
+    }
+    if (ready !== wasReady) this.setMeteorGlow(ready);
+  }
+
+  /** Полный заряд: кнопка пульсирует, за ней — свечение. */
+  private setMeteorGlow(on: boolean): void {
+    const { readyPulseScale, readyPulseMs, readyGlowAlpha } = METEOR_FEEL;
+    this.tweens.killTweensOf(this.meteorGlow);
+    if (this.meteorPulse) this.meteorPulse.stop();
+    this.meteorPulse = null;
+    this.meteorButton.setScale(1);
+    this.meteorGlow.setVisible(on);
+    if (!on) return;
+    this.meteorGlow.setAlpha(readyGlowAlpha[0]);
+    this.tweens.add({ targets: this.meteorGlow, alpha: readyGlowAlpha[1], duration: readyPulseMs, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
+    this.meteorPulse = this.tweens.add({
+      targets: this.meteorButton,
+      scale: readyPulseScale,
+      duration: readyPulseMs,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+    });
+  }
+
+  /** Касание при неполном заряде: кнопка качается, выстрела нет. */
+  private wobbleMeteor(): void {
+    const { wobbleAngle, wobbleMs, wobbleRepeats } = METEOR_FEEL;
+    if (this.meteorWobble?.isPlaying()) return;
+    this.meteorButton.setRotation(-wobbleAngle);
+    this.meteorWobble = this.tweens.add({
+      targets: this.meteorButton,
+      rotation: wobbleAngle,
+      duration: wobbleMs,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: wobbleRepeats,
+      onComplete: () => void this.meteorButton.setRotation(0),
+    });
   }
 
   private refresh(): void {

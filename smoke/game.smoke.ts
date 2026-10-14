@@ -1241,6 +1241,8 @@ test('обучение: призыв → слияние → лимит → пр�
 
   await test.step('уровень 3: метеор', async () => {
     await startLevel(ids[2]);
+    // Заряд метеора копится две минуты боя: в проверке он полон сразу.
+    await page.evaluate(() => window.__smoke?.chargeMeteor());
     await expectHint('meteor', 'Мыши вышли, метеор готов, а подсказки про него нет');
     await page.waitForTimeout(SPAWN_SETTLE_MS);
     await page.screenshot({ path: `${SHOTS}/tutorial-6-meteor.png` });

@@ -169,9 +169,16 @@ describe('Simulation: действия игрока', () => {
     expect(sim.board[to]).not.toBeNull();
   });
 
-  it('метеор бьёт врагов в точке и уходит на перезарядку', () => {
+  it('в начале боя заряд метеора пуст — бить нечем', () => {
     const sim = create();
     run(sim, 8);
+    expect(sim.castMeteor(...sim.position(sim.combat.enemies[0]))).toBe(false);
+  });
+
+  it('полный заряд: метеор бьёт врагов в точке и опустошает заряд', () => {
+    const sim = create();
+    run(sim, 8);
+    sim.meteor.recharge();
     const target = sim.combat.enemies[0];
     const hp = target.hp;
 

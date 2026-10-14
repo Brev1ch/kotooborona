@@ -142,3 +142,26 @@ export function ensureTextures(scene: Phaser.Scene): void {
     g.fillCircle(ICON_SIZE * 0.2, ICON_SIZE * 0.44, ICON_SIZE * 0.05);
   });
 }
+
+/**
+ * Кольцо заряда вокруг начала координат `g`: тусклая дорожка и дуга от верха по часовой стрелке на долю `progress`.
+ * Перерисовывать только при заметной смене доли: `Graphics` разбивается на треугольники заново при каждой отрисовке.
+ */
+export function drawChargeRing(
+  g: Phaser.GameObjects.Graphics,
+  radius: number,
+  width: number,
+  progress: number,
+  color: number,
+  trackAlpha: number,
+): void {
+  g.clear();
+  g.lineStyle(width, color, trackAlpha);
+  g.strokeCircle(0, 0, radius);
+  const k = Math.max(0, Math.min(1, progress));
+  if (k <= 0) return;
+  g.lineStyle(width, color, 1);
+  g.beginPath();
+  g.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k);
+  g.strokePath();
+}

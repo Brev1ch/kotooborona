@@ -102,7 +102,7 @@ export class Simulation {
     this.path = buildPath(level.path);
     this.economy = new Economy(level, economy, bonuses);
     this.summoner = new Summon(cats, bonuses.summonWeights, rng, bonuses.level2Chance);
-    this.meteor = new Meteor(gear.meteor, bonuses.meteorCooldownMult, bonuses.meteorGround);
+    this.meteor = new Meteor(gear.meteor, level.meteorChargeTime ?? gear.meteor.chargeTime, bonuses.meteorCooldownMult, bonuses.meteorGround);
     this.merger = new Merge(cats, {
       maxCatLevel: level.maxCatLevel,
       ritualTime: gear.ritual.time * bonuses.ritualTimeMult,

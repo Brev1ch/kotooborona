@@ -71,6 +71,7 @@ export const en: Record<StringKey, string> = {
   'meteor.button': 'Meteor',
   'meteor.ready': 'ready',
   'meteor.cooldown': '{seconds} s',
+  'meteor.charge': '{percent}%',
   'meteor.aim': 'tap the field',
 
   'merge.maxLevel': 'Max level {level}',
@@ -265,7 +266,7 @@ export const en: Record<StringKey, string> = {
   'item.bonus.summonLimit': 'Summons per wave: +{amount}',
   'item.bonus.overLimitCost': 'Summons over the limit cost {amount}% less',
   'item.bonus.elementDamage': '{element} cat and its hybrids: +{amount}% damage',
-  'item.bonus.meteorCooldown': 'Meteor cooldown is {amount}% shorter',
+  'item.bonus.meteorCooldown': 'Meteor charges {amount}% faster',
   'item.bonus.ritualTime': 'The ritual is {amount}% shorter',
   'item.bonus.gold': 'Starting coins: +{amount}',
   'item.bonus.crystals': 'Starting crystals: +{amount}',

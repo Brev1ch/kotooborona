@@ -4,6 +4,7 @@ import type { Cat } from '../entities/Cat';
 import { isBurrowed } from './Combat';
 import { positionAt } from './Path';
 import { seededRandom } from './Random';
+import type { GearBonuses } from './Loadout';
 import { Simulation, type BattleConfigs, type SimResult } from './Simulation';
 import { appearsOn } from './Story';
 
@@ -17,6 +18,8 @@ export interface BotOptions {
   meteorDanger: number;
   /** Шаг симуляции, секунды. */
   dt: number;
+  /** Бить метеором; без него отчёт показывает, насколько метеор выручает. */
+  useMeteor: boolean;
   /** Сколько клеток бот оставляет котам: строение ставится, только если свободных клеток не меньше. */
   freeSlotsToBuild: number;
   /** Алтарь окупается, если до конца уровня осталось хотя бы столько волн; шахта — столько. */
@@ -102,6 +105,7 @@ export const DEFAULT_BOT: BotOptions = {
   meteorTargets: 4,
   meteorDanger: 0.8,
   dt: 1 / 30,
+  useMeteor: true,
   freeSlotsToBuild: 2,
   altarWaves: 3,
   mineWaves: 3,
@@ -186,7 +190,7 @@ export class Bot {
 
   private tryMeteor(): boolean {
     const { sim, options } = this;
-    if (!sim.meteor.ready) return false;
+    if (!options.useMeteor || !sim.meteor.ready) return false;
     const radius = sim.meteorRadius;
     const { width, height } = sim.bounds;
     // Целимся в одного из врагов: круг с центром на нём накрывает скопление вокруг. Кого под землёй, метеор не достанет.
@@ -378,8 +382,9 @@ export function playLevel(
   configs: BattleConfigs,
   seed: number,
   options: BotOptions = DEFAULT_BOT,
+  bonuses?: GearBonuses,
 ): SimResult {
-  const sim = new Simulation(level, configs, seededRandom(seed));
+  const sim = new Simulation(level, configs, seededRandom(seed), bonuses);
   const bot = new Bot(sim, options);
   while (!sim.finished) {
     bot.update(options.dt);
@@ -412,6 +417,9 @@ export interface LevelReport {
   /** Кристаллы со шахт и монеты с лавок за бой. */
   avgMineCrystals: number;
   avgShopGold: number;
+  /** Метеоров за бой: в среднем и больше всего за один прогон. */
+  avgMeteors: number;
+  maxMeteors: number;
 }
 
 /** Среднее число призывов за волну в последней трети уровня: показывает, держит ли лимит до конца. */
@@ -428,8 +436,9 @@ export function reportLevel(
   runs: number,
   seed = 1,
   options: BotOptions = DEFAULT_BOT,
+  bonuses?: GearBonuses,
 ): LevelReport {
-  const results = Array.from({ length: runs }, (_, i) => playLevel(level, configs, seed + i, options));
+  const results = Array.from({ length: runs }, (_, i) => playLevel(level, configs, seed + i, options, bonuses));
   const wins = results.filter((result) => result.won);
   const avg = (list: SimResult[], pick: (result: SimResult) => number): number =>
     list.length === 0 ? 0 : list.reduce((sum, result) => sum + pick(result), 0) / list.length;
@@ -455,5 +464,7 @@ export function reportLevel(
     avgOverLimit: avg(results, (result) => result.overLimitSummons),
     avgMineCrystals: avg(results, (result) => result.buildingCrystals),
     avgShopGold: avg(results, (result) => result.buildingGold),
+    avgMeteors: avg(results, (result) => result.meteors),
+    maxMeteors: Math.max(0, ...results.map((result) => result.meteors)),
   };
 }

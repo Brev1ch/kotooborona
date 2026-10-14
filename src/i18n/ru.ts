@@ -69,6 +69,7 @@ export const ru = {
   'meteor.button': 'Метеор',
   'meteor.ready': 'готов',
   'meteor.cooldown': '{seconds} с',
+  'meteor.charge': '{percent} %',
   'meteor.aim': 'коснись поля',
 
   'merge.maxLevel': 'Максимум {level} ур.',
@@ -263,7 +264,7 @@ export const ru = {
   'item.bonus.summonLimit': 'Лимит призывов волны: +{amount}',
   'item.bonus.overLimitCost': 'Призыв сверх лимита на {amount}% дешевле',
   'item.bonus.elementDamage': '{element} кот и гибриды с ним: урон +{amount}%',
-  'item.bonus.meteorCooldown': 'Перезарядка метеора на {amount}% короче',
+  'item.bonus.meteorCooldown': 'Метеор заряжается на {amount}% быстрее',
   'item.bonus.ritualTime': 'Ритуал на {amount}% короче',
   'item.bonus.gold': 'Монеты на старте: +{amount}',
   'item.bonus.crystals': 'Кристаллы на старте: +{amount}',

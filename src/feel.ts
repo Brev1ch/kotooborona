@@ -313,6 +313,10 @@ export const HERO_FEEL = {
   /** Сфера вспыхивает, когда умение перезарядилось. */
   readyPopScale: 2,
   readyPopMs: 260,
+  /** Кольцо заряда метеора вокруг сферы: радиус, толщина, прозрачность незаряженной дорожки. */
+  chargeRadius: 10,
+  chargeWidth: 2.5,
+  chargeTrackAlpha: 0.25,
   /** Отдача посоха при ударе. */
   castScale: 1.12,
   castMs: 160,
@@ -356,7 +360,17 @@ export const METEOR_FEEL = {
   shakeIntensity: 0.012,
   /** Обводка кнопки в режиме прицеливания. */
   /** Заполнение кнопки, пока идёт перезарядка. */
-  buttonFillAlpha: 0.35,
+  /** Кольцо заряда на кнопке: перед процентом, радиус и толщина, зазор до текста. */
+  buttonRing: { radius: 5.5, width: 2.5, gap: 4, trackAlpha: 0.3 },
+  /** Заряд полон: кнопка пульсирует и светится. */
+  readyPulseScale: 1.06,
+  readyPulseMs: 560,
+  readyGlowAlpha: [0.12, 0.45] as [number, number],
+  readyGlowScale: 1.35,
+  /** Касание при неполном заряде: кнопка качается — выстрела нет. */
+  wobbleAngle: 0.08,
+  wobbleMs: 55,
+  wobbleRepeats: 2,
 };
 
 /** Кнопка сжимается, пока её держат, и пружинит обратно, когда отпустили. */
@@ -500,6 +514,8 @@ export const SOUND_FEEL = {
   win: { volume: 0.7, minIntervalMs: 0, voices: 1, pitchSpread: 0 },
   lose: { volume: 0.7, minIntervalMs: 0, voices: 1, pitchSpread: 0 },
   chest: { volume: 0.7, minIntervalMs: 0, voices: 1, pitchSpread: 0 },
+  /** Заряд метеора полон: короткий звук готовности. */
+  meteorReady: { volume: 0.55, minIntervalMs: 0, voices: 1, pitchSpread: 0 },
   /** Мурлыканье при слиянии котов: с вероятностью 50 % и не чаще раза в 3 с; когда молчит, звучит обычный `merge`. */
   purrMerge: { volume: 0.6, minIntervalMs: 3000, voices: 1, pitchSpread: REPEAT_PITCH, chance: 0.5 },
   /** Довольное мурлыканье после победного джингла, тише него. */

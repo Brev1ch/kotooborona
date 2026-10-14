@@ -108,6 +108,8 @@ export type BackgroundId = 'forest' | 'stream' | 'ravine' | 'camp';
 
 export interface LevelConfig {
   id: string;
+  /** Своё время заряда метеора, секунд боя; без поля — `gear.json` → `meteor.chargeTime`. */
+  meteorChargeTime?: number;
   /** Фон поля уровня; дорогу поверх него рисует игра по `path`. */
   background: BackgroundId;
   /** Координаты в системе игрового поля (см. layout.ts). */
@@ -278,8 +280,13 @@ export interface GearConfig extends Record<GearSlot, GearItem[]> {
   /** Предметы со случайными бонусами: редкости, пул бонусов, прокачка, легендарные. */
   items: ItemsConfig;
   ritual: { time: number; crystalCost: number };
+  /**
+   * Метеор: заряд копится `chargeTime` секунд боя (у уровня может быть свой — `meteorChargeTime`), снаряжение ускоряет
+   * его не сильнее, чем до доли `minChargeMult` от этого времени.
+   */
   meteor: {
-    cooldown: number;
+    chargeTime: number;
+    minChargeMult: number;
     damage: number;
     damageGrowthPerWave: number;
     radius: number;

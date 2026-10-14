@@ -30,6 +30,7 @@
 | win | `digital-audio/Audio/zapThreeToneUp.ogg` | [Digital Audio](https://kenney.nl/assets/digital-audio) | Kenney (kenney.nl) | CC0 1.0 |
 | lose | `digital-audio/Audio/lowThreeTone.ogg` | [Digital Audio](https://kenney.nl/assets/digital-audio) | Kenney (kenney.nl) | CC0 1.0 |
 | chest | `rpg-audio/Audio/doorOpen_1.ogg` | [RPG Audio](https://kenney.nl/assets/rpg-audio) | Kenney (kenney.nl) | CC0 1.0 |
+| meteorReady | `digital-audio/Audio/powerUp1.ogg` | [Digital Audio](https://kenney.nl/assets/digital-audio) | Kenney (kenney.nl) | CC0 1.0 |
 | purrMerge | `voices/purr_merge.wav` | [purring happy cat](https://freesound.org/s/424355/), обрезан | Minscer (freesound.org) | CC0 1.0 |
 | purrWin | `voices/purr_win.wav` | [purring happy cat](https://freesound.org/s/424355/), обрезан | Minscer (freesound.org) | CC0 1.0 |
 | hiss | `voices/hiss.wav` | [Cat Growling and Hissing](https://freesound.org/s/679954/), обрезан, ускорен | dinoroki (freesound.org) | CC0 1.0 |

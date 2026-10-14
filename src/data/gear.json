@@ -1,6 +1,6 @@
 {
   "ritual": { "time": 4, "crystalCost": 1 },
-  "meteor": { "cooldown": 25, "damage": 40, "damageGrowthPerWave": 1.32, "radius": 60, "burnDps": 0.1, "burnTime": 2 },
+  "meteor": { "chargeTime": 110, "minChargeMult": 0.72, "damage": 100, "damageGrowthPerWave": 1.32, "radius": 75, "burnDps": 0.1, "burnTime": 2 },
   "chests": {
     "stars": [2, 5, 8, 11, 14, 18, 22, 26, 30],
     "fish": 15,
