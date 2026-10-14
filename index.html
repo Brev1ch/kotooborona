@@ -12,6 +12,9 @@
         background: #1b2233;
         overflow: hidden;
         touch-action: none;
+        /* Яндекс Игры, 1.6.1.8 и 1.10.2: долгое нажатие ничего не выделяет и не открывает меню, страница не тянется и не обновляется жестом. */
+        overscroll-behavior: none;
+        -webkit-touch-callout: none;
         -webkit-user-select: none;
         user-select: none;
         -webkit-tap-highlight-color: transparent;
