@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { addArtOrShape } from '../art';
+import { addArtOrShape, art } from '../art';
 import { cats, elementColor, type ElementId } from '../data';
 import { RITUAL_FEEL, SHOT_FEEL } from '../feel';
 import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
+import { ensureTextures, Texture } from '../scenes/textures';
 import { artId } from '../systems/Art';
 import type { Cat } from './Cat';
 import { PieceView } from './PieceView';
@@ -12,6 +13,8 @@ const BODY_Y = 3;
 /** Прямоугольник вокруг центра, в который помещается силуэт. */
 const SHAPE_W = 48;
 const SHAPE_H = 58;
+/** Уровень кота на готовой картинке: кружок в правом верхнем углу, чтобы цифра не закрывала мордочку и не уходила за край экрана, когда кота несут над нижней полосой. */
+const BADGE = { x: 15, y: -19, size: 17 };
 
 /** Силуэт кота: два уха и круглое тело. Рисуется вокруг начала координат `g`. */
 export function drawCatShape(g: Phaser.GameObjects.Graphics, earLeft: number, earRight: number, body: number): void {
@@ -40,6 +43,7 @@ export class CatView extends PieceView {
   /** Масштаб картинки силуэта в покое: текстура крупнее, чем кот на экране. */
   private readonly shapeScale: number;
   private readonly label: Phaser.GameObjects.Text;
+  private badge: Phaser.GameObjects.Image | null = null;
   private ritualRing: Phaser.GameObjects.Graphics | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number, cat: Cat) {
@@ -48,18 +52,26 @@ export class CatView extends PieceView {
     const g = addCatImage(scene, cat.element);
     const shapeScale = g.scale;
 
+    // На силуэте цифра уровня стоит посреди тела; на готовой картинке там мордочка, и цифра уходит в кружок в углу.
+    const drawn = art.find(scene, artId.cat(cat.element)) !== null;
     const level = scene.add
-      .text(0, BODY_Y, String(cat.level), {
+      .text(drawn ? BADGE.x : 0, drawn ? BADGE.y : BODY_Y, String(cat.level), {
         fontFamily: FONTS.display,
-        fontSize: '18px',
-        color: TEXT_COLORS.dark,
+        fontSize: drawn ? '13px' : '18px',
+        color: drawn ? TEXT_COLORS.fg : TEXT_COLORS.dark,
       })
       .setOrigin(0.5);
 
     this.shape = g;
     this.shapeScale = shapeScale;
     this.label = level;
-    this.add([g, level]);
+    this.add(g);
+    if (drawn) {
+      ensureTextures(scene);
+      this.badge = scene.add.image(BADGE.x, BADGE.y, Texture.disc).setDisplaySize(BADGE.size, BADGE.size).setTint(COLORS.bg);
+      this.add(this.badge);
+    }
+    this.add(level);
     this.setDepth(DEPTH.cat);
     scene.add.existing(this);
   }
