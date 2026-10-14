@@ -122,19 +122,26 @@ class GameAudio {
 
   /**
    * Фоновая музыка экрана: прежний трек плавно сменяется этим; тот же трек продолжает играть. null — тишина.
-   * Файл трека грузится при первом обращении, в очереди сцены `scene`, и игру не задерживает; пока трека нет — тихо.
+   * Файл трека грузится при первом обращении, в очереди сцены `scene`, и игру не задерживает: загрузка начинается
+   * после первого кадра сцены, когда экран (меню) уже показан. Пока трека нет — тихо.
    */
   music(scene: Phaser.Scene, id: MusicId | null): void {
     this.mixer.play(id);
     if (id === null || !this.readyTracks.has(id) || this.loadingTracks.has(id) || scene.cache.audio.exists(musicKey(id))) return;
     this.loadingTracks.add(id);
-    // Сцену могут закрыть раньше, чем файл придёт: тогда загрузку начнёт следующая.
-    const done = (): void => void this.loadingTracks.delete(id);
-    scene.load.once(`filecomplete-audio-${musicKey(id)}`, done);
-    scene.load.once('loaderror', done);
+    const start = (): void => {
+      scene.load.once(`filecomplete-audio-${musicKey(id)}`, done);
+      scene.load.once('loaderror', done);
+      scene.load.audio(musicKey(id), [`assets/music/${id}.ogg`, `assets/music/${id}.mp3`]);
+      scene.load.start();
+    };
+    // Сцену могут закрыть раньше, чем файл придёт или кадр нарисуется: тогда загрузку начнёт следующая.
+    const done = (): void => {
+      this.loadingTracks.delete(id);
+      scene.events.off('render', start);
+    };
+    scene.events.once('render', start);
     scene.events.once('shutdown', done);
-    scene.load.audio(musicKey(id), [`assets/music/${id}.ogg`, `assets/music/${id}.mp3`]);
-    scene.load.start();
   }
 
   /** Треки, которые сейчас звучат; для смоук-проверки. */
