@@ -38,6 +38,9 @@ describe('манифест арта', () => {
       const side = Math.round(art.enemyFrame * enemies.types[type].size);
       expect([image.width, image.height, image.align]).toEqual([side, side, 'bottom']);
     }
+    const broken = byId(artId.shieldBroken)!;
+    expect(broken.sizeOf).toBe('shield');
+    expect([broken.width, broken.height, broken.align]).toEqual([byId(artId.enemy('shield'))!.width, byId(artId.enemy('shield'))!.height, 'bottom']);
   });
 
   it('ручная поправка масштаба — только у котов и врагов и положительная', () => {
@@ -49,7 +52,9 @@ describe('манифест арта', () => {
 
   it('у каждого типа врага есть картинка', () => {
     for (const type of Object.keys(enemies.types) as EnemyTypeId[]) expect(ids).toContain(artId.enemy(type));
-    expect(art.images.filter((image) => image.group === 'enemies')).toHaveLength(Object.keys(enemies.types).length);
+    // И сломанный щит щитоносца.
+    expect(ids).toContain(artId.shieldBroken);
+    expect(art.images.filter((image) => image.group === 'enemies')).toHaveLength(Object.keys(enemies.types).length + 1);
   });
 
   it('есть герой', () => {

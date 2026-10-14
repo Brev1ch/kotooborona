@@ -15,6 +15,7 @@
     {"id": "enemy-mouse", "file": "enemies/mouse.png", "width": 72, "height": 72, "align": "bottom", "group": "enemies", "use": "Мышь", "atlas": "units"},
     {"id": "enemy-rat", "file": "enemies/rat.png", "scale": 1.15, "width": 86, "height": 86, "align": "bottom", "group": "enemies", "use": "Крыса", "atlas": "units"},
     {"id": "enemy-shield", "file": "enemies/shield.png", "width": 76, "height": 76, "align": "bottom", "group": "enemies", "use": "Мышь-щитоносец", "atlas": "units"},
+    {"id": "enemy-shield-broken", "file": "enemies/shield-broken.png", "width": 76, "height": 76, "align": "bottom", "group": "enemies", "sizeOf": "shield", "use": "Мышь-щитоносец со сломанным щитом (обломки в руке или без щита, в той же позе)", "atlas": "units"},
     {"id": "enemy-boots", "file": "enemies/boots.png", "width": 72, "height": 72, "align": "bottom", "group": "enemies", "use": "Мышь в железных сапогах", "atlas": "units"},
     {"id": "enemy-fire", "file": "enemies/fire.png", "width": 72, "height": 72, "align": "bottom", "group": "enemies", "use": "Пожарная мышь", "atlas": "units"},
     {"id": "enemy-shaman", "file": "enemies/shaman.png", "width": 72, "height": 72, "align": "bottom", "anchors": {"crystal": [0.8, 0.57]}, "group": "enemies", "use": "Мышь-шаман", "atlas": "units"},

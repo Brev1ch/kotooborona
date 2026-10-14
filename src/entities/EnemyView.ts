@@ -318,6 +318,8 @@ export class EnemyView extends Phaser.GameObjects.Container {
       for (const step of this.steps) step.timeScale = pace;
     }
     if (enemy.shield !== this.shownShield) {
+      // Щит сломан: на готовой картинке он нарисован, поэтому картинка меняется на щитоносца без щита.
+      if (this.figure.upright && this.shield && this.shownShield > 0 && enemy.shield === 0) this.showShieldBroken();
       this.shownShield = enemy.shield;
       this.shield?.setVisible(enemy.shield > 0);
       this.shieldCount?.setText(String(enemy.shield));
@@ -347,6 +349,15 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.figureImage.setFlipX(left);
     this.flash.setFlipX(left);
     if (this.healGlow) this.healGlow.setX(-this.healGlow.x);
+  }
+
+  /** Щитоносец без щита: своя картинка, а пока её нет — обычная мышь. */
+  private showShieldBroken(): void {
+    const ref = art.find(this.scene, artId.shieldBroken) ?? art.find(this.scene, artId.enemy('mouse'));
+    if (!ref) return;
+    for (const image of [this.figureImage, this.flash]) {
+      image.setTexture(ref.key, ref.frame).setDisplaySize(ref.width, ref.height).setY(-ref.height / 2);
+    }
   }
 
   /** Кольцо замедления или заморозки, точки огня и яда над врагом. */

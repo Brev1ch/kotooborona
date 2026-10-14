@@ -9,6 +9,8 @@ export type IconArt = 'coin' | 'crystal' | 'fish';
 export const artId = {
   cat: (element: ElementId): string => `cat-${element}`,
   enemy: (type: EnemyTypeId): string => `enemy-${type}`,
+  /** Щитоносец, у которого щит сломан. */
+  shieldBroken: 'enemy-shield-broken',
   hero: 'hero',
   /** `level` — с единицы. */
   building: (kind: BuildingKind, level: number): string => `building-${kind}-${level}`,

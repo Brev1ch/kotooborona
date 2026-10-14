@@ -77,8 +77,11 @@ const levels = JSON.parse(readFileSync('src/data/levels.json', 'utf8')).levels;
 const enemyTypes = JSON.parse(readFileSync('src/data/enemies.json', 'utf8')).types;
 /** Группы в едином масштабе тела (src/systems/CatFit.ts): у каждой свой общий масштаб. */
 const FIGURE_GROUPS = ['cats', 'enemies'];
-/** Во сколько раз фигура крупнее остальных своей группы: у врага — `size` из enemies.json, у кота — 1; сверху — ручной `scale`. */
-const figureScale = (image) => (image.group === 'enemies' ? enemyTypes[image.id.replace(/^enemy-/, '')].size : 1) * (image.scale ?? 1);
+/**
+ * Во сколько раз фигура крупнее остальных своей группы: у врага — `size` из enemies.json (у картинки состояния — её `sizeOf`),
+ * у кота — 1; сверху — ручной `scale`.
+ */
+const figureScale = (image) => (image.group === 'enemies' ? enemyTypes[image.sizeOf ?? image.id.replace(/^enemy-/, '')].size : 1) * (image.scale ?? 1);
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} КБ`;
 
 /** Цвет заглушки по группе: на снимке видно, что стоит картинка, а не рисунок кодом. */
