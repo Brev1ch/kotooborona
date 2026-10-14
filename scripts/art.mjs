@@ -13,6 +13,7 @@
 //   Враги (группа `enemies`) — в своём едином масштабе тела, умноженном на `size` из enemies.json; вырезаются с мягким краем.
 //   Картинка атласа: прозрачные края обрезаются, остаток вписывается в размер из манифеста по центру.
 //   Фон уровня: обрезается под размер и лежит отдельным файлом — игра грузит его при входе в уровень.
+//   Промо (иконка и обложка каталога): ровно в размер, PNG, в pack/promo — в игру не входит.
 // Рядом пишется index.json: какие картинки готовы, где они в атласах и сколько весят,
 // а в docs/ART_LIST.md — список всех картинок для художника с отметкой готовности.
 //
@@ -71,6 +72,8 @@ function option(name, fallback) {
 const SRC = option('src', 'assets-src/art');
 const OUT = option('out', 'public/assets/art');
 const LIST = 'docs/ART_LIST.md';
+/** Промо для консоли Яндекс Игр: в игру не входит, лежит рядом с архивом `npm run pack`. */
+const PROMO_OUT = 'pack/promo';
 const manifest = JSON.parse(readFileSync('src/data/art.json', 'utf8'));
 const levels = JSON.parse(readFileSync('src/data/levels.json', 'utf8')).levels;
 const enemyTypes = JSON.parse(readFileSync('src/data/enemies.json', 'utf8')).types;
@@ -117,6 +120,8 @@ async function writePlaceholder(image) {
 
 if (process.argv.includes('--placeholders')) {
   if (SRC === 'assets-src/art') fail('Заглушки затёрли бы настоящие исходники: укажите другую папку через --src');
+  // Папка заглушек пересобирается целиком: картинки, убранные из манифеста, в ней не остаются.
+  rmSync(SRC, { recursive: true, force: true });
   for (const image of manifest.images) await writePlaceholder(image);
 }
 
@@ -410,7 +415,19 @@ if (OUT === 'public/assets/art') {
   }
 }
 
-for (const image of ready.filter((entry) => !entry.atlas)) {
+// Промо в игру не входит: ровно в размер формы черновика, PNG — в pack/promo для загрузки в консоль Яндекс Игр.
+const promo = ready.filter((entry) => entry.group === 'promo');
+if (OUT === 'public/assets/art' && promo.length > 0) {
+  rmSync(PROMO_OUT, { recursive: true, force: true });
+  mkdirSync(PROMO_OUT, { recursive: true });
+  for (const image of promo) {
+    const out = join(PROMO_OUT, image.file.replace(/^promo\//, ''));
+    await sharp(join(SRC, image.file)).resize(image.width, image.height, { fit: 'cover' }).png().toFile(out);
+    console.log(`промо ${out} ${image.width}×${image.height}`);
+  }
+}
+
+for (const image of ready.filter((entry) => !entry.atlas && entry.group !== 'promo')) {
   const file = image.file.replace(/\.png$/, '.webp');
   mkdirSync(dirname(join(OUT, file)), { recursive: true });
   await sharp(join(SRC, image.file)).resize(image.width, image.height, { fit: 'cover' }).flatten({ background: '#000000' }).webp(BACKGROUND_WEBP).toFile(join(OUT, file));
@@ -447,6 +464,6 @@ if (total > BUDGET) fail('Арт не укладывается в бюджет')
 if (existsSync(SRC)) {
   const known = new Set(manifest.images.map((image) => image.file));
   const walk = (dir) => readdirSync(join(SRC, dir), { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)]));
-  const stray = walk('').filter((file) => file.endsWith('.png') && file !== PREVIEW.file && !known.has(file.split('\\').join('/')));
+  const stray = walk('').filter((file) => file.endsWith('.png') && file !== PREVIEW.file && file !== PREVIEW_ENEMIES.file && !known.has(file.split('\\').join('/')));
   if (stray.length > 0) console.warn(`Нет в манифесте (проверьте имена): ${stray.join(', ')}`);
 }

@@ -102,8 +102,13 @@ describe('манифест арта', () => {
     expect(art.images.some((image) => image.id.startsWith('button-'))).toBe(false);
   });
 
-  it('всё, кроме фонов уровней, собрано в атласы', () => {
-    for (const image of art.images) expect(image.atlas === undefined).toBe(image.group === 'backgrounds');
+  it('всё, кроме фонов уровней и промо, собрано в атласы', () => {
+    for (const image of art.images) expect(image.atlas === undefined).toBe(image.group === 'backgrounds' || image.group === 'promo');
+  });
+
+  it('промо — по размерам формы черновика Яндекс Игр', () => {
+    expect([byId('promo-icon')?.width, byId('promo-icon')?.height]).toEqual([512, 512]);
+    expect([byId('promo-cover')?.width, byId('promo-cover')?.height]).toEqual([800, 470]);
   });
 });
 

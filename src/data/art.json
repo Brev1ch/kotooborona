@@ -53,6 +53,8 @@
     {"id": "bg-forest", "file": "backgrounds/forest.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля: лес, без дороги и ворот (уровни «Опушка», «Тропинка», «Старый дуб», «Поляна»)", "background": "forest"},
     {"id": "bg-stream", "file": "backgrounds/stream.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля: ручей, без дороги и ворот (уровни «Ручей», «Мельница», «Мост»)", "background": "stream"},
     {"id": "bg-ravine", "file": "backgrounds/ravine.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля: овраг, без дороги и ворот (уровни «Овраг», «Бурелом»)", "background": "ravine"},
-    {"id": "bg-camp", "file": "backgrounds/camp.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля: лагерь мышей, без дороги и ворот (уровни «Лагерь»)", "background": "camp"}
+    {"id": "bg-camp", "file": "backgrounds/camp.png", "width": 720, "height": 1080, "group": "backgrounds", "use": "Фон поля: лагерь мышей, без дороги и ворот (уровни «Лагерь»)", "background": "camp"},
+    {"id": "promo-icon", "file": "promo/icon.png", "width": 512, "height": 512, "group": "promo", "use": "Иконка игры в каталоге Яндекс Игр"},
+    {"id": "promo-cover", "file": "promo/cover.png", "width": 800, "height": 470, "group": "promo", "use": "Обложка игры в каталоге Яндекс Игр"}
   ]
 }
