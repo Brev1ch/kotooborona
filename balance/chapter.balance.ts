@@ -8,7 +8,7 @@ import type { BattleConfigs } from '../src/systems/Simulation';
 // Отчёт о балансе главы: бот проходит каждый уровень RUNS раз, таблица печатается в консоль.
 //   npm run balance                 — отчёт по levels.json как есть
 //   RUNS=200 SEED=1000 npm run balance — больше прогонов и другие зёрна
-//   TUNE=1 npm run balance          — для каждого уровня подбирает hpMult под целевое среднее число звёзд (TARGET_STARS)
+//   TUNE=1 npm run balance          — для каждого уровня подбирает hpMult под целевую долю побед бота (TARGET_WIN)
 //                                     и печатает найденные значения; в levels.json их нужно перенести вручную
 
 const RUNS = Number(process.env.RUNS ?? 60);
@@ -16,8 +16,11 @@ const RUNS = Number(process.env.RUNS ?? 60);
 const SEED = Number(process.env.SEED ?? 1);
 const configs: BattleConfigs = { cats, enemies, economy, gear, levels, board: { width: BOARD_W, height: BOARD_H } };
 
-/** Среднее число звёзд бота по уровням главы: от «почти всегда три» до «чаще одна-две, иногда поражение». */
-const TARGET_STARS = [2.85, 2.7, 2.55, 2.4, 2.25, 2.1, 1.7, 1.65, 1.7, 1.6];
+/**
+ * Доля побед бота по уровням главы. Жизней три: бой почти всегда кончается либо без потерь, либо поражением,
+ * поэтому подбор идёт по победам — обычный игрок проходит каждый уровень, а три звезды достаются хорошей игре.
+ */
+const TARGET_WIN = [0.98, 0.97, 0.96, 0.95, 0.94, 0.93, 0.91, 0.9, 0.89, 0.88];
 
 function row(number: number, level: LevelConfig, report: LevelReport): string {
   const [lost, one, two, three] = report.stars;
@@ -53,14 +56,14 @@ const LEGEND = [
   'крист — кристаллов со шахт за бой; доход — монет с лавок за бой; метеор — метеоров за бой.',
 ].join('\n');
 
-/** Подбирает hpMult делением пополам: чем живучее враги, тем меньше звёзд у бота. */
+/** Подбирает hpMult делением пополам: чем живучее враги, тем реже бот побеждает. */
 function tune(level: LevelConfig, target: number): LevelConfig {
   let low = 0.3;
   let high = 6;
   for (let i = 0; i < 9; i++) {
     const middle = (low + high) / 2;
-    const { avgStars } = reportLevel({ ...level, hpMult: middle }, configs, RUNS, SEED);
-    if (avgStars > target) low = middle;
+    const { winRate } = reportLevel({ ...level, hpMult: middle }, configs, RUNS, SEED);
+    if (winRate > target) low = middle;
     else high = middle;
   }
   return { ...level, hpMult: Math.round(((low + high) / 2) * 20) / 20 };
@@ -69,7 +72,7 @@ function tune(level: LevelConfig, target: number): LevelConfig {
 it('отчёт о балансе главы', () => {
   const lines = [HEADER];
   levels.levels.forEach((source, index) => {
-    const level = process.env.TUNE ? tune(source, TARGET_STARS[index]) : source;
+    const level = process.env.TUNE ? tune(source, TARGET_WIN[index]) : source;
     lines.push(row(index + 1, level, reportLevel(level, configs, RUNS, SEED)));
   });
   console.log(`\nБот, ${RUNS} прогонов на уровень${process.env.TUNE ? ', hpMult подобран' : ''}\n${lines.join('\n')}\n\n${LEGEND}\n`);

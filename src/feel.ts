@@ -189,6 +189,21 @@ export const STAT_FEEL = {
   pulseMs: 110,
 };
 
+/**
+ * Жизни в HUD — сердечки, нарисованные кодом: размер и зазор. Потерянное лопается — растёт в `popScale` раза и гаснет
+ * за `popMs`, ряд вздрагивает на `shakePx` туда-обратно `shakeRepeats` раз.
+ */
+export const LIVES_FEEL = {
+  heartSize: 12,
+  heartGap: 3,
+  emptyAlpha: 0.35,
+  popScale: 2,
+  popMs: 280,
+  shakePx: 3,
+  shakeMs: 45,
+  shakeRepeats: 3,
+};
+
 /** Всплывающая надпись над клеткой. */
 export const TOAST_FEEL = {
   offsetY: 6,

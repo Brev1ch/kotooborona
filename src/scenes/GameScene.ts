@@ -558,7 +558,7 @@ export class GameScene extends Phaser.Scene {
   private handleCombatEvent(event: CombatEvent): boolean {
     switch (event.kind) {
       case 'leaked':
-        this.economy.loseLives(event.lifeDamage);
+        this.economy.loseLives(event.livesCost);
         this.enemyViews.get(event.enemy)?.destroy();
         this.enemyViews.delete(event.enemy);
         this.cameras.main.shake(ENEMY_FEEL.leakShakeMs, ENEMY_FEEL.leakShakeIntensity);

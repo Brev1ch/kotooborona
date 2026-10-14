@@ -46,18 +46,18 @@ const enemies: EnemiesConfig = {
   ...enemiesJson,
   bossSlowResist: 0.5,
   types: {
-    mouse: { ...type, lifeDamage: 1 },
-    rat: { ...type, lifeDamage: 2, crystalChance: 0.3, crystalDrop: 1 },
-    shield: { ...type, lifeDamage: 1 },
-    boots: { ...type, lifeDamage: 1, immune: ['slow', 'freeze'] },
-    fire: { ...type, lifeDamage: 1, immune: ['burn'], resist: { fire: 0, lava: 0.5, steam: 1, storm: 1 } },
-    shaman: { ...type, lifeDamage: 1, heal: { radius: 20, part: 0.1, interval: 1 } },
+    mouse: { ...type },
+    rat: { ...type, crystalChance: 0.3, crystalDrop: 1 },
+    shield: { ...type },
+    boots: { ...type, immune: ['slow', 'freeze'] },
+    fire: { ...type, immune: ['burn'], resist: { fire: 0, lava: 0.5, steam: 1, storm: 1 } },
+    shaman: { ...type, heal: { radius: 20, part: 0.1, interval: 1 } },
     // Дорога длиной 140: подкоп идёт от 56 до 84, точка под клеткой 0 — внутри него.
-    mole: { ...type, lifeDamage: 1, burrow: { from: 0.4, to: 0.6 } },
-    ninja: { ...type, lifeDamage: 1, dodgeEvery: 3 },
-    bat: { ...type, lifeDamage: 1, flying: { hitBy: ['air', 'storm'] } },
-    boss: { ...type, lifeDamage: 5, crystalChance: 1, crystalDrop: 2, slowResist: true },
-    king: { ...type, lifeDamage: 20, slowResist: true, summon: { type: 'mouse', count: 2, interval: 2, spread: 10 } },
+    mole: { ...type, burrow: { from: 0.4, to: 0.6 } },
+    ninja: { ...type, dodgeEvery: 3 },
+    bat: { ...type, flying: { hitBy: ['air', 'storm'] } },
+    boss: { ...type, crystalChance: 1, crystalDrop: 2, slowResist: true },
+    king: { ...type, livesCost: 3, slowResist: true, summon: { type: 'mouse', count: 2, interval: 2, spread: 10 } },
   },
 };
 
@@ -139,14 +139,14 @@ describe('Combat: движение врагов', () => {
     const mouse = enemy('mouse', 130, { speed: 40 });
     const combat = create([mouse]);
 
-    expect(combat.update(0.25, [])).toEqual([{ kind: 'leaked', enemy: mouse, lifeDamage: 1 }]);
+    expect(combat.update(0.25, [])).toEqual([{ kind: 'leaked', enemy: mouse, livesCost: 1 }]);
     expect(combat.enemies).toEqual([]);
   });
 
-  it('крыса и командир отнимают больше жизней', () => {
-    const combat = create([enemy('rat', 139, { speed: 40 }), enemy('boss', 139, { speed: 40 })]);
+  it('враги отнимают по одной жизни, а Крысиный король — три', () => {
+    const combat = create([enemy('rat', 139, { speed: 40 }), enemy('boss', 139, { speed: 40 }), enemy('king', 139, { speed: 40 })]);
 
-    expect(ofKind(combat.update(0.25, []), 'leaked').map((event) => event.lifeDamage)).toEqual([2, 5]);
+    expect(ofKind(combat.update(0.25, []), 'leaked').map((event) => event.livesCost)).toEqual([1, 1, 3]);
   });
 
   it('остальные враги продолжают идти', () => {

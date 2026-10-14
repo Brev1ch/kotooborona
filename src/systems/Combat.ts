@@ -72,7 +72,7 @@ export interface BurningGround {
 /** Что произошло за шаг боя; сцена по этим событиям меняет экономику и картинку. */
 export type CombatEvent =
   /** Враг дошёл до ворот и снят с поля. */
-  | { kind: 'leaked'; enemy: Enemy; lifeDamage: number }
+  | { kind: 'leaked'; enemy: Enemy; livesCost: number }
   | { kind: 'shot'; slot: number; projectile: Projectile }
   | { kind: 'hit'; enemy: Enemy; x: number; y: number; element: ElementId }
   /** Щит принял попадание на себя. */
@@ -212,7 +212,7 @@ export class Combat {
     this.alive = this.alive.filter((enemy) => {
       if (enemy.hp <= 0) return false;
       if (enemy.distance < path.length) return true;
-      this.events.push({ kind: 'leaked', enemy, lifeDamage: enemies.types[enemy.type].lifeDamage });
+      this.events.push({ kind: 'leaked', enemy, livesCost: enemies.types[enemy.type].livesCost ?? 1 });
       return false;
     });
   }

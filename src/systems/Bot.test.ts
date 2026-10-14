@@ -398,9 +398,9 @@ describe('баланс главы 1 глазами бота', () => {
   });
 
   it.each(levels.levels.map((level, index) => [index + 1, level.id] as const))(
-    'уровень %i (%s) бот проходит почти всегда',
+    'уровень %i (%s) обычный игрок проходит хотя бы на одну звезду почти всегда',
     (number) => {
-      expect(reports[number - 1].winRate).toBeGreaterThanOrEqual(0.8);
+      expect(reports[number - 1].winRate).toBeGreaterThanOrEqual(0.75);
     },
   );
 
@@ -408,20 +408,23 @@ describe('баланс главы 1 глазами бота', () => {
     'уровень %i (%s) бот не проходит на три звезды с запасом',
     (number) => {
       const report = reports[number - 1];
-      // Хотя бы часть прогонов теряет жизни: трёх звёзд «всегда» нет ни на одном уровне.
+      // Жизней три: хотя бы часть прогонов теряет жизнь или проигрывает — трёх звёзд «всегда» нет ни на одном уровне.
       expect(report.stars[3]).toBeLessThan(RUNS);
     },
   );
 
-  it('сложность растёт к концу главы', () => {
-    const avg = (from: number, to: number): number =>
-      reports.slice(from, to).reduce((sum, report) => sum + report.avgStars, 0) / (to - from);
+  it('звёзды по жизням: ни одной потерянной — три, одна — две, больше — одна, все — поражение', () => {
+    expect(levels.stars).toEqual({ threeStarsMaxLost: 0, twoStarsMaxLost: 1 });
+    for (const level of levels.levels) expect(level.startLives, level.id).toBe(3);
+  });
 
-    // Начало, середина и конец главы: звёзд у бота всё меньше.
-    expect(avg(0, 3)).toBeGreaterThan(avg(3, 7));
-    expect(avg(3, 7)).toBeGreaterThan(avg(7, 10));
-    expect(reports[0].avgStars).toBeGreaterThan(2.5);
-    expect(reports[9].avgStars).toBeLessThan(2.2);
+  it('сложность растёт к концу главы: побед всё меньше', () => {
+    const avg = (from: number, to: number): number =>
+      reports.slice(from, to).reduce((sum, report) => sum + report.winRate, 0) / (to - from);
+
+    // С тремя жизнями бой почти всегда кончается либо без потерь, либо поражением: сложность видна по доле побед.
+    expect(avg(0, 3)).toBeGreaterThan(avg(7, 10));
+    expect(reports[0].winRate).toBeGreaterThanOrEqual(0.9);
   });
 
   it('метеор — редкий удар: один-два за уровень', () => {

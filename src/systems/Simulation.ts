@@ -279,7 +279,7 @@ export class Simulation {
 
   private apply(events: CombatEvent[]): void {
     for (const event of events) {
-      if (event.kind === 'leaked') this.economy.loseLives(event.lifeDamage);
+      if (event.kind === 'leaked') this.economy.loseLives(event.livesCost);
       else if (event.kind === 'killed') this.economy.reward(event.gold, event.crystals);
     }
   }

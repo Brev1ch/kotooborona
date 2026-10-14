@@ -67,7 +67,8 @@ export interface EnemyTypeConfig {
   speed: number;
   gold: number;
   radius: number;
-  lifeDamage: number;
+  /** Сколько жизней замок теряет, когда этот враг дошёл до ворот; без поля — одну. */
+  livesCost?: number;
   shield: number;
   crystalChance: number;
   crystalDrop: number;

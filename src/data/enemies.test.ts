@@ -12,3 +12,9 @@ describe('походка врагов', () => {
 it('король ходит тяжело', () => {
   expect(enemies.types.king.motion).toBe('heavy');
 });
+
+it('до ворот дошёл враг — минус одна жизнь, Крысиный король — минус три', () => {
+  for (const [type, config] of Object.entries(enemies.types)) {
+    expect(config.livesCost ?? 1, type).toBe(type === 'king' ? 3 : 1);
+  }
+});

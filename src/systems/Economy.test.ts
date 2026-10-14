@@ -270,20 +270,19 @@ describe('Economy: жизни', () => {
 });
 
 describe('starsFor', () => {
-  const rules = { threeStarsMaxLost: 0, twoStarsMaxLost: 5 };
+  const rules = levels.stars;
 
-  it('без потерь — три звезды', () => {
+  it('правила главы: ни одной потерянной жизни — три звезды, одна — две, больше — одна', () => {
+    expect(rules).toEqual({ threeStarsMaxLost: 0, twoStarsMaxLost: 1 });
     expect(starsFor(0, rules)).toBe(3);
-  });
-
-  it('небольшие потери — две звезды', () => {
     expect(starsFor(1, rules)).toBe(2);
-    expect(starsFor(5, rules)).toBe(2);
+    expect(starsFor(2, rules)).toBe(1);
+    // После «Второго шанса» потерь может быть больше, чем жизней в начале.
+    expect(starsFor(4, rules)).toBe(1);
   });
 
-  it('большие потери — одна звезда', () => {
-    expect(starsFor(6, rules)).toBe(1);
-    expect(starsFor(19, rules)).toBe(1);
+  it('у каждого уровня главы три жизни', () => {
+    for (const level of levels.levels) expect(level.startLives, level.id).toBe(3);
   });
 });
 

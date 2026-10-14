@@ -6,6 +6,7 @@ import {
   ANNOUNCE_FEEL,
   BANNER_FEEL,
   COIN_FEEL,
+  LIVES_FEEL,
   METEOR_FEEL,
   RESULT_FEEL,
   SELL_FEEL,
@@ -141,7 +142,10 @@ export class UIScene extends Phaser.Scene {
   private goldText!: Phaser.GameObjects.Text;
   private crystalsText!: Phaser.GameObjects.Text;
   private waveText!: Phaser.GameObjects.Text;
-  private livesText!: Phaser.GameObjects.Text;
+  /** Сердечки жизней: полные поверх пустых; сколько полных показано. */
+  private hearts: Phaser.GameObjects.Image[] = [];
+  private heartsRow!: Phaser.GameObjects.Container;
+  private shownLives = 0;
   private announce!: Phaser.GameObjects.Text;
   /** Волна, объявление о которой сейчас на экране; 0 — объявления нет. */
   private announcedWave = 0;
@@ -235,7 +239,7 @@ export class UIScene extends Phaser.Scene {
     this.crystalsText = this.addStat(1, 'hud.crystals', String(crystals), TEXT_COLORS.crystal);
     const waveValue = t('hud.waveValue', { current: wave, total: totalWaves });
     this.waveText = this.addStat(2, 'hud.wave', waveValue, TEXT_COLORS.fg);
-    this.livesText = this.addStat(3, 'hud.lives', String(lives), TEXT_COLORS.danger);
+    this.addLives(3, lives);
 
     this.announcedWave = 0;
     this.startedWave = wave;
@@ -738,7 +742,7 @@ export class UIScene extends Phaser.Scene {
     this.setStat(this.crystalsText, String(crystals));
     this.showWaveStart(wave);
     this.setStat(this.waveText, t('hud.waveValue', { current: wave, total: totalWaves }));
-    this.setStat(this.livesText, String(lives));
+    this.setLives(lives);
     this.showUpcoming(upcoming);
     this.summonCost.setText(String(summonCost));
     this.summonLimit.setText(
@@ -1122,6 +1126,67 @@ export class UIScene extends Phaser.Scene {
         if (this.banner === banner) this.banner = null;
       },
     });
+  }
+
+  /** Показатель жизней: подпись и ряд сердечек, по одному на каждую жизнь в начале боя. */
+  private addLives(index: number, lives: number): void {
+    const x = statX(index);
+    const y = STAT_Y;
+    this.add.text(x + 7, y + STAT_LABEL_Y, t('hud.lives').toUpperCase(), { fontFamily: FONTS.body, fontSize: '9px', color: TEXT_COLORS.muted });
+    const { heartSize, heartGap, emptyAlpha } = LIVES_FEEL;
+    const heart = (key: string): Phaser.GameObjects.Image =>
+      addBakedShape(this, 'heart', heartSize, heartSize, (g) => {
+        // Сердце: два круга сверху и треугольник вниз.
+        const r = heartSize * 0.27;
+        g.fillStyle(COLORS.flash);
+        g.fillCircle(-r, -r * 0.6, r);
+        g.fillCircle(r, -r * 0.6, r);
+        g.fillTriangle(-r * 2, -r * 0.35, r * 2, -r * 0.35, 0, heartSize * 0.48);
+      }).setName(key);
+    this.heartsRow = this.add.container(x + 7 + heartSize / 2, y + STAT_VALUE_Y + heartSize / 2 + 1);
+    this.hearts = [];
+    for (let i = 0; i < lives; i++) {
+      const at = i * (heartSize + heartGap);
+      const empty = heart('heart-empty').setX(at).setTint(COLORS.line).setAlpha(emptyAlpha);
+      const full = heart('heart').setX(at).setTint(COLORS.danger);
+      this.heartsRow.add([empty, full]);
+      this.hearts.push(full);
+    }
+    this.shownLives = lives;
+  }
+
+  /** Жизней стало `lives`: потерянные сердечки лопаются, ряд вздрагивает; вернувшиеся («Второй шанс») снова полные. */
+  private setLives(lives: number): void {
+    if (lives === this.shownLives) return;
+    const { popScale, popMs, shakePx, shakeMs, shakeRepeats } = LIVES_FEEL;
+    this.hearts.forEach((heart, i) => {
+      const keep = i < lives;
+      const had = i < this.shownLives;
+      this.tweens.killTweensOf(heart);
+      if (keep) {
+        heart.setVisible(true).setAlpha(1).setScale(heart.getData('scale') ?? heart.scale);
+        return;
+      }
+      if (!had) return;
+      const scale = (heart.getData('scale') as number | undefined) ?? heart.scale;
+      heart.setData('scale', scale);
+      this.tweens.add({ targets: heart, scale: scale * popScale, alpha: 0, duration: popMs, ease: 'Quad.easeOut', onComplete: () => void heart.setVisible(false) });
+    });
+    if (lives < this.shownLives) {
+      const baseX = this.heartsRow.getData('x') ?? this.heartsRow.x;
+      this.heartsRow.setData('x', baseX);
+      this.tweens.killTweensOf(this.heartsRow);
+      this.heartsRow.setX(baseX - shakePx);
+      this.tweens.add({
+        targets: this.heartsRow,
+        x: baseX + shakePx,
+        duration: shakeMs,
+        yoyo: true,
+        repeat: shakeRepeats,
+        onComplete: () => void this.heartsRow.setX(baseX),
+      });
+    }
+    this.shownLives = lives;
   }
 
   private addStat(index: number, label: StringKey, value: string, valueColor: string): Phaser.GameObjects.Text {
