@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { art } from '../art';
 import { audio } from '../audio';
 import { story, type StoryScene as StoryData, type StorySpeaker } from '../data';
-import { drawEnemyBody } from '../entities/EnemyView';
+import { addEnemyPortrait, drawEnemyBody } from '../entities/EnemyView';
 import { HeroView } from '../entities/HeroView';
 import { STORY_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
@@ -144,9 +144,11 @@ export class StoryScene extends Phaser.Scene {
       hero.setReady(true);
       return hero;
     }
-    // Мыши нарисованы видом сверху, носом вправо.
+    // Своего портрета нет — картинка врага с поля; а пока нет и её — мышь, нарисованная видом сверху, носом вправо.
+    const type = speaker === 'king' ? 'king' : 'mouse';
+    if (art.find(this, artId.enemy(type))) return addEnemyPortrait(this, type, GAME_W / 2, portraitY, STORY.enemyPortraitSize);
     const g = this.add.graphics({ x: GAME_W / 2, y: portraitY });
-    drawEnemyBody(g, speaker === 'king' ? 'king' : 'mouse');
+    drawEnemyBody(g, type);
     return g.setScale(speaker === 'king' ? STORY_FEEL.kingScale : STORY_FEEL.mouseScale);
   }
 

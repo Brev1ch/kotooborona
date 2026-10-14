@@ -47,17 +47,20 @@ export function breathe(scene: Phaser.Scene, target: Target): Phaser.Tweens.Twee
 export function waddle(scene: Phaser.Scene, target: Target, speed: number): Phaser.Tweens.Tween {
   const { angle, hop, stepPx, minStepMs, maxStepMs } = MOTION_FEEL.waddle;
   const stepMs = Phaser.Math.Clamp((stepPx / Math.max(speed, 1)) * 1000, minStepMs, maxStepMs);
-  // Наклон туда и обратно — два шага; подскок — на каждом шаге, выше всего посередине переката.
+  // Наклон туда и обратно — два шага; подскок — на каждом шаге, выше всего посередине переката. Подскок — от того места,
+  // где цель стоит (у картинки анфас — точка лап).
+  const baseY = target.y;
   return looped(scene, stepMs * 2, (wave, turn) => {
     target.setRotation(angle * wave);
-    target.setY(-hop * Math.abs(Math.cos(turn * Math.PI * 2)));
+    target.setY(baseY - hop * Math.abs(Math.cos(turn * Math.PI * 2)));
   });
 }
 
 /** Полёт: плавное качание вверх-вниз без наклона. */
 export function hover(scene: Phaser.Scene, target: Target): Phaser.Tweens.Tween {
   const { periodMs, amp } = MOTION_FEEL.hover;
-  return looped(scene, periodMs, (wave) => void target.setY(amp * wave));
+  const baseY = target.y;
+  return looped(scene, periodMs, (wave) => void target.setY(baseY + amp * wave));
 }
 
 /** Подкоп: `body` уходит в землю (`down`) или выходит из неё, холмик `mound` и тень `shadow` — наоборот. */

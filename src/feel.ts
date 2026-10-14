@@ -46,13 +46,14 @@ export const MOTION_FEEL = {
   spawn: { ms: 280, ease: 'Back.easeOut' },
   /**
    * Тень — овал под ногами, рисуется кодом. У кота размеры в логических точках, стоит она под лапами;
-   * у врага — в долях радиуса, `y` — сдвиг вниз от центра.
+   * у врага, нарисованного кодом, — в долях радиуса, `y` — сдвиг вниз от центра; у врага готовой картинкой стоит под лапами,
+   * размеры — `artWidth`, `artHeight` в долях картинки.
    */
   shadow: {
     color: 0x000000,
     alpha: 0.28,
     cat: { width: 40, height: 9 },
-    enemy: { width: 2.3, height: 1.2, y: 0.55 },
+    enemy: { width: 2.3, height: 1.2, y: 0.55, artWidth: 0.62, artHeight: 0.16 },
   },
 };
 
@@ -161,6 +162,11 @@ export const ENEMY_FEEL = {
   hpBarHeight: 4,
   hpBarGap: 5,
   hpBackAlpha: 0.5,
+  /**
+   * Враг готовой картинкой стоит анфас и не поворачивается: лапы ниже точки дороги на `feet` высоты картинки,
+   * счётчик щита — кружок `shieldBadge` (диаметр) на высоте `shieldY` от лап в долях картинки.
+   */
+  upright: { feet: 0.3, shieldBadge: 13, shieldY: 0.35 },
   /** Враг прошёл в ворота: поле вздрагивает. */
   leakShakeMs: 140,
   leakShakeIntensity: 0.006,

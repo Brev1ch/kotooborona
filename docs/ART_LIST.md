@@ -40,17 +40,17 @@
 
 | Файл | Размер | Что нарисовано | Готово |
 | --- | --- | --- | --- |
-| `enemies/mouse.png` | 64×64 | Мышь | да |
-| `enemies/rat.png` | 77×77 | Крыса | да |
-| `enemies/shield.png` | 67×67 | Мышь-щитоносец | да |
-| `enemies/boots.png` | 64×64 | Мышь в железных сапогах | да |
-| `enemies/fire.png` | 64×64 | Пожарная мышь | да |
-| `enemies/shaman.png` | 64×64 | Мышь-шаман | да |
-| `enemies/mole.png` | 70×70 | Крот | да |
-| `enemies/ninja.png` | 64×64 | Мышь-ниндзя | да |
-| `enemies/bat.png` | 67×67 | Летучая мышь | да |
-| `enemies/commander.png` | 77×77 | Крыса-командир | да |
-| `enemies/king.png` | 102×102 | Крысиный король | да |
+| `enemies/mouse.png` | 72×72 | Мышь | да |
+| `enemies/rat.png` | 86×86 | Крыса | да |
+| `enemies/shield.png` | 76×76 | Мышь-щитоносец | да |
+| `enemies/boots.png` | 72×72 | Мышь в железных сапогах | да |
+| `enemies/fire.png` | 72×72 | Пожарная мышь | да |
+| `enemies/shaman.png` | 72×72 | Мышь-шаман | да |
+| `enemies/mole.png` | 79×79 | Крот | да |
+| `enemies/ninja.png` | 72×72 | Мышь-ниндзя | да |
+| `enemies/bat.png` | 76×76 | Летучая мышь | да |
+| `enemies/commander.png` | 86×86 | Крыса-командир | да |
+| `enemies/king.png` | 115×115 | Крысиный король | да |
 
 ## Герой (0 из 1)
 

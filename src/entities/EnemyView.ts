@@ -140,30 +140,6 @@ function addEnemyBody(scene: Phaser.Scene, type: EnemyTypeId): Phaser.GameObject
 }
 
 /**
- * Картинка щитоносца для портрета: готовое тело и поверх него щит, который на поле рисуется отдельно.
- * Собирается в свою текстуру один раз; null — арта тела нет.
- */
-function addShieldedArt(scene: Phaser.Scene, type: EnemyTypeId): Phaser.GameObjects.Image | null {
-  const ref = art.find(scene, artId.enemy(type));
-  if (!ref) return null;
-  const key = `portrait-art-${type}`;
-  const r = enemies.types[type].radius;
-  // Щит выступает вперёд дальше, чем тело: поле текстуры шире картинки.
-  const width = ref.width + r * 2;
-  if (!scene.textures.exists(key)) {
-    const texture = scene.textures.addDynamicTexture(key, Math.ceil(width * ref.scale), Math.ceil(ref.height * ref.scale));
-    if (!texture) return null;
-    const plate = scene.make.graphics({}, false);
-    drawShieldPlate(plate, r * 1.3, r);
-    plate.setScale(ref.scale);
-    texture.stamp(ref.key, ref.frame, texture.width / 2, texture.height / 2);
-    texture.draw(plate, texture.width / 2, texture.height / 2);
-    plate.destroy();
-  }
-  return scene.add.image(0, 0, key).setScale(1 / ref.scale);
-}
-
-/**
  * Портрет врага для бестиария и карточек: та же картинка, что на поле, вписанная в квадрат `size`.
  * Неизвестный враг (`known = false`) — силуэт.
  */
@@ -177,17 +153,19 @@ export function addEnemyPortrait(
 ): Phaser.GameObjects.Image {
   const [width, height] = enemyBodySize(type);
   const { radius: r, shield } = enemies.types[type];
-  // На поле щит — отдельная картинка, которая пропадает, когда он сломан; на портрете он нарисован вместе с телом.
+  // У рисунка кодом щит на поле — отдельная картинка, которая пропадает, когда он сломан; на портрете он нарисован вместе с телом.
+  // На готовой картинке щит уже есть.
+  const ref = art.find(scene, artId.enemy(type));
   const image =
-    shield > 0
-      ? (addShieldedArt(scene, type) ??
-        addBakedShape(scene, `portrait-${type}`, width, height, (g) => {
+    shield > 0 && !ref
+      ? addBakedShape(scene, `portrait-${type}`, width, height, (g) => {
           drawEnemyBody(g, type);
           drawShieldPlate(g, r * 1.3, r);
-        }))
+        })
       : addEnemyBody(scene, type);
   image.setPosition(x, y);
-  image.setScale(image.scale * Math.min(size / width, size / height));
+  const [shownW, shownH] = ref ? [ref.width, ref.height] : [width, height];
+  image.setScale(image.scale * Math.min(size / shownW, size / shownH));
   return known ? image : image.setTintFill(COLORS.line);
 }
 
@@ -199,7 +177,12 @@ export function addEnemyPortrait(
  */
 export class EnemyView extends Phaser.GameObjects.Container {
   private readonly radius: number;
-  /** Поворачивается по ходу движения; полоска здоровья остаётся горизонтальной. */
+  /**
+   * Где фигура относительно точки дороги: лапы, верх и середина по высоте, полуширина. Готовая картинка стоит анфас
+   * лапами на земле (`upright`); рисунок кодом — мышь сверху вокруг точки дороги.
+   */
+  private readonly figure: { upright: boolean; feetY: number; top: number; centerY: number; half: number };
+  /** Поворачивается по ходу движения (только рисунок кодом); полоска здоровья остаётся горизонтальной. */
   private readonly turning: Phaser.GameObjects.Container;
   private readonly gait: Phaser.GameObjects.Container;
   private readonly react: Phaser.GameObjects.Container;
@@ -223,7 +206,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
   private shownShield = -1;
   private shownStatus = '';
   /** Холмик на месте врага, ушедшего под землю; только у тех, кто умеет копать. */
-  private readonly mound: Phaser.GameObjects.Image | null = null;
+  private readonly mound: Phaser.GameObjects.Container | null = null;
   private shownBurrowed = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number, enemy: Enemy) {
@@ -233,19 +216,33 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.radius = r;
     ensureTextures(scene);
 
-    const body = addEnemyBody(scene, enemy.type);
-    this.flash = addEnemyBody(scene, enemy.type).setTintFill(COLORS.flash).setAlpha(0);
+    const ref = art.find(scene, artId.enemy(enemy.type));
+    const { feet, shieldBadge, shieldY } = ENEMY_FEEL.upright;
+    // Слои движения вращаются и сжимаются вокруг лап: у картинки анфас они ниже точки дороги, у мыши сверху — в ней.
+    // Фигура стоит в своей картинке по нижнему краю, сверху и с боков — прозрачное поле: её рост — по обрезанному кадру атласа.
+    const frame = ref ? scene.textures.getFrame(ref.key, ref.frame) : null;
+    const tall = ref && frame ? (ref.height * frame.height) / frame.realHeight : 0;
+    const wide = ref && frame ? (ref.width * frame.width) / frame.realWidth : 0;
+    this.figure = ref
+      ? { upright: true, feetY: ref.height * feet, top: ref.height * feet - tall, centerY: ref.height * feet - tall / 2, half: wide / 2 }
+      : { upright: false, feetY: 0, top: -r, centerY: 0, half: r };
+    const { feetY } = this.figure;
+    const bodyY = ref ? -ref.height / 2 : 0;
+    const body = addEnemyBody(scene, enemy.type).setY(bodyY);
+    this.flash = addEnemyBody(scene, enemy.type).setY(bodyY).setTintFill(COLORS.flash).setAlpha(0);
     this.turning = scene.add.container(0, 0, [body, this.flash]);
     this.react = scene.add.container(0, 0, [this.turning]);
-    this.gait = scene.add.container(0, 0, [this.react]);
+    this.gait = scene.add.container(0, feetY, [this.react]);
     const config = enemies.types[enemy.type];
     const shadow = MOTION_FEEL.shadow.enemy;
-    this.shadow = addShadow(scene, 0, r * shadow.y, r * shadow.width, r * shadow.height);
+    this.shadow = ref
+      ? addShadow(scene, 0, feetY, ref.width * shadow.artWidth, ref.height * shadow.artHeight)
+      : addShadow(scene, 0, r * shadow.y, r * shadow.width, r * shadow.height);
     this.steps = [config.motion === 'hover' ? hover(scene, this.gait) : waddle(scene, this.gait, config.speed)];
     spawn(scene, this.react);
 
     if (enemies.types[enemy.type].burrow) {
-      this.mound = addBakedShape(scene, `mound-${enemy.type}`, r * 3.2, r * 2.4, (g) => {
+      const mound = addBakedShape(scene, `mound-${enemy.type}`, r * 3.2, r * 2.4, (g) => {
         g.fillStyle(COLORS.moundDark);
         g.fillEllipse(0, 0, r * 3, r * 2.2);
         g.fillStyle(COLORS.mound);
@@ -254,17 +251,23 @@ export class EnemyView extends Phaser.GameObjects.Container {
         g.fillCircle(-r * 0.5, -r * 0.2, r * 0.18);
         g.fillCircle(r * 0.4, r * 0.25, r * 0.22);
         g.fillCircle(r * 0.2, -r * 0.4, r * 0.14);
-      }).setVisible(false);
+      });
+      // В контейнере: подкоп меняет масштаб холмика от 0 до 1, а у запечённой картинки свой масштаб.
+      this.mound = scene.add.container(0, feetY, [mound]).setVisible(false);
     }
 
     if (enemy.shield > 0) {
-      const plate = addBakedShape(scene, `shield-${enemy.type}`, r, r * 2, (g) => drawShieldPlate(g, 0, r));
-      // Сколько попаданий щит ещё выдержит.
+      // Сколько попаданий щит ещё выдержит. На готовой картинке щит уже нарисован — поверх него только кружок со счётом.
+      const plate = ref
+        ? scene.add.image(0, 0, Texture.dot).setDisplaySize(shieldBadge, shieldBadge).setTint(COLORS.shield)
+        : addBakedShape(scene, `shield-${enemy.type}`, r, r * 2, (g) => drawShieldPlate(g, 0, r));
       this.shieldCount = scene.add
         .text(0, 0, '', { fontFamily: FONTS.body, fontSize: '9px', color: TEXT_COLORS.dark })
         .setOrigin(0.5);
-      this.shield = scene.add.container(r * 1.3, 0, [plate, this.shieldCount]);
-      this.turning.add(this.shield);
+      this.shield = ref
+        ? scene.add.container(0, -ref.height * shieldY, [plate, this.shieldCount])
+        : scene.add.container(r * 1.3, 0, [plate, this.shieldCount]);
+      (ref ? this.react : this.turning).add(this.shield);
     }
 
     this.bar = scene.add.graphics();
@@ -281,7 +284,8 @@ export class EnemyView extends Phaser.GameObjects.Container {
    */
   sync(enemy: Enemy, x: number, y: number, angle: number, burrowed = false): void {
     this.setPosition(x, y);
-    this.turning.setRotation(angle);
+    // Картинка анфас смотрит на зрителя и по ходу не поворачивается.
+    if (!this.figure.upright) this.turning.setRotation(angle);
     this.heading = angle;
     if (burrowed !== this.shownBurrowed) {
       this.shownBurrowed = burrowed;
@@ -303,7 +307,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
     if (enemy.hp === this.shownHp) return;
     this.shownHp = enemy.hp;
     const width = this.radius * 2.4;
-    const top = -this.radius - ENEMY_FEEL.hpBarGap - ENEMY_FEEL.hpBarHeight;
+    const top = this.figure.top - ENEMY_FEEL.hpBarGap - ENEMY_FEEL.hpBarHeight;
     this.bar.clear();
     this.bar.fillStyle(COLORS.hpBack, ENEMY_FEEL.hpBackAlpha);
     this.bar.fillRect(-width / 2, top, width, ENEMY_FEEL.hpBarHeight);
@@ -323,15 +327,16 @@ export class EnemyView extends Phaser.GameObjects.Container {
     if (status === this.shownStatus) return;
     this.shownStatus = status;
 
-    const r = this.radius;
+    const { top, centerY, half } = this.figure;
+    const r = Math.max(this.radius, half * 0.8);
     if (slowed) {
-      this.slowRing ??= this.addMark(Texture.ring, 0, 0, (r + STATUS_FEEL.ringGap) * 2);
+      this.slowRing ??= this.addMark(Texture.ring, 0, centerY, (r + STATUS_FEEL.ringGap) * 2);
       this.slowRing.setTint(elementColor(frozen ? 'ice' : 'water'));
     }
     this.slowRing?.setVisible(slowed);
-    if (burning) this.burnDot ??= this.addMark(Texture.dot, -r * 0.6, -r, STATUS_FEEL.dotRadius * 2).setTint(elementColor('fire'));
+    if (burning) this.burnDot ??= this.addMark(Texture.dot, -r * 0.6, top, STATUS_FEEL.dotRadius * 2).setTint(elementColor('fire'));
     this.burnDot?.setVisible(burning);
-    if (poisoned) this.poisonDot ??= this.addMark(Texture.dot, r * 0.6, -r, STATUS_FEEL.dotRadius * 2).setTint(elementColor('swamp'));
+    if (poisoned) this.poisonDot ??= this.addMark(Texture.dot, r * 0.6, top, STATUS_FEEL.dotRadius * 2).setTint(elementColor('swamp'));
     this.poisonDot?.setVisible(poisoned);
   }
 
