@@ -44,6 +44,12 @@ function levelTier(level: number): number {
   return tier;
 }
 
+/**
+ * Насколько слой плашки уровня выше самого кота. Плашка — отдельный объект сцены, а не часть кота:
+ * иначе хохолок нижнего кота, вздрогнувшего при выстреле, залезал бы на плашку верхнего.
+ */
+const LEVEL_DEPTH_ABOVE = 0.5;
+
 /** Вид кота: картинка стихии и отметка уровня. */
 export class CatView extends PieceView {
   private readonly shape: Phaser.GameObjects.Image;
@@ -51,6 +57,8 @@ export class CatView extends PieceView {
   private readonly shapeScale: number;
   /** Отметка уровня: цифра и плашка — то, что бледнеет вместе с котом на время ритуала. */
   private readonly marks: (Phaser.GameObjects.Image | Phaser.GameObjects.Text)[] = [];
+  /** Плашка уровня поверх всех котов; каждый кадр перед отрисовкой повторяет положение, размер и прозрачность кота. */
+  private levelLayer: Phaser.GameObjects.Container | null = null;
   private ritualRing: Phaser.GameObjects.Graphics | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number, cat: Cat) {
@@ -75,6 +83,7 @@ export class CatView extends PieceView {
     }
     this.setDepth(DEPTH.cat);
     scene.add.existing(this);
+    this.syncLevelLayer();
   }
 
   /** Цифра уровня на тёмной плашке под котом; рамка плашки — цвет ступени уровня. */
@@ -92,7 +101,25 @@ export class CatView extends PieceView {
       .text(0, y, String(level), { fontFamily: FONTS.display, fontSize: `${fontSize}px`, color: TEXT_COLORS.brass })
       .setOrigin(0.5);
     this.marks.push(plate, label);
-    this.add([plate, label]);
+    this.levelLayer = this.scene.add.container(this.x, this.y, [plate, label]);
+    this.scene.events.on(Phaser.Scenes.Events.PRE_RENDER, this.syncLevelLayer, this);
+    this.syncLevelLayer();
+  }
+
+  private syncLevelLayer(): void {
+    this.levelLayer
+      ?.setPosition(this.x, this.y)
+      .setScale(this.scaleX, this.scaleY)
+      .setAlpha(this.alpha)
+      .setVisible(this.visible)
+      .setDepth(this.depth + LEVEL_DEPTH_ABOVE);
+  }
+
+  override destroy(fromScene?: boolean): void {
+    this.scene?.events.off(Phaser.Scenes.Events.PRE_RENDER, this.syncLevelLayer, this);
+    this.levelLayer?.destroy(fromScene);
+    this.levelLayer = null;
+    super.destroy(fromScene);
   }
 
   /** Отдача при выстреле: вздрагивает только фигура, чтобы не спорить с анимациями самого кота. */

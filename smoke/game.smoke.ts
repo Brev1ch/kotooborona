@@ -1528,3 +1528,33 @@ test('уровень за уровнем: победа → следующий у
     await expectBattle(page, ids[REPEATS + 1], step);
   });
 });
+
+test('полное поле котов: плашки уровня не закрыты соседями, рамки по ступеням', async ({ page }) => {
+  const elements = ['fire', 'water', 'earth', 'air', 'steam', 'lava', 'storm', 'ice', 'swamp', 'sand'] as const;
+  await page.goto('/?smoke');
+  await waitFor(page, SCREEN_TIMEOUT, (s) => s.scenes.includes(SceneKey.Menu), (s) => `Игра не дошла до меню: ${scenesText(s)}`);
+  // Пятый уровень: без подсказок обучения, клетки стоят вплотную по шагу 68.
+  const id = ((await page.evaluate(() => window.__smoke?.levelIds())) ?? [])[4];
+  for (const [name, levelOf] of [
+    // Самые высокие коты (7+) друг над другом: хохолок нижнего не должен залезать на плашку верхнего.
+    ['cats-full-field', (slot: number) => 7 + (slot % 3)],
+    // Уровни с 1 по 12: видны все три ступени рамки.
+    ['cats-level-tiers', (slot: number) => slot + 1],
+  ] as const) {
+    await page.evaluate((levelId) => window.__smoke?.startLevel(levelId), id);
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.scenes.includes(SceneKey.UI) && s.hud?.wave === 0,
+      (s) => `Уровень ${id} не запустился: ${scenesText(s)}`,
+    );
+    const slots = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
+    const placed = slots.map((_, slot) => [slot, elements[slot % elements.length], levelOf(slot)] as const);
+    await page.evaluate((cats) => {
+      for (const [slot, element, level] of cats) window.__smoke?.placeCat(slot, element, level);
+    }, placed);
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    await page.screenshot({ path: `${SHOTS}/${name}.png` });
+    checkConsole(name);
+  }
+});
