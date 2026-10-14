@@ -22,7 +22,8 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     const saves = platform.init().then(() => progress.load());
     void Promise.all([saves, loadFonts()]).then(() => {
-      setLang(platform.getLang());
+      // Язык, выбранный в настройках, важнее языка площадки.
+      setLang(progress.lang ?? platform.getLang());
       document.title = t('game.title');
       audio.init(this.game);
       // Реклама: вся игра замирает (бой, анимации, таймеры), молчит и не принимает касаний.

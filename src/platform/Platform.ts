@@ -1,5 +1,8 @@
 export type Lang = 'ru' | 'en';
 
+/** Языки игры в порядке кнопок выбора. */
+export const LANGS: readonly Lang[] = ['ru', 'en'];
+
 /** Всё, что игра знает о площадке. Сцены и системы работают только через этот интерфейс. */
 export interface Platform {
   init(): Promise<void>;

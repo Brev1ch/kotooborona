@@ -1,4 +1,5 @@
 import type { CatsConfig, ElementId, EnemiesConfig, EnemyTypeId, GearConfig, GearSlot } from '../data/types';
+import { LANGS, type Lang } from '../platform/Platform';
 import type { ChestLoot, ChestSource, PendingChests } from './Chests';
 import { GEAR_SLOTS, gearKey } from './Gear';
 import { legacyItem, RARITIES, salvageShards, upgradePrice, type Item, type ItemBonus } from './Items';
@@ -48,6 +49,8 @@ export interface SaveData {
   onboarded: boolean;
   /** Подсказки при первой встрече, которые игрок уже видел (`inventory`, `chest`, `build`): каждая — один раз. */
   hintsSeen: string[];
+  /** Язык, выбранный игроком в настройках; null — язык площадки. Выбор игрока важнее языка из SDK. */
+  lang: Lang | null;
 }
 
 type RawSave = Record<string, unknown>;
@@ -76,6 +79,8 @@ const MIGRATIONS: readonly Migration[] = [
   (save) => ({ ...save, onboarded: isRecord(save.stars) && Object.values(save.stars).some((value) => typeof value === 'number' && value >= 1) }),
   // 8 → 9: подсказки при первой встрече. Кто уже проходил уровни, видел снаряжение и сундуки: им они не нужны.
   (save) => ({ ...save, hintsSeen: save.onboarded === true ? [...HINTS_FOR_PLAYERS] : [] }),
+  // 9 → 10: язык можно выбрать в настройках. Раньше его не выбирали: остаётся язык площадки.
+  (save) => ({ ...save, lang: null }),
 ];
 
 /** Подсказки, которые не показываются игроку, уже проходившему уровни до их появления. */
@@ -236,6 +241,7 @@ export function defaultSave(rules: SaveRules, version = MIGRATIONS.length + 1): 
     adChestAt: 0,
     onboarded: false,
     hintsSeen: [],
+    lang: null,
   };
 }
 
@@ -304,6 +310,7 @@ export function parseSave(raw: unknown, rules: SaveRules, migrations: readonly M
   if (typeof save.sound === 'boolean') data.sound = save.sound;
   if (typeof save.music === 'boolean') data.music = save.music;
   if (typeof save.onboarded === 'boolean') data.onboarded = save.onboarded;
+  if (LANGS.includes(save.lang as Lang)) data.lang = save.lang as Lang;
   if (Array.isArray(save.hintsSeen)) data.hintsSeen = [...new Set(save.hintsSeen.filter((id): id is string => typeof id === 'string'))];
 
   if (typeof save.fish === 'number' && Number.isFinite(save.fish)) data.fish = Math.max(0, Math.floor(save.fish));
@@ -567,6 +574,17 @@ export class Progress {
     return true;
   }
 
+  /** Язык, выбранный игроком; null — не выбирал, берётся язык площадки. */
+  get lang(): Lang | null {
+    return this.data.lang;
+  }
+
+  setLang(lang: Lang): void {
+    if (this.data.lang === lang) return;
+    this.data.lang = lang;
+    this.touch();
+  }
+
   /** Обучение на первом уровне пройдено или пропущено. */
   get onboarded(): boolean {
     return this.data.onboarded;
@@ -602,7 +620,7 @@ export class Progress {
     this.timer = null;
     if (!this.dirty) return;
     this.dirty = false;
-    const { version, stars, items, worn, shards, nextItem, book, sound, music, fish, chests, bestiary, perfect, pending, adChestAt, onboarded, hintsSeen } = this.data;
+    const { version, stars, items, worn, shards, nextItem, book, sound, music, fish, chests, bestiary, perfect, pending, adChestAt, onboarded, hintsSeen, lang } = this.data;
     const snapshot = {
       ...this.extra,
       version,
@@ -622,6 +640,7 @@ export class Progress {
       adChestAt,
       onboarded,
       hintsSeen: [...hintsSeen],
+      lang,
     };
     // Не записалось — изменения уйдут со следующей записью.
     this.storage.save(SAVE_KEY, snapshot).catch(() => {

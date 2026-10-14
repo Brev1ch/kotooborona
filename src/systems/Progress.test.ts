@@ -55,6 +55,7 @@ const defaults = {
   adChestAt: 0,
   onboarded: false,
   hintsSeen: [] as string[],
+  lang: null as string | null,
 };
 
 /** Подсказки, которых не показывают игроку, уже проходившему уровни до их появления (версия 8 → 9). */
@@ -115,6 +116,7 @@ describe('parseSave: чтение сохранения', () => {
       adChestAt: 1700000000000,
       onboarded: true,
       hintsSeen: ['chest'],
+      lang: 'en',
     };
 
     expect(parseSave(raw, rules)).toEqual({ data: raw, extra: {}, foreignItems: [] });
@@ -948,6 +950,32 @@ describe('parseSave: версия 8 → 9, подсказки при перво�
     expect(progress.markHint('chest')).toBe(true);
     expect(progress.markHint('chest')).toBe(false);
     expect(progress.hintSeen('chest')).toBe(true);
+  });
+});
+
+describe('parseSave: версия 9 → 10, язык из настроек', () => {
+  const v9 = (extra: object) => ({ ...defaults, version: 9, lang: undefined, ...extra });
+
+  it('в старом сохранении язык не выбран: берётся язык площадки', () => {
+    expect(parseSave(v9({}), rules).data.lang).toBeNull();
+    expect(parseSave({ version: 1, stars: {}, gear: {}, book: [] }, rules).data.lang).toBeNull();
+  });
+
+  it('в текущей версии выбор читается как есть, незнакомый язык — не выбран', () => {
+    expect(parseSave({ version: V, lang: 'en' }, rules).data.lang).toBe('en');
+    expect(parseSave({ version: V, lang: 'ru' }, rules).data.lang).toBe('ru');
+    expect(parseSave({ version: V, lang: 'de' }, rules).data.lang).toBeNull();
+    expect(parseSave({ version: V, lang: 1 }, rules).data.lang).toBeNull();
+  });
+
+  it('выбор языка сохраняется', async () => {
+    const { storage, saves } = memoryStorage();
+    const progress = new Progress(storage, rules, 0);
+    expect(progress.lang).toBeNull();
+    progress.setLang('en');
+    progress.flush();
+    expect(progress.lang).toBe('en');
+    expect(saves[saves.length - 1]).toEqual({ ...defaults, lang: 'en' });
   });
 });
 

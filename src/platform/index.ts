@@ -57,3 +57,4 @@ class AutoPlatform implements Platform {
 export const platform: Platform = new AutoPlatform();
 
 export type { Lang, Platform } from './Platform';
+export { LANGS } from './Platform';

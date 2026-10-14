@@ -10,6 +10,13 @@ export function setLang(lang: Lang): void {
   current = lang;
 }
 
+export function getLang(): Lang {
+  return current;
+}
+
+/** Название языка на нём самом: на кнопке выбора оно не переводится. */
+export const LANG_NAMES: Record<Lang, string> = { ru: 'Русский', en: 'English' };
+
 /** Строка для игрока; `{name}` в тексте заменяется значением из params. */
 export function t(key: StringKey, params?: Record<string, string | number>): string {
   const text = dictionaries[current][key];

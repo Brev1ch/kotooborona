@@ -1688,6 +1688,36 @@ test('обучение: «Пропустить» снимает его насо�
     await page.screenshot({ path: `${SHOTS}/settings.png` });
     await checkTouchSizes(page, 'настройки');
     await checkTexts(page, 'настройки');
+    await test.step('язык: выбор в настройках важнее языка браузера и сохраняется', async () => {
+      const own = (await state(page))?.lang;
+      const other = own === 'ru' ? 'en' : 'ru';
+      expect((await state(page))?.savedLang, 'язык ещё не выбирали').toBeNull();
+      await tap(page, ...center(await target(page, `settings-lang-${other}`)));
+      await waitFor(
+        page,
+        SCREEN_TIMEOUT,
+        (s) => s.lang === other && s.savedLang === other && s.scenes.includes(SceneKey.Menu) && !s.fading && s.targets.some((t) => t.name === 'settings-replay'),
+        (s) => `Язык не переключился на ${other}: сейчас ${s?.lang}, в сохранении ${s?.savedLang}`,
+      );
+      await page.waitForTimeout(PRESS_SETTLE_MS);
+      await page.screenshot({ path: `${SHOTS}/settings-lang.png` });
+      await checkTouchSizes(page, 'настройки на другом языке');
+      await checkTexts(page, 'настройки на другом языке');
+      // После перезагрузки — выбранный язык, хотя браузер говорит на прежнем.
+      await page.goto('/?smoke&onboarding');
+      await waitFor(page, SCREEN_TIMEOUT, (s) => s.scenes.includes(SceneKey.Menu) && !s.fading, (s) => `Не вернулись в меню: ${scenesText(s)}`);
+      expect((await state(page))?.lang, 'выбранный язык должен сохраниться').toBe(other);
+      await tap(page, ...menuSettingsCenter());
+      await page.waitForTimeout(PRESS_SETTLE_MS);
+      await tap(page, ...center(await target(page, `settings-lang-${own}`)));
+      await waitFor(
+        page,
+        SCREEN_TIMEOUT,
+        (s) => s.lang === own && s.scenes.includes(SceneKey.Menu) && !s.fading && s.targets.some((t) => t.name === 'settings-replay'),
+        (s) => `Язык не вернулся на ${own}: сейчас ${s?.lang}`,
+      );
+      await page.waitForTimeout(PRESS_SETTLE_MS);
+    });
     await tap(page, ...center(await target(page, 'settings-replay')));
     await waitFor(
       page,

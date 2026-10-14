@@ -3,7 +3,7 @@ import { adBreaks } from '../adBreaks';
 import { audio } from '../audio';
 import { ads, cats, gear, levels, type Rarity } from '../data';
 import { CHEST_FEEL } from '../feel';
-import { t, type StringKey } from '../i18n';
+import { getLang, LANG_NAMES, setLang, t, type StringKey } from '../i18n';
 import {
   CHEST_POPUP,
   chestTakeCenter,
@@ -24,6 +24,7 @@ import {
   SETTINGS,
   TEXT_COLORS,
 } from '../layout';
+import { LANGS, type Lang } from '../platform';
 import { progress } from '../progress';
 import { campaignTiles, type CampaignTile } from '../systems/Campaign';
 import { adChestWait, chestChances, chestKind, chestState, chestsWaiting, nextChest, rollChest, type ChestKind, type ChestLoot, type ChestSource } from '../systems/Chests';
@@ -65,7 +66,8 @@ export class MenuScene extends Phaser.Scene {
     super(SceneKey.Menu);
   }
 
-  create(): void {
+  /** `settings` — сразу открыть окно настроек: меню пересоздано после смены языка. */
+  create(data?: { settings?: boolean }): void {
     fadeIn(this);
     this.add
       .text(GAME_W / 2, MENU.titleY, t('game.title'), {
@@ -99,6 +101,7 @@ export class MenuScene extends Phaser.Scene {
     addButton(this, ...menuBestiaryCenter(), MENU.bookW, MENU.bookH, t('bestiary.title'), false, () => {
       fadeOut(this, () => this.scene.start(SceneKey.Bestiary));
     });
+    if (data?.settings) this.openSettings();
   }
 
   /**
@@ -356,11 +359,11 @@ export class MenuScene extends Phaser.Scene {
     bg.on('pointerup', () => this.openSettings());
   }
 
-  /** Окно настроек поверх меню: «Пройти обучение заново» и «Закрыть». */
+  /** Окно настроек поверх меню: язык, «Пройти обучение заново» и «Закрыть». */
   private openSettings(): void {
     if (this.busy) return;
     this.busy = true;
-    const { panelW, panelH, titleY, firstY, buttonW, buttonH, gap } = SETTINGS;
+    const { panelW, panelH, titleY, langY, firstY, buttonW, buttonH, gap } = SETTINGS;
     const dim = this.add.rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, COLORS.bg, CHEST_FEEL.dimAlpha).setInteractive();
     const panel = this.add.rectangle(0, 0, panelW, panelH, COLORS.panel);
     const title = this.add
@@ -381,6 +384,26 @@ export class MenuScene extends Phaser.Scene {
     });
     (replay.list[0] as Phaser.GameObjects.Rectangle).setName('settings-replay');
     const back = addButton(this, 0, firstY + buttonH + gap, buttonW, buttonH, t('settings.close'), false, close);
-    box.add([replay, back]);
+    box.add([...this.addLangButtons(langY), replay, back]);
+  }
+
+  /** Кнопки языков в ряд; выбранный подсвечен. Выбор сохраняется, и меню пересоздаётся на новом языке с открытыми настройками. */
+  private addLangButtons(y: number): Phaser.GameObjects.Container[] {
+    const { buttonW, buttonH, gap } = SETTINGS;
+    const w = (buttonW - gap * (LANGS.length - 1)) / LANGS.length;
+    return LANGS.map((lang: Lang, index) => {
+      const x = -buttonW / 2 + w / 2 + index * (w + gap);
+      const chosen = lang === getLang();
+      const button = addButton(this, x, y, w, buttonH, LANG_NAMES[lang], chosen, () => {
+        if (chosen) return;
+        progress.setLang(lang);
+        progress.flush();
+        setLang(lang);
+        document.title = t('game.title');
+        fadeOut(this, () => this.scene.restart({ settings: true }));
+      });
+      (button.list[0] as Phaser.GameObjects.Rectangle).setName(`settings-lang-${lang}`);
+      return button;
+    });
   }
 }

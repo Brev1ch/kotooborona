@@ -4,6 +4,7 @@ import { ads, cats, enemies, gear, levels, type ElementId, type EnemyTypeId, typ
 import type { Enemy } from './entities/Enemy';
 import { BOARD_Y, GAME_H, GAME_W } from './layout';
 import { debugEnemy, parade, stress } from './debug';
+import { getLang } from './i18n';
 import { progress } from './progress';
 import { FLOAT_NAME, luck, type GameScene } from './scenes/GameScene';
 import type { GearScene } from './scenes/GearScene';
@@ -71,6 +72,9 @@ export interface SmokeState {
   onboarding: string | null;
   /** Обучение пройдено или пропущено (флаг в сохранении). */
   onboarded: boolean;
+  /** Язык игры сейчас и выбранный в настройках (null — язык площадки). */
+  lang: string;
+  savedLang: string | null;
   /** Открытый экран итога боя. */
   result: 'win' | 'lose' | null;
   /** Сценка на экране: номер реплики и сколько их всего. */
@@ -460,7 +464,7 @@ export function installSmokeProbe(game: Phaser.Game): void {
         ? (game.scene.getScene(SceneKey.Story) as StoryScene).progressState()
         : null;
       const artKeys = game.textures.getTextureKeys().filter((key) => key.startsWith('art:') || key.startsWith('bg-')).sort();
-      const common = { onboarded: progress.onboarded, scenes, fading, targets, sound: audio.on, music: audio.musicOn, tracks: audio.musicPlaying, art: artKeys, worn, bag, shards: progress.shards, story, fish: progress.fish, chests: progress.chestsOpened, pending: { ...progress.pendingChests }, adChestWait: adChestWait(progress.adChestAt, Date.now(), ads.chest.cooldown) };
+      const common = { onboarded: progress.onboarded, lang: getLang(), savedLang: progress.lang, scenes, fading, targets, sound: audio.on, music: audio.musicOn, tracks: audio.musicPlaying, art: artKeys, worn, bag, shards: progress.shards, story, fish: progress.fish, chests: progress.chestsOpened, pending: { ...progress.pendingChests }, adChestWait: adChestWait(progress.adChestAt, Date.now(), ads.chest.cooldown) };
 
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);
