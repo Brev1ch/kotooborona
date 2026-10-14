@@ -8,6 +8,7 @@ import { progress } from './progress';
 import { FLOAT_NAME, luck, type GameScene } from './scenes/GameScene';
 import type { GearScene } from './scenes/GearScene';
 import type { IntroScene } from './scenes/IntroScene';
+import { HINT_BUBBLE_NAME } from './scenes/hintBubble';
 import type { StoryScene } from './scenes/StoryScene';
 import type { UIScene } from './scenes/UIScene';
 import { GameEvent, SceneKey, type HudState, type LevelSceneData, type StorySceneData } from './scenes/keys';
@@ -331,6 +332,8 @@ export function installSmokeProbe(game: Phaser.Game): void {
             if (layers.get(texts[i]) !== layers.get(texts[j])) continue;
             // Всплывающие надписи поля мимолётны: две награды за убитых разом врагов ложатся рядом, и это не ошибка вёрстки.
             if (texts[i].name === FLOAT_NAME && texts[j].name === FLOAT_NAME) continue;
+            // Подсказка при первой встрече нарочно ложится поверх интерфейса и уходит с первым касанием.
+            if (texts[i].name === HINT_BUBBLE_NAME || texts[j].name === HINT_BUBBLE_NAME) continue;
             if (overlapX > TEXT_OVERLAP && overlapY > TEXT_OVERLAP) {
               issues.push(`«${texts[i].text}» наезжает на «${texts[j].text}» (${scene.scene.key})`);
             }

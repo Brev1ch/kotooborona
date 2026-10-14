@@ -23,6 +23,7 @@ import { addItemGlyph, drawSlotGlyph, itemLines, itemRarityLine, itemTitle, rari
 import { SceneKey, type LevelSceneData } from './keys';
 import { sceneBeforeBattle } from './IntroScene';
 import { fadeIn, fadeOut } from './transitions';
+import { showHintBubble } from './hintBubble';
 import { addButton, addFishCounter, addPressFeel, fitText, type FishCounter } from './widgets';
 
 /**
@@ -60,6 +61,11 @@ export class GearScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.fish = addFishCounter(this, ...gearFishCenter(), progress.fish);
     this.render();
+    // Первый раз на экране снаряжения — подсказка под надетыми предметами.
+    if (progress.markHint('inventory')) {
+      const [x, y] = gearWornCenter(1);
+      showHintBubble(this, x, y + GEAR.wornH / 2 + 4, t('hint.inventory'));
+    }
 
     const data: LevelSceneData = { levelId: this.levelId };
     addButton(this, ...gearButtonCenter('back'), GEAR.backW, GEAR.buttonH, t('nav.back'), false, () => {

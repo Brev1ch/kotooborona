@@ -86,6 +86,8 @@ export const ru = {
   'book.unknown': '???',
   'book.recipe': '{first} + {second}',
 
+  'hint.inventory': 'Нажми на предмет — надеть, разобрать или улучшить',
+  'hint.chest': 'Сундук готов — нажми, чтобы открыть',
   'onboarding.summon': 'Нажми «Призвать» — придёт кот',
   'onboarding.summonSame': 'Призови ещё одного',
   'onboarding.merge': 'Перетащи кота на такого же',

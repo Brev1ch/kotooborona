@@ -478,6 +478,12 @@ export const ONBOARDING_FEEL = {
   textAlpha: 0.94,
 };
 
+/**
+ * Подсказка при первой встрече (инвентарь, сундук): пузырь с хвостиком к цели. Касаний не перехватывает,
+ * уходит с первым касанием или сам через `lifeMs`.
+ */
+export const HINT_BUBBLE_FEEL = { width: 280, tail: 8, showMs: 220, hideMs: 180, lifeMs: 6000, bobPx: 3, bobMs: 700 };
+
 /** Сценки перед уровнями. */
 export const STORY_FEEL = {
   heroScale: 3,

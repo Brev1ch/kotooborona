@@ -46,6 +46,8 @@ export interface SaveData {
   adChestAt: number;
   /** Обучение на первом уровне пройдено или пропущено: показывается один раз, «Пройти обучение заново» сбрасывает. */
   onboarded: boolean;
+  /** Подсказки при первой встрече, которые игрок уже видел (`inventory`, `chest`, `build`): каждая — один раз. */
+  hintsSeen: string[];
 }
 
 type RawSave = Record<string, unknown>;
@@ -72,7 +74,12 @@ const MIGRATIONS: readonly Migration[] = [
   (save) => ({ ...save, music: save.sound !== false }),
   // 7 → 8: интерактивное обучение на первом уровне. Кто уже проходил уровни, умеет играть: ему обучение не показывается.
   (save) => ({ ...save, onboarded: isRecord(save.stars) && Object.values(save.stars).some((value) => typeof value === 'number' && value >= 1) }),
+  // 8 → 9: подсказки при первой встрече. Кто уже проходил уровни, видел снаряжение и сундуки: им они не нужны.
+  (save) => ({ ...save, hintsSeen: save.onboarded === true ? [...HINTS_FOR_PLAYERS] : [] }),
 ];
+
+/** Подсказки, которые не показываются игроку, уже проходившему уровни до их появления. */
+const HINTS_FOR_PLAYERS = ['inventory', 'chest', 'build'];
 
 /** Сундуки за уровни, пройденные на три звезды до того, как за это стали давать сундук: по одному за каждый. */
 function chestsForPerfectLevels(stars: unknown): Pick<SaveData, 'perfect' | 'pending' | 'adChestAt'> {
@@ -228,6 +235,7 @@ export function defaultSave(rules: SaveRules, version = MIGRATIONS.length + 1): 
     pending: { big: 0, small: 0 },
     adChestAt: 0,
     onboarded: false,
+    hintsSeen: [],
   };
 }
 
@@ -296,6 +304,7 @@ export function parseSave(raw: unknown, rules: SaveRules, migrations: readonly M
   if (typeof save.sound === 'boolean') data.sound = save.sound;
   if (typeof save.music === 'boolean') data.music = save.music;
   if (typeof save.onboarded === 'boolean') data.onboarded = save.onboarded;
+  if (Array.isArray(save.hintsSeen)) data.hintsSeen = [...new Set(save.hintsSeen.filter((id): id is string => typeof id === 'string'))];
 
   if (typeof save.fish === 'number' && Number.isFinite(save.fish)) data.fish = Math.max(0, Math.floor(save.fish));
 
@@ -545,6 +554,19 @@ export class Progress {
     this.touch();
   }
 
+  /** Подсказку при первой встрече игрок уже видел. */
+  hintSeen(id: string): boolean {
+    return this.data.hintsSeen.includes(id);
+  }
+
+  /** Отмечает подсказку показанной; возвращает true, если раньше её не было. */
+  markHint(id: string): boolean {
+    if (this.hintSeen(id)) return false;
+    this.data.hintsSeen.push(id);
+    this.touch();
+    return true;
+  }
+
   /** Обучение на первом уровне пройдено или пропущено. */
   get onboarded(): boolean {
     return this.data.onboarded;
@@ -580,7 +602,7 @@ export class Progress {
     this.timer = null;
     if (!this.dirty) return;
     this.dirty = false;
-    const { version, stars, items, worn, shards, nextItem, book, sound, music, fish, chests, bestiary, perfect, pending, adChestAt, onboarded } = this.data;
+    const { version, stars, items, worn, shards, nextItem, book, sound, music, fish, chests, bestiary, perfect, pending, adChestAt, onboarded, hintsSeen } = this.data;
     const snapshot = {
       ...this.extra,
       version,
@@ -599,6 +621,7 @@ export class Progress {
       pending: { ...pending },
       adChestAt,
       onboarded,
+      hintsSeen: [...hintsSeen],
     };
     // Не записалось — изменения уйдут со следующей записью.
     this.storage.save(SAVE_KEY, snapshot).catch(() => {

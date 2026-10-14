@@ -88,6 +88,8 @@ export const en: Record<StringKey, string> = {
   'book.unknown': '???',
   'book.recipe': '{first} + {second}',
 
+  'hint.inventory': 'Tap an item to wear, scrap or upgrade it',
+  'hint.chest': 'A chest is ready — tap to open it',
   'onboarding.summon': 'Tap “Summon” to call a cat',
   'onboarding.summonSame': 'Summon one more',
   'onboarding.merge': 'Drag a cat onto its twin',

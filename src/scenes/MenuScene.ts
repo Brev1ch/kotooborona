@@ -33,6 +33,7 @@ import { itemLines, itemTitle, rarityColor, rarityFill } from './itemText';
 import { SceneKey, type LevelSceneData } from './keys';
 import { fadeIn, fadeOut } from './transitions';
 import { sceneBeforeBattle } from './IntroScene';
+import { showHintBubble } from './hintBubble';
 import { onboardingEnabled } from './OnboardingOverlay';
 import { addPlate } from './plate';
 import { addAdButton, addButton, fitText, addFishCounter, addFishIcon, addLockIcon, addPressFeel, addSoundButton, type FishCounter } from './widgets';
@@ -141,6 +142,11 @@ export class MenuScene extends Phaser.Scene {
     addPressFeel(this, bg, chest);
     bg.on('pointerdown', () => audio.play('click'));
     bg.once('pointerup', () => this.openChest(source));
+    // Первый готовый сундук — подсказка под ним.
+    if (progress.markHint('chest')) {
+      const [x, y] = menuChestCenter();
+      showHintBubble(this, x, y + MENU.chestH / 2 + 4, t('hint.chest'));
+    }
     this.tweens.add({
       targets: chest,
       scale: CHEST_FEEL.readyPulseScale,

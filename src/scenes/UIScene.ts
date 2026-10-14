@@ -266,7 +266,9 @@ export class UIScene extends Phaser.Scene {
     this.pauseMenu = null;
     // Подсказки нужны, только пока уровень не пройден: вернувшийся за звёздами игрок уже всё умеет.
     const learning = this.level.tutorial !== undefined && progress.stars(this.level.id) === 0;
-    this.tutorial = learning && this.level.tutorial ? new Tutorial(this.level.tutorial.steps, levels.tutorial) : null;
+    // Подсказка про стройку — один раз за игру: на следующем уровне со строениями она уже не нужна.
+    const steps = (this.level.tutorial?.steps ?? []).filter((step) => step !== 'build' || !progress.hintSeen('build'));
+    this.tutorial = learning && steps.length > 0 ? new Tutorial(steps, levels.tutorial) : null;
     this.tutorialOverlay = this.tutorial ? new TutorialOverlay(this, this.level) : null;
     this.resultOverlay = null;
     this.adBusy = false;
@@ -674,7 +676,9 @@ export class UIScene extends Phaser.Scene {
       const state = this.gameScene.tutorialState();
       // Пока окно стройки открыто, звать к нему уже не нужно.
       if (this.buildPanel?.open) state.canBuild = false;
-      this.tutorialOverlay?.show(this.tutorial.update(delta / 1000, state));
+      const hint = this.tutorial.update(delta / 1000, state);
+      this.tutorialOverlay?.show(hint);
+      if (hint?.step === 'build') progress.markHint('build');
     }
   }
 
