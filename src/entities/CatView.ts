@@ -60,6 +60,8 @@ export class CatView extends PieceView {
   /** Плашка уровня поверх всех котов; каждый кадр перед отрисовкой повторяет положение, размер и прозрачность кота. */
   private levelLayer: Phaser.GameObjects.Container | null = null;
   private ritualRing: Phaser.GameObjects.Graphics | null = null;
+  /** Отдача при выстреле, которая идёт сейчас. */
+  private recoil: Phaser.Tweens.Tween | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number, cat: Cat) {
     super(scene, x, y);
@@ -124,9 +126,15 @@ export class CatView extends PieceView {
 
   /** Отдача при выстреле: вздрагивает только фигура, чтобы не спорить с анимациями самого кота. */
   playShot(): void {
-    this.scene.tweens.killTweensOf(this.shape);
+    // Останавливается только прежняя отдача: проявление после ритуала идёт по той же картинке и прерываться не должно.
+    this.recoil?.stop();
     this.shape.setScale(this.shapeScale * SHOT_FEEL.recoilScale);
-    this.scene.tweens.add({ targets: this.shape, scale: this.shapeScale, duration: SHOT_FEEL.recoilMs });
+    this.recoil = this.scene.tweens.add({ targets: this.shape, scale: this.shapeScale, duration: SHOT_FEEL.recoilMs });
+  }
+
+  /** Самая низкая прозрачность среди частей кота: 1 — кот виден целиком. Для смоук-проверки. */
+  get minAlpha(): number {
+    return Math.min(this.alpha, this.shape.alpha, ...this.marks.map((mark) => mark.alpha));
   }
 
   /** Кот проводит ритуал: полупрозрачный, вокруг — кольцо прогресса. */
@@ -157,9 +165,10 @@ export class CatView extends PieceView {
     this.ritualRing?.destroy();
     this.ritualRing = null;
 
-    this.scene.tweens.add({ targets: this.shape, alpha: 1, duration: RITUAL_FEEL.revealMs });
-    for (const mark of this.marks) {
-      this.scene.tweens.add({ targets: mark, alpha: 1, duration: RITUAL_FEEL.revealMs });
+    // Остановленное на полпути проявление тоже оставляет кота непрозрачным.
+    for (const part of [this.shape, ...this.marks]) {
+      const opaque = (): void => void part.setAlpha(1);
+      this.scene.tweens.add({ targets: part, alpha: 1, duration: RITUAL_FEEL.revealMs, onComplete: opaque, onStop: opaque });
     }
 
     const flash = this.scene.add.graphics();

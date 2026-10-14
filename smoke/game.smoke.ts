@@ -49,6 +49,8 @@ const SUMMON_TIMEOUT = 3_000;
 const WAVE_TIMEOUT = 15_000;
 /** Пауза перед снимком: анимация появления кота, выход мышей на видимую часть дороги. */
 const SPAWN_SETTLE_MS = 400;
+/** Ритуал смешения (4 с в gear.json, снаряжение его только сокращает) и проявление кота после него. */
+const RITUAL_WAIT_MS = 5000;
 const WAVE_SETTLE_MS = 1500;
 /** Сколько смотрим на паузу, чтобы убедиться, что враги стоят. */
 const PAUSE_HOLD_MS = 500;
@@ -1557,4 +1559,36 @@ test('полное поле котов: плашки уровня не закр�
     await page.screenshot({ path: `${SHOTS}/${name}.png` });
     checkConsole(name);
   }
+});
+
+test('ритуал смешения: гибрид стреляет сразу после ритуала и остаётся непрозрачным', async ({ page }) => {
+  await page.goto('/?smoke');
+  await waitFor(page, SCREEN_TIMEOUT, (s) => s.scenes.includes(SceneKey.Menu), (s) => `Игра не дошла до меню: ${scenesText(s)}`);
+  // Пятый уровень: без подсказок обучения, в начале есть кристаллы на ритуал.
+  const id = ((await page.evaluate(() => window.__smoke?.levelIds())) ?? [])[4];
+  await page.evaluate((levelId) => window.__smoke?.startLevel(levelId), id);
+  await waitFor(
+    page,
+    SCREEN_TIMEOUT,
+    (s) => s.scenes.includes(SceneKey.UI) && s.hud !== null && s.hud.crystals > 0,
+    (s) => `Уровень ${id} не запустился или нет кристаллов: ${scenesText(s)}`,
+  );
+  await page.evaluate(() => {
+    window.__smoke?.placeCat(3, 'fire', 1);
+    window.__smoke?.placeCat(4, 'water', 1);
+  });
+  await page.waitForTimeout(SPAWN_SETTLE_MS);
+  const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
+  await drag(page, centers[3], centers[4]);
+  await waitFor(page, SCREEN_TIMEOUT, (s) => s.cats === 1, (s) => `Гибрид не получился: котов ${s?.cats}`);
+  // Мыши по всей дороге: к концу ритуала какая-нибудь да в радиусе, и гибрид выстрелит, пока проявляется.
+  await page.evaluate(() => {
+    for (let distance = 0; distance <= 600; distance += 50) window.__smoke?.spawnEnemy('mouse', distance);
+  });
+  await page.waitForTimeout(RITUAL_WAIT_MS);
+  const alphas = (await page.evaluate(() => window.__smoke?.catAlphas())) ?? [];
+  await page.screenshot({ path: `${SHOTS}/ritual-done.png` });
+  expect(alphas.length, 'на поле должен стоять гибрид').toBe(1);
+  for (const alpha of alphas) expect(alpha, 'после ритуала кот должен быть непрозрачным').toBe(1);
+  checkConsole('ритуал смешения');
 });

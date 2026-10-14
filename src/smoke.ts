@@ -114,6 +114,8 @@ export interface SmokeProbe {
   slotCenters(): [number, number][];
   /** Клетки идущего боя, в которых стоят коты. */
   catSlots(): number[];
+  /** Прозрачность каждого кота идущего боя; 1 — кот виден целиком. */
+  catAlphas(): number[];
   /** Клетки идущего боя, в которых стоят строения. */
   buildingSlots(): number[];
   /** Добавляет монеты в идущий бой. */
@@ -337,6 +339,9 @@ export function installSmokeProbe(game: Phaser.Game): void {
     },
     catSlots() {
       return (game.scene.getScene(SceneKey.Game) as GameScene).catSlots();
+    },
+    catAlphas() {
+      return (game.scene.getScene(SceneKey.Game) as GameScene).catAlphas();
     },
     buildingSlots() {
       return (game.scene.getScene(SceneKey.Game) as GameScene).buildingSlots();

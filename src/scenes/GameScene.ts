@@ -530,6 +530,11 @@ export class GameScene extends Phaser.Scene {
     return this.board.flatMap((cat, slot) => (isCat(cat) ? [slot] : []));
   }
 
+  /** Прозрачность каждого кота на поле (самая низкая из его частей); читает смоук-проверка. */
+  catAlphas(): number[] {
+    return this.catSlots().map((slot) => this.catView(slot)?.minAlpha ?? 0);
+  }
+
   private handleCombatEvent(event: CombatEvent): boolean {
     switch (event.kind) {
       case 'leaked':
