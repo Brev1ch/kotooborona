@@ -41,6 +41,11 @@ class GameArt {
     }
   }
 
+  /** Точка `name` на картинке `id` из манифеста (`anchors`), в долях её ширины и высоты; null — точка не задана. */
+  anchor(id: string, name: string): [number, number] | null {
+    return manifest.images.find((image) => image.id === id)?.anchors?.[name] ?? null;
+  }
+
   /** Готовая и загруженная картинка; null — рисуем кодом. */
   find(scene: Phaser.Scene, id: string): ArtRef | null {
     const ref = this.catalog.find(id);

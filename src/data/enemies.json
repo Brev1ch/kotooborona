@@ -13,6 +13,6 @@
     "ninja": { "fromWave": 3, "color": "#3d3d4a", "size": 1.0, "hp": 1.2, "speed": 56, "gold": 4, "radius": 8, "lifeDamage": 1, "shield": 0, "crystalChance": 0, "crystalDrop": 0, "dodgeEvery": 3, "motion": "waddle" },
     "bat": { "color": "#5a4a6e", "size": 1.05, "hp": 1, "speed": 60, "gold": 4, "radius": 8, "lifeDamage": 1, "shield": 0, "crystalChance": 0, "crystalDrop": 0, "flying": { "hitBy": ["air", "storm"] }, "motion": "hover" },
     "boss": { "color": "#8a4b5a", "size": 1.2, "hp": 14, "speed": 32, "gold": 20, "radius": 15, "lifeDamage": 5, "shield": 0, "crystalChance": 0.5, "crystalDrop": 1, "slowResist": true, "motion": "waddle" },
-    "king": { "color": "#b0405a", "size": 1.6, "hp": 25, "speed": 32, "gold": 80, "radius": 19, "lifeDamage": 12, "shield": 0, "crystalChance": 1, "crystalDrop": 3, "slowResist": true, "summon": { "type": "mouse", "count": 2, "interval": 6, "spread": 14 }, "motion": "waddle" }
+    "king": { "color": "#b0405a", "size": 1.6, "hp": 25, "speed": 32, "gold": 80, "radius": 19, "lifeDamage": 12, "shield": 0, "crystalChance": 1, "crystalDrop": 3, "slowResist": true, "summon": { "type": "mouse", "count": 2, "interval": 6, "spread": 14 }, "motion": "heavy" }
   }
 }

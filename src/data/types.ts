@@ -54,7 +54,7 @@ export type EnemyTypeId = 'mouse' | 'rat' | 'shield' | 'boots' | 'fire' | 'shama
 
 /** Эффекты, которые коты накладывают на врага. Заморозка — отдельный от замедления эффект ледяного кота. */
 /** Походка врага; та же, что `EnemyMotion` в `feel.ts`. */
-export type EnemyMotion = 'waddle' | 'hover' | 'burrow';
+export type EnemyMotion = 'waddle' | 'heavy' | 'hover' | 'burrow';
 
 export type StatusId = 'slow' | 'freeze' | 'burn' | 'poison';
 
@@ -90,8 +90,8 @@ export interface EnemyTypeConfig {
   /** Призывает подмогу: каждые `interval` секунд рядом появляются `count` врагов типа `type` на расстоянии `spread` друг от друга. */
   summon?: { type: EnemyTypeId; count: number; interval: number; spread: number };
   /**
-   * Как враг двигается на поле (`entities/motion.ts`): `waddle` — вперевалку, `hover` — летит и качается,
-   * `burrow` — вперевалку и уходит под землю. Задано в данных, чтобы готовые картинки встали без правок кода.
+   * Как враг двигается на поле (`entities/motion.ts`): `waddle` — вперевалку, `heavy` — вперевалку тяжело (король),
+   * `hover` — летит и качается, `burrow` — вперевалку и уходит под землю. Задано в данных, чтобы готовые картинки встали без правок кода.
    */
   motion: EnemyMotion;
 }
@@ -387,6 +387,11 @@ export interface ArtImage {
    * 1.1 — фигура на десятую крупнее остальных; без поля — 1.
    */
   scale?: number;
+  /**
+   * Точки на картинке, к которым игра привязывает эффекты, в долях её ширины и высоты от левого верхнего угла:
+   * `crystal` — кристалл на посохе шамана (вспышка при лечении).
+   */
+  anchors?: Record<string, [number, number]>;
   /** Фон кнопки: края такой ширины в пикселях не растягиваются. */
   slice?: number;
   /** Фон уровня: грузится при входе в этот уровень. */

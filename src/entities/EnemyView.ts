@@ -6,7 +6,7 @@ import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../layout';
 import { addBakedShape, ensureTextures, Texture } from '../scenes/textures';
 import { artId } from '../systems/Art';
 import type { Enemy } from './Enemy';
-import { addShadow, burrow, death, hit, hover, spawn, stopAll, waddle } from './motion';
+import { addShadow, burrow, death, heal, hit, hover, spawn, stopAll, waddle } from './motion';
 
 /** Прямоугольник вокруг центра врага, в который помещается всё нарисованное `drawEnemyBody`: ширина и высота. */
 export function enemyBodySize(type: EnemyTypeId): [number, number] {
@@ -194,6 +194,8 @@ export class EnemyView extends Phaser.GameObjects.Container {
   private heading = 0;
   /** Белый силуэт поверх тела: вспыхивает при попадании. */
   private readonly flash: Phaser.GameObjects.Image;
+  /** Зелёный огонёк на кристалле посоха; только у лекаря. */
+  private healGlow: Phaser.GameObjects.Image | null = null;
   /** Щит и число на нём; только у врага, который пришёл со щитом. */
   private readonly shield: Phaser.GameObjects.Container | null = null;
   private readonly shieldCount: Phaser.GameObjects.Text | null = null;
@@ -235,10 +237,23 @@ export class EnemyView extends Phaser.GameObjects.Container {
     this.gait = scene.add.container(0, feetY, [this.react]);
     const config = enemies.types[enemy.type];
     const shadow = MOTION_FEEL.shadow.enemy;
+    // Летучая мышь в воздухе: тень меньше и ниже.
+    const flying = config.motion === 'hover' ? MOTION_FEEL.shadow.flying : { scale: 1, gap: 0 };
     this.shadow = ref
-      ? addShadow(scene, 0, feetY, ref.width * shadow.artWidth, ref.height * shadow.artHeight)
-      : addShadow(scene, 0, r * shadow.y, r * shadow.width, r * shadow.height);
-    this.steps = [config.motion === 'hover' ? hover(scene, this.gait) : waddle(scene, this.gait, config.speed)];
+      ? addShadow(scene, 0, feetY + flying.gap, ref.width * shadow.artWidth * flying.scale, ref.height * shadow.artHeight * flying.scale)
+      : addShadow(scene, 0, r * shadow.y + flying.gap, r * shadow.width * flying.scale, r * shadow.height * flying.scale);
+    this.steps = [
+      config.motion === 'hover'
+        ? hover(scene, this.gait)
+        : waddle(scene, this.gait, config.speed, config.motion === 'heavy' ? MOTION_FEEL.heavy : MOTION_FEEL.waddle),
+    ];
+    if (config.heal) {
+      // Огонёк лечения — на кристалле посоха: на картинке — точка из манифеста, у рисунка кодом — навершие посоха.
+      const anchor = ref ? art.anchor(artId.enemy(enemy.type), 'crystal') : null;
+      const [gx, gy] = ref && anchor ? [(anchor[0] - 0.5) * ref.width, (anchor[1] - 1) * ref.height] : [r * 1.5, r * 1.2];
+      this.healGlow = scene.add.image(gx, gy, Texture.disc).setTint(COLORS.hp).setVisible(false);
+      (ref ? this.react : this.turning).add(this.healGlow);
+    }
     spawn(scene, this.react);
 
     if (enemies.types[enemy.type].burrow) {
@@ -352,6 +367,11 @@ export class EnemyView extends Phaser.GameObjects.Container {
     hit(this.scene, this.react, this.flash, this.heading);
   }
 
+  /** Лекарь вылечил соседей: на кристалле посоха вспыхивает зелёный огонёк. */
+  playHeal(): void {
+    if (this.healGlow) heal(this.scene, this.healGlow);
+  }
+
   /** Щит принял попадание. */
   playBlock(): void {
     if (this.shield) this.pulse(this.shield, ENEMY_FEEL.blockScale, ENEMY_FEEL.blockMs);
@@ -371,7 +391,7 @@ export class EnemyView extends Phaser.GameObjects.Container {
 
   override destroy(fromScene?: boolean): void {
     for (const step of this.steps) step.stop();
-    stopAll(this.scene, [this, this.gait, this.react, this.turning, this.flash, ...(this.mound ? [this.mound] : []), ...(this.shield ? [this.shield] : [])]);
+    stopAll(this.scene, [this, this.gait, this.react, this.turning, this.flash, ...(this.mound ? [this.mound] : []), ...(this.shield ? [this.shield] : []), ...(this.healGlow ? [this.healGlow] : [])]);
     super.destroy(fromScene);
   }
 

@@ -17,7 +17,7 @@
     {"id": "enemy-shield", "file": "enemies/shield.png", "width": 76, "height": 76, "align": "bottom", "group": "enemies", "use": "Мышь-щитоносец", "atlas": "units"},
     {"id": "enemy-boots", "file": "enemies/boots.png", "width": 72, "height": 72, "align": "bottom", "group": "enemies", "use": "Мышь в железных сапогах", "atlas": "units"},
     {"id": "enemy-fire", "file": "enemies/fire.png", "width": 72, "height": 72, "align": "bottom", "group": "enemies", "use": "Пожарная мышь", "atlas": "units"},
-    {"id": "enemy-shaman", "file": "enemies/shaman.png", "width": 72, "height": 72, "align": "bottom", "group": "enemies", "use": "Мышь-шаман", "atlas": "units"},
+    {"id": "enemy-shaman", "file": "enemies/shaman.png", "width": 72, "height": 72, "align": "bottom", "anchors": {"crystal": [0.8, 0.57]}, "group": "enemies", "use": "Мышь-шаман", "atlas": "units"},
     {"id": "enemy-mole", "file": "enemies/mole.png", "width": 79, "height": 79, "align": "bottom", "group": "enemies", "use": "Крот", "atlas": "units"},
     {"id": "enemy-ninja", "file": "enemies/ninja.png", "width": 72, "height": 72, "align": "bottom", "group": "enemies", "use": "Мышь-ниндзя", "atlas": "units"},
     {"id": "enemy-bat", "file": "enemies/bat.png", "width": 76, "height": 76, "align": "bottom", "group": "enemies", "use": "Летучая мышь", "atlas": "units"},

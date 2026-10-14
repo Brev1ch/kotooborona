@@ -31,7 +31,9 @@ export const MOTION_FEEL = {
    * Вперевалку: наклон ±`angle` (радианы) и подскок на `hop` на каждом шаге. Шаг — `stepPx` пути,
    * поэтому быстрый враг семенит чаще; длительность шага зажата в `minStepMs`…`maxStepMs`.
    */
-  waddle: { angle: 0.14, hop: 1.6, stepPx: 9, minStepMs: 110, maxStepMs: 420 },
+  waddle: { angle: 0.14, hop: 1.6, stepPx: 9, minStepMs: 110, maxStepMs: 420, squash: 0 },
+  /** Тяжёлая походка (король): шаги длиннее и реже, наклон и подскок меньше, на каждом шаге приседает на `squash` высоты. */
+  heavy: { angle: 0.07, hop: 0.8, stepPx: 15, minStepMs: 260, maxStepMs: 620, squash: 0.05 },
   /** Полёт: качание вверх-вниз на `amp` без наклона. */
   hover: { periodMs: 900, amp: 2.5 },
   /** Подкоп: враг уходит в землю (сжимается до `sink` и гаснет) и выходит из неё за `ms`; холмик растёт и опадает. */
@@ -40,6 +42,8 @@ export const MOTION_FEEL = {
   attack: { nodPx: 3, nodMs: 70, recoilScale: 1.12, recoilMs: 80 },
   /** Попадание: белая вспышка, сжатие до `squash` и отскок назад по ходу на `knockPx`. */
   hit: { flashAlpha: 0.85, flashMs: 110, squash: 0.8, squashMs: 70, knockPx: 3, knockMs: 90 },
+  /** Лечение (шаман): на кристалле посоха вспыхивает и гаснет зелёный огонёк диаметра `size`, вырастая в `grow` раза. */
+  heal: { size: 12, grow: 2.2, alpha: 0.9, ms: 420 },
   /** Гибель: сплющивание в `squashX`×`squashY` и угасание; облачко частиц — `ENEMY_FEEL.puff*`. */
   death: { ms: 200, squashX: 1.5, squashY: 0.25, ease: 'Quad.easeIn' },
   /** Появление: из нуля с перелётом масштаба. */
@@ -54,6 +58,8 @@ export const MOTION_FEEL = {
     alpha: 0.28,
     cat: { width: 40, height: 9 },
     enemy: { width: 2.3, height: 1.2, y: 0.55, artWidth: 0.62, artHeight: 0.16 },
+    /** Летучая мышь: тень меньше в `scale` раза и ниже лап на `gap` — видно, что она в воздухе. */
+    flying: { scale: 0.6, gap: 7 },
   },
 };
 

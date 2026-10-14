@@ -623,6 +623,7 @@ export class GameScene extends Phaser.Scene {
 
       case 'healed': {
         const { x, y, radius } = event;
+        this.enemyViews.get(event.enemy)?.playHeal();
         const { healFrom, healAlpha, healMs } = FX_FEEL;
         this.playCircle(this.rings, x, y, COLORS.hp, radius * healFrom, radius, healAlpha, healMs);
         break;

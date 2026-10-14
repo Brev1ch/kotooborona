@@ -44,15 +44,17 @@ export function breathe(scene: Phaser.Scene, target: Target): Phaser.Tweens.Twee
  * Вперевалку: наклон из стороны в сторону и подскок на каждом шаге. `speed` — точек пути в секунду: чем быстрее враг,
  * тем чаще шаги. Замедленному врагу владелец сбавляет `timeScale` твина.
  */
-export function waddle(scene: Phaser.Scene, target: Target, speed: number): Phaser.Tweens.Tween {
-  const { angle, hop, stepPx, minStepMs, maxStepMs } = MOTION_FEEL.waddle;
+export function waddle(scene: Phaser.Scene, target: Target, speed: number, gait: typeof MOTION_FEEL.waddle = MOTION_FEEL.waddle): Phaser.Tweens.Tween {
+  const { angle, hop, stepPx, minStepMs, maxStepMs, squash } = gait;
   const stepMs = Phaser.Math.Clamp((stepPx / Math.max(speed, 1)) * 1000, minStepMs, maxStepMs);
   // Наклон туда и обратно — два шага; подскок — на каждом шаге, выше всего посередине переката. Подскок — от того места,
-  // где цель стоит (у картинки анфас — точка лап).
+  // где цель стоит (у картинки анфас — точка лап). Тяжёлый шаг ещё и приседает, когда нога встаёт на землю.
   const baseY = target.y;
   return looped(scene, stepMs * 2, (wave, turn) => {
+    const lift = Math.abs(Math.cos(turn * Math.PI * 2));
     target.setRotation(angle * wave);
-    target.setY(baseY - hop * Math.abs(Math.cos(turn * Math.PI * 2)));
+    target.setY(baseY - hop * lift);
+    if (squash > 0) target.setScale(1 + (squash / 2) * (1 - lift), 1 - squash * (1 - lift));
   });
 }
 
@@ -127,6 +129,15 @@ export function hit(scene: Phaser.Scene, react: Target, flash: Target, heading: 
     yoyo: true,
     ease: 'Quad.easeOut',
   });
+}
+
+/** Лечение: вспышка `glow` (уже стоит на кристалле) вырастает и гаснет. */
+export function heal(scene: Phaser.Scene, glow: Phaser.GameObjects.Image): void {
+  const { size, grow, alpha, ms } = MOTION_FEEL.heal;
+  scene.tweens.killTweensOf(glow);
+  glow.setVisible(true).setAlpha(alpha).setDisplaySize(size, size);
+  const scale = glow.scaleX;
+  scene.tweens.add({ targets: glow, alpha: 0, scale: scale * grow, duration: ms, ease: 'Quad.easeOut', onComplete: () => void glow.setVisible(false) });
 }
 
 /** Гибель: `react` сплющивается, `whole` гаснет; по окончании — `done`. Облачко частиц пускает сцена из общего пула. */
