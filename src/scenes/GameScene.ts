@@ -1285,7 +1285,7 @@ export class GameScene extends Phaser.Scene {
     this.events.emit(GameEvent.SellOffer, offer);
   }
 
-  /** Алтари на поле меняют лимит призывов сразу. */
+  /** Грядки мяты на поле меняют лимит призывов сразу. */
   private syncLimit(): void {
     this.economy.limitBonus = this.buildings.summonLimitBonus(this.board);
   }

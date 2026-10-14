@@ -272,7 +272,7 @@ export class Simulation {
     };
   }
 
-  /** Алтари на поле меняют лимит призывов сразу. */
+  /** Грядки мяты на поле меняют лимит призывов сразу. */
   private syncLimit(): void {
     this.economy.limitBonus = this.buildings.summonLimitBonus(this.board);
   }

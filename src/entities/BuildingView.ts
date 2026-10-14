@@ -17,7 +17,7 @@ const PIP_RADIUS = 3;
 
 const point = (x: number, y: number): Phaser.Math.Vector2 => new Phaser.Math.Vector2(x, y);
 
-/** Рисунки строений вокруг начала координат `g`: лавка с рыбой, шахта с кристаллом, алтарь с листом мяты. */
+/** Рисунки строений вокруг начала координат `g`: лавка с рыбой, шахта с кристаллом, грядка с кустиком мяты. */
 const DRAW: Record<BuildingKind, (g: Phaser.GameObjects.Graphics) => void> = {
   shop(g) {
     g.fillStyle(COLORS.heroFur);
@@ -37,13 +37,14 @@ const DRAW: Record<BuildingKind, (g: Phaser.GameObjects.Graphics) => void> = {
     g.fillPoints([point(0, -24), point(10, -8), point(0, -4)], true);
   },
   altar(g) {
-    g.fillStyle(COLORS.gateWall);
-    g.fillRoundedRect(-19, 8, 38, 10, 3);
-    g.fillRoundedRect(-12, -2, 24, 12, 3);
+    g.fillStyle(COLORS.moundDark);
+    g.fillRoundedRect(-21, 6, 42, 12, 5);
+    g.fillStyle(COLORS.mound);
+    g.fillRoundedRect(-19, 4, 38, 9, 4);
     g.fillStyle(COLORS.hp);
-    g.fillEllipse(-7, -13, 16, 9);
-    g.fillEllipse(7, -13, 16, 9);
-    g.fillEllipse(0, -20, 9, 14);
+    g.fillEllipse(-8, -4, 16, 9);
+    g.fillEllipse(8, -4, 16, 9);
+    g.fillEllipse(0, -12, 9, 16);
   },
 };
 
