@@ -8,7 +8,9 @@
 //     (src/systems/CatFit.ts), ось тела — посередине квадрата, лапы — на нижнем краю; `scale` в манифесте — ручная поправка кота.
 //   Другая картинка с `align: bottom` встаёт в свой размер по нижнему краю, остальные — по центру.
 //   Рядом с исходниками пишется preview.png: все готовые коты в ряд на траве и на тёмном поле — проверить вырезку глазами;
-//     линии — низ лап и линия щёк, у всех котов они должны совпасть.
+//     линии — низ лап и линия щёк, у всех котов они должны совпасть. Так же — preview-enemies.png: враги в игровом размере
+//     на траве и на дороге (копия — docs/screens/enemies-preview.png); у врагов одного размера линии тоже совпадают.
+//   Враги (группа `enemies`) — в своём едином масштабе тела, умноженном на `size` из enemies.json; вырезаются с мягким краем.
 //   Картинка атласа: прозрачные края обрезаются, остаток вписывается в размер из манифеста по центру.
 //   Фон кнопки (`slice`): растягивается ровно в размер, края не обрезаются.
 //   Фон уровня: обрезается под размер и лежит отдельным файлом — игра грузит его при входе в уровень.
@@ -22,7 +24,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
 import { artList } from '../src/systems/ArtList.ts';
-import { measureCat, placeCats } from '../src/systems/CatFit.ts';
+import { measureCat, placeFigures } from '../src/systems/CatFit.ts';
 
 /** Общий вес готового арта, байты. */
 const BUDGET = 3 * 1024 * 1024;
@@ -52,6 +54,8 @@ const SOFT_MAX = 115;
 const SHADOW_MAX_CHROMA = 26;
 /** Превью котов: сторона клетки с котом, фоны, на которых он проверяется, — трава и тёмное поле, цвета линий лап и щёк. */
 const PREVIEW = { file: 'preview.png', size: 96, gap: 8, backgrounds: ['#5d9b4b', '#1e2740'], ground: '#ff4fd8', cheek: '#ffe14f' };
+/** Превью врагов: в игровом размере (картинки атласа как есть, экран телефона ×2) на траве и на дороге (COLORS.road). */
+const PREVIEW_ENEMIES = { file: 'preview-enemies.png', copy: 'docs/screens/enemies-preview.png', gap: 8, backgrounds: ['#5d9b4b', '#4b4230'] };
 const ATLAS_WEBP = { quality: 90, alphaQuality: 100, effort: 6 };
 const BACKGROUND_WEBP = { quality: 82, effort: 6 };
 
@@ -70,6 +74,11 @@ const OUT = option('out', 'public/assets/art');
 const LIST = 'docs/ART_LIST.md';
 const manifest = JSON.parse(readFileSync('src/data/art.json', 'utf8'));
 const levels = JSON.parse(readFileSync('src/data/levels.json', 'utf8')).levels;
+const enemyTypes = JSON.parse(readFileSync('src/data/enemies.json', 'utf8')).types;
+/** Группы в едином масштабе тела (src/systems/CatFit.ts): у каждой свой общий масштаб. */
+const FIGURE_GROUPS = ['cats', 'enemies'];
+/** Во сколько раз фигура крупнее остальных своей группы: у врага — `size` из enemies.json, у кота — 1; сверху — ручной `scale`. */
+const figureScale = (image) => (image.group === 'enemies' ? enemyTypes[image.id.replace(/^enemy-/, '')].size : 1) * (image.scale ?? 1);
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} КБ`;
 
 /** Цвет заглушки по группе: на снимке видно, что стоит картинка, а не рисунок кодом. */
@@ -254,21 +263,24 @@ async function prepareFrame(image, file) {
   return { image, data, width, height, offsetX: x, offsetY: y };
 }
 
-/** Коты в едином масштабе тела: замер всех, общий масштаб, затем каждый — обрезанная фигура и её место в квадрате. */
-async function prepareCats(images) {
+/**
+ * Фигуры группы (коты или враги) в едином масштабе тела: замер всех, общий масштаб, затем каждая — обрезанная фигура
+ * и её место в своём квадрате.
+ */
+async function prepareFigures(images) {
   const sources = [];
   for (const image of images) {
-    const { data, info } = await (await withAlpha(join(SRC, image.file))).raw().toBuffer({ resolveWithObject: true });
+    if (image.width !== image.height) fail(`${image.id}: картинка ${image.group} должна быть квадратной`);
+    const { data, info } = await (await withAlpha(join(SRC, image.file), { soft: image.group === 'enemies' })).raw().toBuffer({ resolveWithObject: true });
     const measure = measureCat(info.width, info.height, (x, y) => data[(y * info.width + x) * 4 + 3] > 0);
-    if (!measure) fail(`${image.file}: не нашлась голова кота — фигура пустая или без широкой части`);
+    if (!measure) fail(`${image.file}: не нашлась голова — фигура пустая или без широкой части`);
     sources.push({ image, data, info, measure });
   }
-  const size = images[0].width;
-  if (images.some((image) => image.width !== size || image.height !== size)) fail('Коты в манифесте должны быть одного квадратного размера');
-  const placements = placeCats(sources.map(({ image, measure }) => ({ measure, scale: image.scale })), size);
+  const placements = placeFigures(sources.map(({ image, measure }) => ({ measure, scale: figureScale(image), frame: image.width })));
   const frames = [];
   for (const [i, { image, data, info, measure: m }] of sources.entries()) {
     const p = placements[i];
+    const size = image.width;
     const width = Math.min(size, Math.max(1, Math.round((m.right + 1 - m.left) * p.factor)));
     const height = Math.min(size, Math.max(1, Math.round((m.bottom + 1 - m.top) * p.factor)));
     const resized = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
@@ -315,17 +327,22 @@ rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
 const index = { atlases: {}, images: {} };
-/** Готовые кадры котов — для превью. */
-const catFrames = [];
+/** Готовые кадры котов и врагов — для превью. */
+const figureFrames = { cats: [], enemies: [] };
 const ready = manifest.images.filter((image) => existsSync(join(SRC, image.file)));
 
 const atlasNames = [...new Set(ready.filter((image) => image.atlas).map((image) => image.atlas))].sort();
 for (const name of atlasNames) {
   const images = ready.filter((entry) => entry.atlas === name);
-  const catImages = images.filter((entry) => entry.group === 'cats');
-  const frames = catImages.length > 0 ? await prepareCats(catImages) : [];
-  for (const image of images.filter((entry) => entry.group !== 'cats')) frames.push(await prepareFrame(image, join(SRC, image.file)));
-  if (catImages.length > 0) catFrames.push(...frames.filter((frame) => frame.image.group === 'cats'));
+  const frames = [];
+  for (const group of FIGURE_GROUPS) {
+    const members = images.filter((entry) => entry.group === group);
+    if (members.length === 0) continue;
+    const prepared = await prepareFigures(members);
+    frames.push(...prepared);
+    figureFrames[group].push(...prepared);
+  }
+  for (const image of images.filter((entry) => !FIGURE_GROUPS.includes(entry.group))) frames.push(await prepareFrame(image, join(SRC, image.file)));
   const height = pack(frames);
   if (height > ATLAS_MAX) fail(`Атлас ${name} выше ${ATLAS_MAX} пикс.: разделите его в манифесте`);
 
@@ -350,33 +367,51 @@ for (const name of atlasNames) {
   index.atlases[name] = { file, bytes: statSync(join(OUT, file)).size, width: ATLAS_WIDTH, height, frames: entries };
 }
 
-// Превью: только для настоящих исходников, заглушкам смоук-проверки оно не нужно. Кот стоит в клетке так же, как в игре,
-// поверх — линии лап и щёк: каждая проведена по замеру своего кота, и у всех они должны слиться в одну.
-if (OUT === 'public/assets/art' && catFrames.length > 0) {
-  const { size, gap, backgrounds, ground, cheek } = PREVIEW;
-  const catOrder = manifest.images.filter((image) => image.group === 'cats').map((image) => image.id);
-  catFrames.sort((a, b) => catOrder.indexOf(a.image.id) - catOrder.indexOf(b.image.id));
-  const k = size / catFrames[0].image.width;
-  const width = gap + catFrames.length * (size + gap);
-  const rowHeight = size + gap * 2;
-  const line = (color, left, top) => ({ input: { create: { width: size, height: 1, channels: 4, background: color } }, left, top: Math.round(top) });
+/**
+ * Ряд фигур на каждом из фонов, лапами на одной линии; поверх — линии лап и щёк, проведённые по замеру каждой фигуры:
+ * у фигур одного размера они должны слиться. `k` — во сколько раз уменьшить картинку атласа.
+ */
+async function writePreview(frames, file, { backgrounds, gap, k, tile }) {
+  const { ground, cheek } = PREVIEW;
+  const order = manifest.images.map((image) => image.id);
+  frames.sort((a, b) => order.indexOf(a.image.id) - order.indexOf(b.image.id));
+  const tileW = (frame) => tile ?? Math.round(frame.image.width * k);
+  const tileH = Math.max(...frames.map((frame) => tile ?? Math.round(frame.image.height * k)));
+  const width = gap + frames.reduce((sum, frame) => sum + tileW(frame) + gap, 0);
+  const rowHeight = tileH + gap * 2;
+  const line = (color, left, w, top) => ({ input: { create: { width: w, height: 1, channels: 4, background: color } }, left, top: Math.round(top) });
   const layers = [];
   for (const [row, background] of backgrounds.entries()) {
     layers.push({ input: { create: { width, height: rowHeight, channels: 4, background } }, left: 0, top: row * rowHeight });
-    for (const [i, frame] of catFrames.entries()) {
-      const left = gap + i * (size + gap);
-      const top = row * rowHeight + gap;
-      const w = Math.max(1, Math.round(frame.width * k));
-      const h = Math.max(1, Math.round(frame.height * k));
-      const tile = await sharp(frame.data, { raw: { width: frame.width, height: frame.height, channels: 4 } }).resize(w, h, { fit: 'fill' }).png().toBuffer();
-      layers.push({ input: tile, left: left + Math.round(frame.offsetX * k), top: top + size - h });
-      layers.push(line(cheek, left, top + frame.cheekY * k), line(ground, left, top + size));
+    let left = gap;
+    for (const frame of frames) {
+      const scale = tile ? tile / frame.image.width : k;
+      const w = Math.max(1, Math.round(frame.width * scale));
+      const h = Math.max(1, Math.round(frame.height * scale));
+      const bottom = row * rowHeight + gap + tileH;
+      const image = await sharp(frame.data, { raw: { width: frame.width, height: frame.height, channels: 4 } }).resize(w, h, { fit: 'fill' }).png().toBuffer();
+      layers.push({ input: image, left: left + Math.round(frame.offsetX * scale), top: bottom - h });
+      const lineW = tileW(frame);
+      layers.push(line(cheek, left, lineW, bottom - (frame.image.height - frame.cheekY) * scale), line(ground, left, lineW, bottom));
+      left += lineW + gap;
     }
   }
   await sharp({ create: { width, height: rowHeight * backgrounds.length, channels: 4, background: '#000000' } })
     .composite(layers)
     .png()
-    .toFile(join(SRC, PREVIEW.file));
+    .toFile(file);
+}
+
+// Превью: только для настоящих исходников, заглушкам смоук-проверки оно не нужно.
+if (OUT === 'public/assets/art') {
+  if (figureFrames.cats.length > 0) {
+    await writePreview(figureFrames.cats, join(SRC, PREVIEW.file), { backgrounds: PREVIEW.backgrounds, gap: PREVIEW.gap, tile: PREVIEW.size });
+  }
+  if (figureFrames.enemies.length > 0) {
+    const { file, copy, gap, backgrounds } = PREVIEW_ENEMIES;
+    await writePreview(figureFrames.enemies, join(SRC, file), { backgrounds, gap, k: 1 });
+    writeFileSync(copy, readFileSync(join(SRC, file)));
+  }
 }
 
 for (const image of ready.filter((entry) => !entry.atlas)) {

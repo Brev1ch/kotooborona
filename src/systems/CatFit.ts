@@ -7,6 +7,8 @@
 const HEAD_MIN_WIDTH = 0.4;
 /** Голова кончилась, когда отрезок строки сузился до этой доли самой широкой строки над ним (шея). */
 const NECK_NARROWING = 0.8;
+/** Самая широкая полоса головы: строки не уже этой доли самой широкой. */
+const PLATEAU = 0.95;
 /** Ось кота ищется в этой нижней доле высоты: лапы и низ тела. */
 const AXIS_BAND = 0.15;
 
@@ -19,7 +21,7 @@ export interface CatMeasure {
   bottom: number;
   /** Ось тела: середина тела у лап. */
   axis: number;
-  /** Линия щёк: самая широкая строка головы. */
+  /** Линия щёк: середина самой широкой полосы головы (у мышей — уши). */
   cheek: number;
 }
 
@@ -65,8 +67,9 @@ export function measureCat(width: number, height: number, opaque: (x: number, y:
   }
   const axis = Math.round(sum / count);
 
+  const runs: number[] = [];
   let widest = 0;
-  let cheek = -1;
+  let widestAt = -1;
   for (let y = top; y <= bottom; y++) {
     let run = 0;
     if (opaque(axis, y)) {
@@ -76,14 +79,21 @@ export function measureCat(width: number, height: number, opaque: (x: number, y:
       while (r < right && opaque(r + 1, y)) r++;
       run = r - l + 1;
     }
+    runs.push(run);
     if (run > widest) {
       widest = run;
-      cheek = y;
+      widestAt = y;
     } else if (widest >= figureH * HEAD_MIN_WIDTH && run < widest * NECK_NARROWING) {
       break;
     }
   }
   if (widest < figureH * HEAD_MIN_WIDTH) return null;
+  // Линия — середина самой широкой полосы головы: где у щёк или ушей самая широкая строка, зависит от их формы, а середина — нет.
+  let from = widestAt;
+  let to = widestAt;
+  while (from > top && runs[from - 1 - top] >= widest * PLATEAU) from--;
+  while (to + 1 - top < runs.length && runs[to + 1 - top] >= widest * PLATEAU) to++;
+  const cheek = Math.round((from + to) / 2);
   return { left, right, top, bottom, axis, cheek };
 }
 
@@ -101,25 +111,32 @@ export interface CatPlacement {
 const bodyHeight = (m: CatMeasure): number => m.bottom + 1 - m.cheek;
 
 /**
- * Общий масштаб для всех котов: высота от лап до щёк у всех одна (с ручной поправкой `scale` у каждого), ось — посередине
- * картинки, лапы — на нижнем краю. Высота выбрана наибольшей, при которой каждый кот целиком помещается в квадрат `size`.
+ * Общий масштаб для всех фигур группы: высота от лап до щёк у всех одна, умноженная на `scale` фигуры (размер врага
+ * и ручная поправка), ось — посередине квадратной картинки стороной `frame`, лапы — на нижнем краю. Высота выбрана
+ * наибольшей, при которой каждая фигура целиком помещается в свой квадрат. Если сторона картинки растёт вместе со `scale`,
+ * фигуры разного размера выходят подобными: так стоят враги, у которых крупнее только крыса, командир и король.
  */
-export function placeCats(cats: { measure: CatMeasure; scale?: number }[], size: number): CatPlacement[] {
-  const limits = cats.map(({ measure: m, scale = 1 }) => {
+export function placeFigures(figures: { measure: CatMeasure; scale?: number; frame: number }[]): CatPlacement[] {
+  const limits = figures.map(({ measure: m, scale = 1, frame }) => {
     const half = Math.max(m.axis - m.left + 0.5, m.right + 0.5 - m.axis);
-    const fit = Math.min(size / (m.bottom + 1 - m.top), size / 2 / half);
+    const fit = Math.min(frame / (m.bottom + 1 - m.top), frame / 2 / half);
     return (bodyHeight(m) * fit) / scale;
   });
   const body = Math.min(...limits);
-  return cats.map(({ measure: m, scale = 1 }) => {
+  return figures.map(({ measure: m, scale = 1, frame }) => {
     const factor = (body * scale) / bodyHeight(m);
-    const groundY = size;
+    const groundY = frame;
     return {
       factor,
-      x: size / 2 - (m.axis + 0.5 - m.left) * factor,
+      x: frame / 2 - (m.axis + 0.5 - m.left) * factor,
       y: groundY - (m.bottom + 1 - m.top) * factor,
       cheekY: groundY - bodyHeight(m) * factor,
       groundY,
     };
   });
+}
+
+/** Коты: все в квадрате одной стороны `size`, `scale` — ручная поправка кота. */
+export function placeCats(cats: { measure: CatMeasure; scale?: number }[], size: number): CatPlacement[] {
+  return placeFigures(cats.map((cat) => ({ ...cat, frame: size })));
 }

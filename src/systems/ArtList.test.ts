@@ -8,6 +8,7 @@ import { artList } from './ArtList';
 
 const manifest: ArtConfig = {
   scale: 2,
+  enemyFrame: 64,
   images: [
     { id: 'cat-fire', file: 'cats/fire.png', width: 96, height: 116, group: 'cats', use: 'Огненный кот', atlas: 'units' },
     { id: 'cat-water', file: 'cats/water.png', width: 96, height: 116, group: 'cats', use: 'Водный кот', atlas: 'units' },

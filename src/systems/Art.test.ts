@@ -32,9 +32,17 @@ describe('манифест арта', () => {
     }
   });
 
-  it('ручная поправка масштаба — только у котов и положительная', () => {
+  it('враги — квадратные, стоят по нижнему краю, сторона — по их размеру из enemies.json', () => {
+    for (const type of Object.keys(enemies.types) as EnemyTypeId[]) {
+      const image = byId(artId.enemy(type))!;
+      const side = Math.round(art.enemyFrame * enemies.types[type].size);
+      expect([image.width, image.height, image.align]).toEqual([side, side, 'bottom']);
+    }
+  });
+
+  it('ручная поправка масштаба — только у котов и врагов и положительная', () => {
     for (const image of art.images.filter((entry) => entry.scale !== undefined)) {
-      expect(image.group).toBe('cats');
+      expect(['cats', 'enemies']).toContain(image.group);
       expect(image.scale).toBeGreaterThan(0);
     }
   });

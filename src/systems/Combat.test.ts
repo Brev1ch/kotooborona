@@ -41,7 +41,7 @@ const cats: CatsConfig = {
   },
 };
 
-const type = { color: '#000000', hp: 1, speed: 40, gold: 2, radius: 8, shield: 0, crystalChance: 0, crystalDrop: 0, motion: 'waddle' as const };
+const type = { color: '#000000', hp: 1, speed: 40, gold: 2, radius: 8, shield: 0, crystalChance: 0, crystalDrop: 0, motion: 'waddle' as const, size: 1 };
 const enemies: EnemiesConfig = {
   ...enemiesJson,
   bossSlowResist: 0.5,

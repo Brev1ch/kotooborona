@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { measureCat, placeCats } from './CatFit';
+import { measureCat, placeCats, placeFigures } from './CatFit';
 
 type Box = [left: number, top: number, right: number, bottom: number];
 
@@ -15,21 +15,21 @@ const BODY: Box[] = [
 ];
 
 describe('замер кота', () => {
-  it('ось у лап, линия щёк — первая самая широкая строка головы, низ — лапы', () => {
+  it('ось у лап, линия щёк — середина самой широкой полосы головы, низ — лапы', () => {
     const m = measureCat(120, 120, drawCat(BODY));
-    expect(m).toEqual({ left: 30, right: 69, top: 30, bottom: 99, axis: 50, cheek: 30 });
+    expect(m).toEqual({ left: 30, right: 69, top: 30, bottom: 99, axis: 50, cheek: 40 });
   });
 
   it('хохолок и отдельно висящий хвост не меняют ни оси, ни линии щёк', () => {
     const m = measureCat(120, 120, drawCat([...BODY, [45, 0, 54, 29], [80, 40, 110, 70], [70, 90, 80, 95]]));
     expect(m?.axis).toBe(50);
-    expect(m?.cheek).toBe(30);
+    expect(m?.cheek).toBe(40);
     expect([m?.top, m?.right]).toEqual([0, 110]);
   });
 
   it('широкий плащ ниже шеи — не голова', () => {
     const m = measureCat(120, 120, drawCat([...BODY, [20, 70, 79, 99]]));
-    expect(m?.cheek).toBe(30);
+    expect(m?.cheek).toBe(40);
   });
 
   it('пустая картинка — замера нет', () => {
@@ -62,5 +62,28 @@ describe('общий масштаб котов', () => {
     expect((b.groundY - b.cheekY) / (a.groundY - a.cheekY)).toBeCloseTo(0.9);
     const [big] = placeCats([{ measure: plain, scale: 1.2 }], 120);
     expect(big.y).toBeGreaterThanOrEqual(-1e-9);
+  });
+});
+
+describe('общий масштаб фигур разного размера', () => {
+  const plain = measureCat(120, 120, drawCat(BODY))!;
+
+  it('фигура вдвое крупнее в квадрате вдвое больше — та же фигура, увеличенная вдвое', () => {
+    const [small, big] = placeFigures([
+      { measure: plain, frame: 60 },
+      { measure: plain, scale: 2, frame: 120 },
+    ]);
+    expect(big.factor).toBeCloseTo(small.factor * 2);
+    expect(big.groundY - big.cheekY).toBeCloseTo((small.groundY - small.cheekY) * 2);
+    expect(big.x).toBeCloseTo(small.x * 2);
+  });
+
+  it('масштаб подобран по фигуре, которой теснее всего в своём квадрате', () => {
+    const tall = measureCat(120, 120, drawCat([...BODY, [45, 0, 54, 29]]))!;
+    const [, b] = placeFigures([
+      { measure: plain, frame: 60 },
+      { measure: tall, scale: 2, frame: 120 },
+    ]);
+    expect(b.y).toBeCloseTo(0);
   });
 });
