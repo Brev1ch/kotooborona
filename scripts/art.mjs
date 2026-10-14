@@ -40,6 +40,16 @@ const BACKGROUND_MAX_CHROMA = 22;
 const BACKGROUND_ERODE = 1;
 /** Островок вне фигуры остаётся, только если он не меньше этой доли самой большой фигуры. */
 const BACKGROUND_MIN_ISLAND = 0.01;
+/**
+ * Мягкий край (враги): от фона заливка идёт дальше, в точки, отличающиеся от бумаги меньше чем на SOFT_MAX
+ * (расстояние по цветам). Контур фигуры тёмный, через него заливка не проходит. Малонасыщенные из этих точек
+ * (серая тень под ногами, крапинки бумаги; разброс каналов не больше SHADOW_MAX_CHROMA) становятся прозрачными,
+ * цветные (ореол огонька, фонаря) — полупрозрачными от SOFT_MIN до SOFT_MAX, а цвет бумаги из них вычитается:
+ * на тёмной дороге не остаётся светлой каймы.
+ */
+const SOFT_MIN = 50;
+const SOFT_MAX = 115;
+const SHADOW_MAX_CHROMA = 26;
 /** Превью котов: сторона клетки с котом, фоны, на которых он проверяется, — трава и тёмное поле, цвета линий лап и щёк. */
 const PREVIEW = { file: 'preview.png', size: 96, gap: 8, backgrounds: ['#5d9b4b', '#1e2740'], ground: '#ff4fd8', cheek: '#ffe14f' };
 const ATLAS_WEBP = { quality: 90, alphaQuality: 100, effort: 6 };
@@ -106,7 +116,7 @@ if (process.argv.includes('--placeholders')) {
  * (светлым и малонасыщенным). Белое внутри контура (грудка, облако пара, вихрь) заливка не достаёт, и оно остаётся.
  * Затем маска сжимается на точку: светлая кайма вдоль контура уходит вместе с фоном.
  */
-async function withAlpha(file) {
+async function withAlpha(file, { soft = false } = {}) {
   const { data, info } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width, height } = info;
   let opaque = true;
@@ -137,6 +147,8 @@ async function withAlpha(file) {
     if (p >= width) visit(p - width);
     if (p < width * (height - 1)) visit(p + width);
   }
+  const alpha = new Uint8Array(width * height).fill(255);
+  if (soft) softEdges(data, width, height, background, alpha);
   // Сжатие маски: точка рядом с фоном тоже становится прозрачной.
   for (let step = 0; step < BACKGROUND_ERODE; step++) {
     const edge = [];
@@ -169,13 +181,58 @@ async function withAlpha(file) {
     sizes.push(size);
   }
   const keep = Math.max(...sizes) * BACKGROUND_MIN_ISLAND;
-  for (let p = 0; p < width * height; p++) if (background[p] || sizes[island[p]] < keep) data[p * 4 + 3] = 0;
+  for (let p = 0; p < width * height; p++) data[p * 4 + 3] = background[p] || sizes[island[p]] < keep ? 0 : alpha[p];
   return sharp(data, raw);
+}
+
+/** Мягкий край фигуры, см. SOFT_MIN: меняет `background`, `alpha` и цвета полупрозрачных точек в `data`. */
+function softEdges(data, width, height, background, alpha) {
+  // Цвет бумаги — средний по уже найденному фону.
+  const paper = [0, 0, 0];
+  let count = 0;
+  for (let p = 0; p < width * height; p++) {
+    if (!background[p]) continue;
+    for (let c = 0; c < 3; c++) paper[c] += data[p * 4 + c];
+    count++;
+  }
+  if (count === 0) return;
+  for (let c = 0; c < 3; c++) paper[c] /= count;
+  const distance = (p) => Math.hypot(data[p * 4] - paper[0], data[p * 4 + 1] - paper[1], data[p * 4 + 2] - paper[2]);
+
+  const seen = new Uint8Array(width * height);
+  const stack = [];
+  for (let p = 0; p < width * height; p++) if (background[p]) { seen[p] = 1; stack.push(p); }
+  while (stack.length > 0) {
+    const p = stack.pop();
+    const x = p % width;
+    for (const q of [x > 0 ? p - 1 : -1, x < width - 1 ? p + 1 : -1, p - width, p + width]) {
+      if (q < 0 || q >= width * height || seen[q]) continue;
+      seen[q] = 1;
+      const d = distance(q);
+      if (d >= SOFT_MAX) continue;
+      stack.push(q);
+      const r = data[q * 4];
+      const g = data[q * 4 + 1];
+      const b = data[q * 4 + 2];
+      if (Math.max(r, g, b) - Math.min(r, g, b) <= SHADOW_MAX_CHROMA) {
+        background[q] = 1;
+        continue;
+      }
+      const a = Math.min(1, Math.max(0, (d - SOFT_MIN) / (SOFT_MAX - SOFT_MIN)));
+      if (a === 0) {
+        background[q] = 1;
+        continue;
+      }
+      // Точка = бумага·(1−a) + свечение·a: свечение без бумаги.
+      for (let c = 0; c < 3; c++) data[q * 4 + c] = Math.min(255, Math.max(0, Math.round(paper[c] + (data[q * 4 + c] - paper[c]) / a)));
+      alpha[q] = Math.round(a * 255);
+    }
+  }
 }
 
 /** Картинка атласа: точки и размер после обрезки и подгонки. */
 async function prepareFrame(image, file) {
-  let pipeline = await withAlpha(file);
+  let pipeline = await withAlpha(file, { soft: image.group === 'enemies' });
   if (image.slice) {
     pipeline = pipeline.resize(image.width, image.height, { fit: 'fill' });
   } else {
@@ -185,7 +242,7 @@ async function prepareFrame(image, file) {
       trimmed = await pipeline.trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 1 }).png().toBuffer();
     } catch {
       // Обрезать нечего: картинка без прозрачных краёв.
-      trimmed = await (await withAlpha(file)).png().toBuffer();
+      trimmed = await (await withAlpha(file, { soft: image.group === 'enemies' })).png().toBuffer();
     }
     pipeline = sharp(trimmed).resize(image.width, image.height, { fit: 'inside' });
   }
