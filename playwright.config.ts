@@ -6,7 +6,8 @@ const DEV_PORT = 4174;
 /** Заглушки арта для проекта `art`: вне сборки и вне git. Тот же путь — в `smoke/game.smoke.ts`. */
 const SMOKE_ART = 'node_modules/.cache/smoke-art';
 
-// Смоук-проверка: свежая сборка в headless Chromium с экраном телефона.
+// Полная смоук-проверка (`npm run smoke:full`): свежая сборка в headless Chromium с экраном телефона.
+// Быстрая (`npm run smoke`) — `playwright.quick.config.ts`.
 export default defineConfig({
   testDir: 'smoke',
   // Не *.spec.ts и не *.test.ts: такие файлы подхватил бы Vitest в `npm test`.
@@ -26,7 +27,7 @@ export default defineConfig({
     hasTouch: true,
   },
   // Игра берёт язык из браузера: вся проверка идёт дважды, на русском и на английском.
-  // Снимки английской — в screenshots/en. Одна локаль: npm run smoke -- --project=ru
+  // Снимки английской — в screenshots/en. Одна локаль: npm run smoke:full -- --project=ru
   projects: [
     { name: 'ru', use: { locale: 'ru-RU' } },
     // Проверка с поддельным SDK Яндекса от языка браузера не зависит: ей хватает одного прогона.

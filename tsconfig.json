@@ -15,5 +15,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "smoke", "vite.config.ts", "playwright.config.ts"]
+  "include": ["src", "smoke", "vite.config.ts", "playwright.config.ts", "playwright.quick.config.ts"]
 }

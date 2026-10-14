@@ -12,7 +12,8 @@
     "balance": "vitest run --config vitest.balance.config.ts",
     "sfx": "node scripts/sfx.mjs",
     "art": "node scripts/art.mjs",
-    "smoke": "node -e \"fs.rmSync('screenshots', { recursive: true, force: true })\" && playwright test",
+    "smoke": "node -e \"fs.rmSync('screenshots', { recursive: true, force: true })\" && playwright test -c playwright.quick.config.ts",
+    "smoke:full": "node -e \"fs.rmSync('screenshots', { recursive: true, force: true })\" && playwright test",
     "perf": "playwright test -c playwright.perf.config.ts",
     "pack": "vite build && node scripts/pack.mjs"
   },
