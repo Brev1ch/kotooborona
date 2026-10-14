@@ -32,9 +32,12 @@ export class HeroView extends Phaser.GameObjects.Container {
 
     // Неподвижные части запечены в текстуры; сфера и ореол — круги из общей текстуры, окрашенные в цвет посоха.
     ensureTextures(scene);
-    this.halo = scene.add.image(ORB_X, ORB_Y, Texture.disc).setTint(orbColor);
-    this.orb = scene.add.image(ORB_X, ORB_Y, Texture.disc).setTint(orbColor);
     const picture = art.add(scene, artId.hero);
+    // Сфера — на навершии посоха: у готовой картинки точка из манифеста (`anchors.orb`), у рисунка кодом — своя.
+    const anchor = picture ? art.anchor(artId.hero, 'orb') : null;
+    const [orbX, orbY] = picture && anchor ? [(anchor[0] - 0.5) * picture.displayWidth, (anchor[1] - 0.5) * picture.displayHeight] : [ORB_X, ORB_Y];
+    this.halo = scene.add.image(orbX, orbY, Texture.disc).setTint(orbColor);
+    this.orb = scene.add.image(orbX, orbY, Texture.disc).setTint(orbColor);
     this.staff = scene.add.container(0, 0, [this.halo, this.orb]);
     this.add(picture ? [picture, this.staff] : [...this.drawParts(), this.staff]);
     this.setDepth(DEPTH.cat);
@@ -91,7 +94,7 @@ export class HeroView extends Phaser.GameObjects.Container {
 
   /** Точка в координатах поля, откуда вылетает метеор. */
   orbPoint(): Point {
-    return [this.x + ORB_X, this.y + ORB_Y];
+    return [this.x + this.orb.x, this.y + this.orb.y];
   }
 
   /** Умение готово — сфера светится и пульсирует; на перезарядке — маленькая и тусклая. */
@@ -127,7 +130,7 @@ export class HeroView extends Phaser.GameObjects.Container {
 
   /** Вспышка на сфере: умение перезарядилось. */
   private playRecharged(): void {
-    const flash = this.scene.add.image(ORB_X, ORB_Y, Texture.disc).setScale(ORB_SCALE);
+    const flash = this.scene.add.image(this.orb.x, this.orb.y, Texture.disc).setScale(ORB_SCALE);
     this.staff.add(flash);
     this.scene.tweens.add({
       targets: flash,

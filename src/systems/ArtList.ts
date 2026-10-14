@@ -25,7 +25,7 @@ const GROUPS: Record<ArtGroup, { title: string; notes: string[] }> = {
   hero: {
     title: 'Герой',
     notes: [
-      'Рисовать во весь холст: посох справа, его навершие — в точке (92, 38) от левого верхнего угла, без сферы.',
+      'Рисовать во весь холст: посох справа, без сферы; навершие — в точке, указанной в таблице (её берёт игра из `anchors.orb` в `src/data/art.json`: другая картинка — другая точка там же).',
       'Сферу и её свечение рисует игра: по ним видно, готов ли метеор.',
     ],
   },
@@ -57,6 +57,9 @@ const GROUPS: Record<ArtGroup, { title: string; notes: string[] }> = {
   },
 };
 
+/** Как назвать точку картинки (`anchors`) в списке. */
+const ANCHOR_NAMES: Record<string, string> = { orb: 'навершие посоха', crystal: 'кристалл посоха' };
+
 /**
  * Список арта для художника, `docs/ART_LIST.md`: таблица по группам с размерами и отметкой готовности.
  * `ready` — имена картинок, которые уже лежат в `public/assets/art`.
@@ -87,7 +90,12 @@ export function artList(manifest: ArtConfig, ready: ReadonlySet<string>): string
     lines.push('', `## ${title} (${groupDone} из ${images.length})`, '', ...notes.map((note) => `- ${note}`), '');
     lines.push('| Файл | Размер | Что нарисовано | Готово |', '| --- | --- | --- | --- |');
     for (const image of images) {
-      lines.push(`| \`${image.file}\` | ${image.width}×${image.height} | ${image.use} | ${ready.has(image.id) ? 'да' : 'нет'} |`);
+      // Точки, к которым игра привязывает эффекты, — в пикселях картинки.
+      const anchors = Object.entries(image.anchors ?? {})
+        .map(([name, [x, y]]) => `${ANCHOR_NAMES[name] ?? name} — (${Math.round(x * image.width)}, ${Math.round(y * image.height)})`)
+        .join(', ');
+      const use = anchors ? `${image.use}; ${anchors} от левого верхнего угла` : image.use;
+      lines.push(`| \`${image.file}\` | ${image.width}×${image.height} | ${use} | ${ready.has(image.id) ? 'да' : 'нет'} |`);
     }
   }
   return `${lines.join('\n')}\n`;

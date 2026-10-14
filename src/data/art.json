@@ -24,7 +24,7 @@
     {"id": "enemy-bat", "file": "enemies/bat.png", "width": 76, "height": 76, "align": "bottom", "group": "enemies", "use": "Летучая мышь", "atlas": "units"},
     {"id": "enemy-boss", "file": "enemies/commander.png", "width": 86, "height": 86, "align": "bottom", "group": "enemies", "use": "Крыса-командир", "atlas": "units"},
     {"id": "enemy-king", "file": "enemies/king.png", "width": 115, "height": 115, "align": "bottom", "group": "enemies", "use": "Крысиный король", "atlas": "units"},
-    {"id": "hero", "file": "hero/hero.png", "width": 104, "height": 152, "group": "hero", "use": "Кот-Архимаг на поле, без сферы на посохе", "atlas": "units"},
+    {"id": "hero", "file": "hero/hero.png", "width": 104, "height": 152, "group": "hero", "anchors": {"orb": [0.885, 0.25]}, "use": "Кот-Архимаг на поле, без сферы на посохе", "atlas": "units"},
     {"id": "building-shop-1", "file": "buildings/shop-1.png", "width": 104, "height": 116, "group": "buildings", "use": "Рыбная лавка, уровень 1", "atlas": "units"},
     {"id": "building-shop-2", "file": "buildings/shop-2.png", "width": 104, "height": 116, "group": "buildings", "use": "Рыбная лавка, уровень 2", "atlas": "units"},
     {"id": "building-shop-3", "file": "buildings/shop-3.png", "width": 104, "height": 116, "group": "buildings", "use": "Рыбная лавка, уровень 3", "atlas": "units"},

@@ -43,6 +43,16 @@ describe('манифест арта', () => {
     expect([broken.width, broken.height, broken.align]).toEqual([byId(artId.enemy('shield'))!.width, byId(artId.enemy('shield'))!.height, 'bottom']);
   });
 
+  it('точки для эффектов лежат внутри картинки; у героя есть навершие посоха, у шамана — кристалл', () => {
+    for (const image of art.images) {
+      for (const [x, y] of Object.values(image.anchors ?? {})) {
+        expect(x >= 0 && x <= 1 && y >= 0 && y <= 1).toBe(true);
+      }
+    }
+    expect(byId(artId.hero)?.anchors?.orb).toBeDefined();
+    expect(byId(artId.enemy('shaman'))?.anchors?.crystal).toBeDefined();
+  });
+
   it('ручная поправка масштаба — только у котов и врагов и положительная', () => {
     for (const image of art.images.filter((entry) => entry.scale !== undefined)) {
       expect(['cats', 'enemies']).toContain(image.group);
