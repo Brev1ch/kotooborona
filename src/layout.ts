@@ -10,6 +10,9 @@ export const BOARD_Y = HUD_H;
 export const CONTROLS_Y = BOARD_Y + BOARD_H;
 export const CONTROLS_H = GAME_H - CONTROLS_Y;
 
+/** Взятого кота или строение не опустить ниже: подпись уровня под котом не должна уйти за край экрана. */
+export const DRAG_GHOST_MAX_Y = GAME_H - 40;
+
 /** Наименьший размер нажимаемого элемента по каждой стороне: меньше пальцем не попасть. */
 export const MIN_TOUCH = 44;
 

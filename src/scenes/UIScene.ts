@@ -23,6 +23,7 @@ import {
   COIN_AD_X,
   COLORS,
   CONTROLS_CENTER_Y,
+  DRAG_GHOST_MAX_Y,
   CONTROLS_H,
   CONTROLS_PAD,
   CONTROLS_Y,
@@ -423,7 +424,7 @@ export class UIScene extends Phaser.Scene {
       this.ghost = isCat(piece) ? new CatView(this, x, y, piece) : new BuildingView(this, x, y, piece);
       this.ghost.lift();
     }
-    this.ghost.setPosition(x, y);
+    this.ghost.setPosition(x, Math.min(y, DRAG_GHOST_MAX_Y));
   }
 
   /** Игрок отпустил взятое: проданное стягивается в зону продажи, остальное возвращается на поле уже там. */

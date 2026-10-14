@@ -1528,3 +1528,34 @@ test('уровень за уровнем: победа → следующий у
     await expectBattle(page, ids[REPEATS + 1], step);
   });
 });
+
+test('уровень кота: три способа показа, снимки клетки с котом 1, 4 и 7 уровня', async ({ page }, testInfo) => {
+  // Снимки для выбора способа лежат в docs/screens; делаются с настоящими котами, заглушкам они не нужны.
+  test.skip(testInfo.project.name !== 'ru', 'снимки делает русский прогон');
+  /** Сторона снимка вокруг центра клетки, в логических координатах. */
+  const SIDE = 76;
+  for (const mode of ['plate', 'stars', 'glow']) {
+    await page.goto(`/?smoke&catLevel=${mode}`);
+    await waitFor(page, SCREEN_TIMEOUT, (s) => s.scenes.includes(SceneKey.Menu), (s) => `Игра не дошла до меню: ${scenesText(s)}`);
+    await page.evaluate(() => window.__smoke?.startLevel());
+    await waitFor(page, SCREEN_TIMEOUT, (s) => s.scenes.includes(SceneKey.UI) && s.hud !== null, (s) => `Бой не начался: ${scenesText(s)}`);
+    await page.evaluate(() => {
+      [1, 4, 7].forEach((level, slot) => window.__smoke?.placeCat(slot, 'fire', level));
+    });
+    await page.waitForTimeout(SPAWN_SETTLE_MS);
+    const centers = (await page.evaluate(() => window.__smoke?.slotCenters())) ?? [];
+    const box = await page.locator('canvas').boundingBox();
+    if (!box || centers.length < 3) throw new Error('Нет поля или клеток для снимка');
+    const k = box.width / GAME_W;
+    for (const [slot, level] of [1, 4, 7].entries()) {
+      const [x, y] = centers[slot];
+      await page.screenshot({
+        path: `docs/screens/level-${mode}-${level}.png`,
+        clip: { x: box.x + (x - SIDE / 2) * k, y: box.y + (y - SIDE / 2) * k, width: SIDE * k, height: SIDE * k },
+      });
+    }
+    await page.screenshot({ path: `${SHOTS}/cat-level-${mode}.png` });
+    await checkTexts(page, `уровень кота: ${mode}`);
+    checkConsole(`уровень кота: ${mode}`);
+  }
+});
