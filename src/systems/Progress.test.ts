@@ -46,6 +46,7 @@ const defaults = {
   nextItem: 4,
   book: [] as string[],
   sound: true,
+  music: true,
   fish: 0,
   chests: 0,
   bestiary: [] as string[],
@@ -100,6 +101,7 @@ describe('parseSave: чтение сохранения', () => {
       nextItem: 9,
       book: ['steam'],
       sound: false,
+      music: true,
       fish: 9,
       chests: 3,
       bestiary: ['mouse', 'boots'],
@@ -277,7 +279,7 @@ describe('parseSave: настоящие миграции с версии 1', () 
     progress.flush();
 
     expect(saves).toEqual([
-      { ...defaults, ...{ stars: v1.stars, book: v1.book, sound: false }, fish: 5, items: ALL, worn: { staff: 'i4', mantle: 'i5', amulet: 'i6' }, nextItem: 7, bestiary: ['mouse', 'rat', 'boss'], perfect: ['opushka'], pending: { big: 1, small: 0 } },
+      { ...defaults, ...{ stars: v1.stars, book: v1.book, sound: false, music: false }, fish: 5, items: ALL, worn: { staff: 'i4', mantle: 'i5', amulet: 'i6' }, nextItem: 7, bestiary: ['mouse', 'rat', 'boss'], perfect: ['opushka'], pending: { big: 1, small: 0 } },
     ]);
     expect(Object.keys(saves[0] as object)).not.toEqual(expect.arrayContaining(['gear', 'owned', 'gearLevels']));
   });
@@ -866,6 +868,36 @@ describe('Progress: изменения', () => {
   });
 });
 
+describe('parseSave: версия 6 → 7, свой выключатель у музыки', () => {
+  const v6 = (extra: object) => ({ ...defaults, version: 6, music: undefined, ...extra });
+
+  it('у игрока со включённым звуком музыка включена', () => {
+    const { data } = parseSave(v6({ sound: true }), rules);
+    expect(data).toMatchObject({ version: V, sound: true, music: true });
+  });
+
+  it('кто выключил звук, когда выключатель был один, остаётся и без музыки', () => {
+    const { data } = parseSave(v6({ sound: false }), rules);
+    expect(data).toMatchObject({ version: V, sound: false, music: false });
+  });
+
+  it('остальное сохранение не меняется', () => {
+    const { data } = parseSave(v6({ stars: { opushka: 3 }, fish: 12, perfect: ['opushka'], pending: { big: 1, small: 2 } }), rules);
+    expect(data).toEqual({ ...defaults, stars: { opushka: 3 }, fish: 12, perfect: ['opushka'], pending: { big: 1, small: 2 } });
+  });
+
+  it('сохранение первой версии доходит до текущей с музыкой по настройке звука', () => {
+    expect(parseSave({ version: 1, stars: {}, gear: {}, book: [], sound: false }, rules).data.music).toBe(false);
+    expect(parseSave({ version: 1, stars: {}, gear: {}, book: [] }, rules).data.music).toBe(true);
+  });
+
+  it('в текущей версии музыка читается сама по себе, мусор вместо неё — включена', () => {
+    expect(parseSave({ version: V, sound: false, music: true }, rules).data).toMatchObject({ sound: false, music: true });
+    expect(parseSave({ version: V, sound: true, music: false }, rules).data).toMatchObject({ sound: true, music: false });
+    expect(parseSave({ version: V, music: 'off' }, rules).data.music).toBe(true);
+  });
+});
+
 describe('Progress: запись', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -938,6 +970,19 @@ describe('Progress: запись', () => {
 
     expect(progress.soundOn).toBe(false);
     expect(saves).toEqual([{ ...defaults, sound: false }]);
+  });
+
+  it('выключение музыки уходит в сохранение отдельно от звука', () => {
+    const { storage, saves } = memoryStorage();
+    const progress = new Progress(storage, rules, 1000);
+
+    progress.setMusic(false);
+    progress.flush();
+    progress.setMusic(false);
+    progress.flush();
+
+    expect([progress.soundOn, progress.musicOn]).toEqual([true, false]);
+    expect(saves).toEqual([{ ...defaults, music: false }]);
   });
 
   it('без изменений ничего не пишет', () => {

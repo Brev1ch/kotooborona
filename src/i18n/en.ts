@@ -46,6 +46,8 @@ export const en: Record<StringKey, string> = {
   'pause.menu': 'Menu',
   'sound.on': 'Sound: on',
   'sound.off': 'Sound: off',
+  'music.on': 'Music: on',
+  'music.off': 'Music: off',
 
   'summon.button': 'Summon',
   'summon.left': '{left} of {limit}',

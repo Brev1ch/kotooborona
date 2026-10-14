@@ -35,6 +35,8 @@ export const MENU = {
   bookH: 50,
   bookGap: 12,
   soundPad: 12,
+  /** Между кнопками музыки и звука. */
+  soundGap: 8,
   /** Счётчик рыбок в левом верхнем углу. */
   fishX: 52,
   fishY: 34,
@@ -56,6 +58,12 @@ export const CHEST_POPUP = { y: 310, w: 316, h: 340, titleY: -140, itemY: -104, 
 /** Центр кнопки «Забрать» в окне сундука. */
 export function chestTakeCenter(): [number, number] {
   return [GAME_W / 2, CHEST_POPUP.y + CHEST_POPUP.buttonY];
+}
+
+/** Центр кнопки музыки в меню: слева от кнопки звука. */
+export function menuMusicCenter(): [number, number] {
+  const [x, y] = menuSoundCenter();
+  return [x - MIN_TOUCH - MENU.soundGap, y];
 }
 
 /** Центр кнопки звука в правом верхнем углу меню. */
@@ -259,8 +267,8 @@ export function pauseButtonCenter(): [number, number] {
   return [GAME_W - HUD_PAD - MIN_TOUCH / 2, HUD_H / 2];
 }
 
-// Меню паузы: заголовок и кнопки столбиком — «Продолжить», звук, «В меню».
-export const PAUSE_MENU = { titleY: 216, firstY: 290, buttonW: 220, buttonH: 50, gap: 12 };
+// Меню паузы: заголовок и кнопки столбиком — «Продолжить», звук, музыка, «В меню».
+export const PAUSE_MENU = { titleY: 186, firstY: 260, buttonW: 220, buttonH: 50, gap: 12 };
 
 /** Центр кнопки меню паузы; `index` — номер сверху с нуля. */
 export function pauseMenuButtonCenter(index: number): [number, number] {

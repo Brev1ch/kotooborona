@@ -36,6 +36,9 @@ export interface SmokeState {
   targets: SmokeTarget[];
   /** Звук включён игроком. */
   sound: boolean;
+  /** Музыка включена игроком и какие треки сейчас звучат. */
+  music: boolean;
+  tracks: string[];
   /** Загруженные текстуры готового арта: атласы (`art:<имя>`) и фоны уровней (`bg-<уровень>`). */
   art: string[];
   /** Надетые предметы по слотам; null — слот пуст. */
@@ -440,7 +443,7 @@ export function installSmokeProbe(game: Phaser.Game): void {
         ? (game.scene.getScene(SceneKey.Story) as StoryScene).progressState()
         : null;
       const artKeys = game.textures.getTextureKeys().filter((key) => key.startsWith('art:') || key.startsWith('bg-')).sort();
-      const common = { scenes, fading, targets, sound: audio.on, art: artKeys, worn, bag, shards: progress.shards, story, fish: progress.fish, chests: progress.chestsOpened, pending: { ...progress.pendingChests }, adChestWait: adChestWait(progress.adChestAt, Date.now(), ads.chest.cooldown) };
+      const common = { scenes, fading, targets, sound: audio.on, music: audio.musicOn, tracks: audio.musicPlaying, art: artKeys, worn, bag, shards: progress.shards, story, fish: progress.fish, chests: progress.chestsOpened, pending: { ...progress.pendingChests }, adChestWait: adChestWait(progress.adChestAt, Date.now(), ads.chest.cooldown) };
 
       // Сцена боя на паузе не числится среди активных, но она есть.
       const paused = game.scene.isPaused(SceneKey.Game);

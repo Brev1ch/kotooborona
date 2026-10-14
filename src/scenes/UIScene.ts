@@ -515,11 +515,12 @@ export class UIScene extends Phaser.Scene {
       this.gameScene.resumeBattle();
     });
     const sound = addSoundToggle(this, ...pauseMenuButtonCenter(1), buttonW, buttonH);
-    const menu = addButton(this, ...pauseMenuButtonCenter(2), buttonW, buttonH, t('pause.menu'), false, () => {
+    const music = addSoundToggle(this, ...pauseMenuButtonCenter(2), buttonW, buttonH, 'music');
+    const menu = addButton(this, ...pauseMenuButtonCenter(3), buttonW, buttonH, t('pause.menu'), false, () => {
       this.leaveToMenu();
     });
 
-    this.pauseMenu = this.add.container(0, 0, [dim, title, resume, sound, menu]);
+    this.pauseMenu = this.add.container(0, 0, [dim, title, resume, sound, music, menu]);
   }
 
   private addMeteorButton(): Phaser.GameObjects.Container {

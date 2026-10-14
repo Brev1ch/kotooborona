@@ -44,6 +44,8 @@ export const ru = {
   'pause.menu': 'В меню',
   'sound.on': 'Звук: вкл',
   'sound.off': 'Звук: выкл',
+  'music.on': 'Музыка: вкл',
+  'music.off': 'Музыка: выкл',
 
   'summon.button': 'Призвать',
   'summon.left': '{left} из {limit}',

@@ -17,6 +17,7 @@ import {
   menuBookCenter,
   menuCardCenter,
   menuChestCenter,
+  menuMusicCenter,
   menuSoundCenter,
   TEXT_COLORS,
 } from '../layout';
@@ -69,6 +70,8 @@ export class MenuScene extends Phaser.Scene {
 
     this.fish = addFishCounter(this, MENU.fishX, MENU.fishY, progress.fish);
     addSoundButton(this, ...menuSoundCenter());
+    addSoundButton(this, ...menuMusicCenter(), 'music');
+    audio.music(this, 'menu');
 
     this.chest = null;
     this.adChest = null;

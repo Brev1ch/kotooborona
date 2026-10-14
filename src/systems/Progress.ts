@@ -28,8 +28,10 @@ export interface SaveData {
   nextItem: number;
   /** Открытые коты. В сохранении новее кода здесь могут быть и незнакомые стихии. */
   book: string[];
-  /** Звук включён. */
+  /** Звуки включены. */
   sound: boolean;
+  /** Музыка включена: отдельно от звуков. */
+  music: boolean;
   /** Рыбки: валюта между уровнями. */
   fish: number;
   /** Сколько сундуков открыто. */
@@ -64,6 +66,8 @@ const MIGRATIONS: readonly Migration[] = [
   ({ gear, owned, gearLevels, ...save }, rules) => ({ ...save, ...inventoryFromOldGear(rules, gear, owned, gearLevels) }),
   // 5 → 6: сундук за первое прохождение уровня на три звезды, малые сундуки и сундук за рекламу. За уже пройденные на три звезды уровни сундуки выдаются сразу.
   (save) => ({ ...save, ...chestsForPerfectLevels(save.stars) }),
+  // 6 → 7: у музыки свой выключатель. Кто выключил звук, когда выключатель был один, остаётся и без музыки.
+  (save) => ({ ...save, music: save.sound !== false }),
 ];
 
 /** Сундуки за уровни, пройденные на три звезды до того, как за это стали давать сундук: по одному за каждый. */
@@ -157,7 +161,7 @@ export interface SaveStorage {
   save<T>(key: string, value: T): Promise<void>;
 }
 
-const KNOWN_FIELDS = ['version', 'stars', 'items', 'worn', 'shards', 'nextItem', 'book', 'sound', 'fish', 'chests', 'bestiary', 'perfect', 'pending', 'adChestAt'];
+const KNOWN_FIELDS = ['version', 'stars', 'items', 'worn', 'shards', 'nextItem', 'book', 'sound', 'music', 'fish', 'chests', 'bestiary', 'perfect', 'pending', 'adChestAt'];
 
 function isRecord(value: unknown): value is RawSave {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -212,6 +216,7 @@ export function defaultSave(rules: SaveRules, version = MIGRATIONS.length + 1): 
     ...inventoryFromOldGear(rules, rules.gear.defaults, [], {}),
     book: [],
     sound: true,
+    music: true,
     fish: 0,
     chests: 0,
     bestiary: [],
@@ -284,6 +289,7 @@ export function parseSave(raw: unknown, rules: SaveRules, migrations: readonly M
 
   // Поля нет в сохранениях, сделанных до появления звука: остаётся включённым.
   if (typeof save.sound === 'boolean') data.sound = save.sound;
+  if (typeof save.music === 'boolean') data.music = save.music;
 
   if (typeof save.fish === 'number' && Number.isFinite(save.fish)) data.fish = Math.max(0, Math.floor(save.fish));
 
@@ -523,6 +529,16 @@ export class Progress {
     this.touch();
   }
 
+  get musicOn(): boolean {
+    return this.data.music;
+  }
+
+  setMusic(on: boolean): void {
+    if (this.data.music === on) return;
+    this.data.music = on;
+    this.touch();
+  }
+
   get fish(): number {
     return this.data.fish;
   }
@@ -547,7 +563,7 @@ export class Progress {
     this.timer = null;
     if (!this.dirty) return;
     this.dirty = false;
-    const { version, stars, items, worn, shards, nextItem, book, sound, fish, chests, bestiary, perfect, pending, adChestAt } = this.data;
+    const { version, stars, items, worn, shards, nextItem, book, sound, music, fish, chests, bestiary, perfect, pending, adChestAt } = this.data;
     const snapshot = {
       ...this.extra,
       version,
@@ -558,6 +574,7 @@ export class Progress {
       nextItem,
       book: [...book],
       sound,
+      music,
       fish,
       chests,
       bestiary: [...bestiary],

@@ -121,31 +121,43 @@ export function addButton(
   return button;
 }
 
-/** Переключатель звука с подписью «Звук: вкл» / «Звук: выкл». */
+/** Что переключает кнопка: звуки или музыку. У каждого своя настройка в сохранении. */
+export type SoundKind = 'sound' | 'music';
+
+const isOn = (kind: SoundKind): boolean => (kind === 'sound' ? audio.on : audio.musicOn);
+const toggle = (kind: SoundKind): boolean => (kind === 'sound' ? audio.toggle() : audio.toggleMusic());
+
+/** Переключатель с подписью: «Звук: вкл» / «Звук: выкл» или «Музыка: вкл» / «Музыка: выкл». */
 export function addSoundToggle(
   scene: Phaser.Scene,
   x: number,
   y: number,
   width: number,
   height: number,
+  kind: SoundKind = 'sound',
 ): Phaser.GameObjects.Container {
-  const label = (): string => t(audio.on ? 'sound.on' : 'sound.off');
+  const label = (): string => t(`${kind}.${isOn(kind) ? 'on' : 'off'}`);
   const { button, bg, text } = makeButton(scene, x, y, width, height, label(), false);
+  // По имени кнопку находит смоук-проверка.
+  bg.setName(`toggle:${kind}`);
   addPressFeel(scene, bg, button);
   bg.on('pointerdown', () => {
-    audio.toggle();
+    toggle(kind);
     text.setText(label());
     audio.play('click');
   });
   return button;
 }
 
-/** Кнопка звука: динамик с волнами, а когда звук выключен — перечёркнутый. Состояние хранится в сохранении. */
-export function addSoundButton(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Container {
+/**
+ * Кнопка звука или музыки: динамик с волнами или нота, а когда выключено — серые и перечёркнутые.
+ * Состояние каждой хранится в сохранении.
+ */
+export function addSoundButton(scene: Phaser.Scene, x: number, y: number, kind: SoundKind = 'sound'): Phaser.GameObjects.Container {
   const bg = scene.add
     .rectangle(0, 0, MIN_TOUCH, MIN_TOUCH, COLORS.panel)
     .setStrokeStyle(1, COLORS.line)
-    .setName('sound')
+    .setName(kind)
     .setInteractive({ useHandCursor: true });
   const icon = scene.add.graphics();
   const button = scene.add.container(x, y, [bg, icon]);
@@ -154,6 +166,17 @@ export function addSoundButton(scene: Phaser.Scene, x: number, y: number): Phase
     const color = on ? COLORS.range : COLORS.line;
     icon.clear();
     icon.fillStyle(color);
+    icon.lineStyle(2, color);
+    if (kind === 'music') {
+      // Нота: две головки, штили и перекладина.
+      icon.fillEllipse(-7, 8, 8, 6);
+      icon.fillEllipse(5, 5, 8, 6);
+      icon.lineBetween(-4, 8, -4, -8);
+      icon.lineBetween(8, 5, 8, -11);
+      icon.fillPoints([{ x: -5, y: -9 }, { x: 9, y: -12 }, { x: 9, y: -8 }, { x: -5, y: -5 }], true);
+      if (!on) icon.lineBetween(-11, -11, 12, 12);
+      return;
+    }
     icon.fillRect(-11, -4, 6, 8);
     icon.fillTriangle(-6, -4, 1, -10, 1, 10);
     icon.fillTriangle(-6, -4, 1, 10, -6, 4);
@@ -169,11 +192,11 @@ export function addSoundButton(scene: Phaser.Scene, x: number, y: number): Phase
       icon.lineBetween(12, -5, 5, 5);
     }
   };
-  draw(audio.on);
+  draw(isOn(kind));
 
   addPressFeel(scene, bg, button);
   bg.on('pointerdown', () => {
-    draw(audio.toggle());
+    draw(toggle(kind));
     // Слышно только при включении: так игрок сразу понимает, что звук вернулся.
     audio.play('click');
   });

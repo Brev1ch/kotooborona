@@ -18,6 +18,7 @@ import {
   menuBestiaryCenter,
   menuBookCenter,
   menuCardCenter,
+  menuMusicCenter,
   menuAdChestCenter,
   menuChestCenter,
   menuSoundCenter,
@@ -31,6 +32,7 @@ import {
   storySkipCenter,
   SUMMON_X,
 } from '../src/layout';
+import artIndex from '../public/assets/art/index.json' with { type: 'json' };
 import { SceneKey } from '../src/scenes/keys';
 import type { SmokeState, SmokeTarget } from '../src/smoke';
 import { GEAR_SLOTS } from '../src/systems/Progress';
@@ -159,6 +161,10 @@ test.beforeEach(async ({ page }, testInfo) => {
       const file = new URL(route.request().url()).pathname.split('/assets/art/')[1];
       return route.fulfill({ path: `${SMOKE_ART}/out/${file}` });
     });
+    // И с музыкой, которой в игре пока нет: оба трека объявлены готовыми, вместо файлов — один из звуков игры.
+    await page.route('**/assets/music/index.json', (route) => route.fulfill({ json: { tracks: ['menu', 'battle'] } }));
+    await page.route('**/assets/music/*.ogg', (route) => route.fulfill({ path: 'public/assets/sfx/win.ogg' }));
+    await page.route('**/assets/music/*.mp3', (route) => route.fulfill({ path: 'public/assets/sfx/win.mp3' }));
   }
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
@@ -222,6 +228,29 @@ test('старое сохранение: меню → книга → бести�
       await page.waitForTimeout(PRESS_SETTLE_MS);
     }
     checkConsole('кнопка звука');
+  });
+
+  await test.step('кнопка музыки', async () => {
+    // Трек меню звучит, только если он есть (проект с заглушками); без файлов музыка молчит, но выключатель работает.
+    const playing = WITH_ART ? ['menu'] : [];
+    await waitFor(
+      page,
+      SCREEN_TIMEOUT,
+      (s) => s.music && s.tracks.join() === playing.join(),
+      (s) => `В меню звучит [${s?.tracks.join(', ')}], а должно [${playing.join(', ')}]`,
+    );
+    for (const expected of [false, true]) {
+      await tap(page, ...menuMusicCenter());
+      await waitFor(
+        page,
+        SUMMON_TIMEOUT,
+        (s) => s.music === expected && s.sound && s.tracks.join() === (expected ? playing : []).join(),
+        (s) => `Нажатие на кнопку музыки не ${expected ? 'включило' : 'выключило'} музыку: звучит [${s?.tracks.join(', ')}], звук ${s?.sound ? 'включён' : 'выключен'}`,
+      );
+      await page.waitForTimeout(PRESS_SETTLE_MS);
+    }
+    await page.screenshot({ path: `${SHOTS}/${shot('menu-music')}` });
+    checkConsole('кнопка музыки');
   });
 
   await test.step('книга котов', async () => {
@@ -487,6 +516,21 @@ test('старое сохранение: меню → книга → бести�
     }
     if (shot) await page.screenshot({ path: `${SHOTS}/${shot}` });
     await checkTouchSizes(page, step);
+
+    // Выключатели звука и музыки в меню паузы независимы; в бою играет свой трек, если он есть.
+    const playing = WITH_ART ? ['battle'] : [];
+    for (const [index, kind] of [[1, 'sound'], [2, 'music']] as const) {
+      for (const expected of [false, true]) {
+        await tap(page, ...pauseMenuButtonCenter(index));
+        await waitFor(
+          page,
+          SUMMON_TIMEOUT,
+          (s) => s[kind] === expected && s[kind === 'sound' ? 'music' : 'sound'] && s.tracks.join() === (s.music ? playing : []).join(),
+          (s) => `Меню паузы (${step}): выключатель «${kind}» не сработал — звук ${s?.sound}, музыка ${s?.music}, звучит [${s?.tracks.join(', ')}]`,
+        );
+        await page.waitForTimeout(PRESS_SETTLE_MS);
+      }
+    }
 
     await tap(page, ...pauseMenuButtonCenter(0));
     await waitFor(
@@ -942,9 +986,12 @@ test('все уровни главы запускаются, кот продаё
         (s) => s.scenes.includes(SceneKey.UI) && s.hud !== null,
         (s) => `Уровень ${id} не запустился: ${scenesText(s)}`,
       );
-      // Арт: атласы загружены при запуске, из фонов — только фон этого уровня; без арта не загружено ничего.
+      // Арт: атласы загружены при запуске, из фонов — только фон этого уровня. С заглушками готово всё, без них — то, что уже нарисовано.
       const loaded = (await state(page))?.art ?? [];
-      const expected = WITH_ART ? ['art:ui', 'art:units', `bg-${id}`] : [];
+      const ready: { atlases: object; images: object } = artIndex;
+      const expected = WITH_ART
+        ? ['art:ui', 'art:units', `bg-${id}`]
+        : [...Object.keys(ready.atlases).map((name) => `art:${name}`).sort(), ...(`bg-${id}` in ready.images ? [`bg-${id}`] : [])];
       if (loaded.join() !== expected.join()) throw new Error(`Уровень ${id}: загружен арт [${loaded.join(', ')}], а должен быть [${expected.join(', ')}]`);
       // Коты на поле показывают, где клетки, а первая волна — где дорога.
       for (let n = 0; n < CATS; n++) await tap(page, SUMMON_X, CONTROLS_CENTER_Y);

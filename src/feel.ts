@@ -389,3 +389,17 @@ export const SOUND_FEEL = {
 };
 
 export type SoundId = keyof typeof SOUND_FEEL;
+
+/**
+ * Фоновая музыка: громкость каждого трека от 0 до 1 (тише звуков: она идёт всё время) и за сколько мс один трек сменяет другой.
+ * Какой трек где играет, решают сцены: `audio.music(scene, id)`. Файлы собирает `npm run sfx` (таблица `MUSIC`); пока трека нет, игра молчит.
+ */
+export const MUSIC_FEEL = {
+  fadeMs: 900,
+  tracks: {
+    menu: { volume: 0.35 },
+    battle: { volume: 0.3 },
+  },
+};
+
+export type MusicId = keyof typeof MUSIC_FEEL.tracks;

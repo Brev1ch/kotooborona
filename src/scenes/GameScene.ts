@@ -190,6 +190,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setViewport(0, BOARD_Y, BOARD_W, BOARD_H);
     this.cameras.main.setBackgroundColor(COLORS.board);
     fadeIn(this);
+    audio.music(this, 'battle');
 
     // Дорога, ворота и клетки не меняются — запекаются в одну картинку.
     // На готовом фоне дорога и ворота уже нарисованы: поверх него кодом ложатся только клетки.
