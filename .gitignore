@@ -8,6 +8,10 @@ test-results/
 # Архив для консоли Яндекс Игр, см. npm run pack.
 pack/
 
-# Сырые паки звуков (Kenney, CC0). В сборку идут только сжатые файлы из public/assets/sfx, см. npm run sfx.
-# И исходники картинок: в сборку идут атласы и фоны из public/assets/art, см. npm run art.
-assets-src/
+# Скачанные паки звуков (Kenney, CC0; ссылки — в начале scripts/sfx.mjs): каждый в своей папке assets-src/sfx/<пак>.
+# Свои исходники лежат в git: голоса (assets-src/sfx/voices) и картинки (assets-src/art).
+# В сборку идут только сжатые звуки public/assets/sfx и атласы public/assets/art, см. npm run sfx и npm run art.
+assets-src/sfx/*
+!assets-src/sfx/voices/
+# Превью вырезки котов пересобирает npm run art; копия для истории — docs/screens/cats-preview.png.
+assets-src/art/preview.png
