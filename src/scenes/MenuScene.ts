@@ -195,7 +195,7 @@ export class MenuScene extends Phaser.Scene {
     const loot = rollChest(gear, cats, progress.newItemId(), random, kind);
     const shards = progress.claimChest(loot, source, Date.now());
     progress.flush();
-    audio.play('hybrid');
+    audio.play('chest');
     this.addAdChest();
     this.showLoot(loot, shards, kind);
   }

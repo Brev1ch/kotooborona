@@ -24,7 +24,7 @@ import type { Projectile } from '../entities/Projectile';
 import { EnemyView } from '../entities/EnemyView';
 import { HeroView } from '../entities/HeroView';
 import type { PieceView } from '../entities/PieceView';
-import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, SPEED_FEEL, TOAST_FEEL } from '../feel';
+import { CAT_FEEL, DRAG_FEEL, ENEMY_FEEL, FX_FEEL, HINT_FEEL, MERGE_FEEL, METEOR_FEEL, SHOT_FEEL, SHOT_SOUND, SPEED_FEEL, TOAST_FEEL } from '../feel';
 import { t, type StringKey } from '../i18n';
 import { BOARD_H, BOARD_W, BOARD_Y, COLORS, CONTROLS_H, DEPTH, FONTS, ROAD, SLOT_RADIUS, TEXT_COLORS } from '../layout';
 import { platform } from '../platform';
@@ -543,7 +543,7 @@ export class GameScene extends Phaser.Scene {
       case 'shot':
         this.catView(event.slot)?.playShot();
         this.addProjectileView(event.projectile);
-        audio.play('shot');
+        audio.play(SHOT_SOUND[event.projectile.element] ?? 'shot');
         break;
 
       case 'hit':
@@ -587,7 +587,7 @@ export class GameScene extends Phaser.Scene {
         const { radius } = event;
         const { auraFrom, auraAlpha, auraMs } = FX_FEEL;
         this.catView(event.slot)?.playShot();
-        audio.play('shot');
+        audio.play(SHOT_SOUND[event.element] ?? 'shot');
         this.playCircle(this.rings, x, y, elementColor(event.element), radius * auraFrom, radius, auraAlpha, auraMs);
         break;
       }

@@ -1,3 +1,5 @@
+import type { ElementId } from './data/types';
+
 // Длительности (мс) и параметры анимаций: всё, что подкручивается «по ощущениям».
 
 /** Способы показать уровень кота на готовой картинке: цифра на плашке под котом, звёздочки под котом, свечение с ободком клетки. */
@@ -410,6 +412,11 @@ export const SOUND_FEEL = {
   hybrid: { volume: 0.8, minIntervalMs: 0, voices: 2, detune: 0 },
   /** Тихий и редкий: поле из двенадцати котов не должно трещать. */
   shot: { volume: 0.12, minIntervalMs: 110, voices: 3, detune: 250 },
+  /** Выстрелы базовых стихий: у каждой свой звук, так же тихо и редко, как общий. */
+  shotFire: { volume: 0.14, minIntervalMs: 110, voices: 2, detune: 200 },
+  shotWater: { volume: 0.14, minIntervalMs: 110, voices: 2, detune: 200 },
+  shotEarth: { volume: 0.1, minIntervalMs: 140, voices: 2, detune: 150 },
+  shotAir: { volume: 0.12, minIntervalMs: 90, voices: 2, detune: 250 },
   hit: { volume: 0.2, minIntervalMs: 70, voices: 3, detune: 200 },
   enemyDeath: { volume: 0.4, minIntervalMs: 80, voices: 3, detune: 150 },
   coins: { volume: 0.45, minIntervalMs: 120, voices: 2, detune: 100 },
@@ -417,9 +424,18 @@ export const SOUND_FEEL = {
   meteor: { volume: 0.9, minIntervalMs: 0, voices: 1, detune: 0 },
   win: { volume: 0.7, minIntervalMs: 0, voices: 1, detune: 0 },
   lose: { volume: 0.7, minIntervalMs: 0, voices: 1, detune: 0 },
+  chest: { volume: 0.7, minIntervalMs: 0, voices: 1, detune: 0 },
 };
 
 export type SoundId = keyof typeof SOUND_FEEL;
+
+/** Звук выстрела кота по стихии; у стихий, которых здесь нет (гибриды), — общий `shot`. */
+export const SHOT_SOUND: Partial<Record<ElementId, SoundId>> = {
+  fire: 'shotFire',
+  water: 'shotWater',
+  earth: 'shotEarth',
+  air: 'shotAir',
+};
 
 /**
  * Фоновая музыка: громкость каждого трека от 0 до 1 (тише звуков: она идёт всё время) и за сколько мс один трек сменяет другой.

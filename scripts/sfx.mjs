@@ -6,6 +6,7 @@
 //   assets-src/sfx/impact-sounds     https://kenney.nl/assets/impact-sounds
 //   assets-src/sfx/rpg-audio         https://kenney.nl/assets/rpg-audio
 //   assets-src/sfx/digital-audio     https://kenney.nl/assets/digital-audio
+//   assets-src/sfx/sci-fi-sounds     https://kenney.nl/assets/sci-fi-sounds
 // Нужен ffmpeg с libvorbis и libmp3lame.
 //
 // У каждого звука должна быть строка в docs/CREDITS.md с тем же исходным файлом, паком, автором и лицензией:
@@ -21,16 +22,24 @@ const CREDITS = 'docs/CREDITS.md';
 /** Общий вес всех файлов (ogg и mp3 вместе), байты. */
 const BUDGET = 500 * 1024;
 const SAMPLE_RATE = 44100;
+/** Какая доля обрезанного звука в конце уходит на затухание. */
+const TRIM_FADE = 0.4;
 
 // Имя звука (SoundId в src/feel.ts) → исходник. Громкость в игре задаётся в SOUND_FEEL, здесь — только подготовка файла:
 //   gain  — усиление в дБ для тихих исходников;
-//   pitch — множитель высоты и скорости (меньше 1 — ниже и длиннее).
+//   pitch — множитель высоты и скорости (меньше 1 — ниже и длиннее);
+//   trim  — оставить только первые столько секунд, с затуханием в конце: из длинного исходника получается короткий звук.
 const SOUNDS = {
   click: { src: 'interface-sounds/Audio/click_001.ogg' },
   summon: { src: 'interface-sounds/Audio/maximize_008.ogg' },
   merge: { src: 'interface-sounds/Audio/confirmation_001.ogg' },
   hybrid: { src: 'interface-sounds/Audio/confirmation_002.ogg' },
   shot: { src: 'interface-sounds/Audio/pluck_001.ogg' },
+  // Выстрелы базовых стихий: огонь — вспышка пламени, вода — всплеск, земля — удар по камню, воздух — взмах ткани.
+  shotFire: { src: 'sci-fi-sounds/Audio/thrusterFire_000.ogg', trim: 0.22, gain: 7 },
+  shotWater: { src: 'sci-fi-sounds/Audio/slime_000.ogg', trim: 0.28, pitch: 1.25, gain: 6 },
+  shotEarth: { src: 'impact-sounds/Audio/impactMining_000.ogg', trim: 0.3 },
+  shotAir: { src: 'rpg-audio/Audio/cloth1.ogg', trim: 0.25, pitch: 1.2 },
   hit: { src: 'impact-sounds/Audio/impactSoft_medium_000.ogg' },
   enemyDeath: { src: 'impact-sounds/Audio/impactPunch_medium_001.ogg' },
   coins: { src: 'rpg-audio/Audio/handleCoins2.ogg', gain: 9 },
@@ -38,6 +47,7 @@ const SOUNDS = {
   meteor: { src: 'impact-sounds/Audio/impactPunch_heavy_000.ogg', pitch: 0.6 },
   win: { src: 'digital-audio/Audio/zapThreeToneUp.ogg' },
   lose: { src: 'digital-audio/Audio/lowThreeTone.ogg' },
+  chest: { src: 'rpg-audio/Audio/doorOpen_1.ogg' },
 };
 
 // Фоновая музыка: имя трека (MusicId в src/feel.ts) → исходник в assets-src/music. Громкость в игре — в MUSIC_FEEL.
@@ -114,11 +124,12 @@ for (const file of readdirSync(OUT)) {
 }
 
 let total = 0;
-for (const [id, { src, gain = 0, pitch = 1 }] of Object.entries(SOUNDS)) {
+for (const [id, { src, gain = 0, pitch = 1, trim = 0 }] of Object.entries(SOUNDS)) {
   const filters = [];
   if (pitch !== 1) filters.push(`asetrate=${SAMPLE_RATE}*${pitch}`);
   filters.push(`aresample=${SAMPLE_RATE}`);
   if (gain !== 0) filters.push(`volume=${gain}dB`);
+  if (trim > 0) filters.push(`atrim=0:${trim}`, `afade=t=out:st=${(trim * (1 - TRIM_FADE)).toFixed(3)}:d=${(trim * TRIM_FADE).toFixed(3)}`);
 
   const sizes = [];
   for (const [ext, codec] of Object.entries(FORMATS)) {
